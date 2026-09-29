@@ -13,7 +13,7 @@
 
 20221346A	Flores Alberca, Ángel Aarón
 
-20194028H	"Yarleque Ramos Gabriel Gerardo" <gabriel.yarleque.r@uni.pe>
+"Yarleque Ramos Gabriel Gerardo" <gabriel.yarleque.r@uni.pe>
 
 "Luna Bueno Aldo" <alunab@uni.pe>
 
@@ -28,5 +28,7 @@
 "Unda Miguel Carlos Sinai" <cundam@uni.pe>
 
 20200570J	Vega Soldevilla Miguel Angel
+
+20194532H Hermoza Terreros Christian Omar <christian.hermoza.t@uni.pe>
 
 "Violeta Estrella Piero Alexis" <piero.violeta.e@uni.pe>
