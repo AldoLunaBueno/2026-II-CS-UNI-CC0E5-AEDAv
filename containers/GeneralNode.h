@@ -16,7 +16,16 @@ public:
     T&   value()          { return m_value; } // acceso mutable para ApplyFunction
 
     friend std::ostream &operator <<(std::ostream &os, const GeneralNode<T> &node) {
-        os << "(" << node.getValue() << "," << node.getRef() << ")";
+        os << "(" << node.m_value << "," << node.m_ref << ")";
+        return os;
+    }
+
+    // DONE
+    // TODO: El operator<< deberia ir en GeneralNode, no en LinkedListNode, para que sea generico y reusable.
+    // Cambié los métodos getter por simples referencias a las variables
+    // porque esto es más coherente en funciones con especificador friend
+    friend std::ostream &operator <<(std::ostream &os, const GeneralNode<T> &node) {
+        os << "(" << node.m_value << "," << node.m_ref << ")";
         return os;
     }
 };
