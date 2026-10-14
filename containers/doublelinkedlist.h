@@ -9,11 +9,12 @@ public:
     using Base             = LinkedList<Traits>;
     using BackwardIterator = typename Traits::BackwardIterator;
     using Base::Base;
+    using NodePtr          = typename Base::NodePtr;
 
 protected:
-    void linkNode(typename Traits::Node* pNew,
-                  typename Traits::Node* pPrev,
-                  typename Traits::Node* pNext = nullptr) override {
+    void linkNode(NodePtr pNew,
+                  NodePtr pPrev,
+                  NodePtr pNext = nullptr) override {
         pNew->m_pPrev = pPrev;
         if (pNext)
             pNext->m_pPrev = pNew;

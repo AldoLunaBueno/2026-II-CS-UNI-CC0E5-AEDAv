@@ -8,11 +8,12 @@ class CircularLinkedList : virtual public LinkedList< Traits > {
 public:
     using Base = LinkedList<Traits>;
     using Base::Base; // constructores default, initializer_list
+    using NodePtr = typename Base::NodePtr;
 
 protected:
-    void linkNode(typename Traits::Node* pNew,
-                  typename Traits::Node* pPrev,
-                  typename Traits::Node* pNext = nullptr) override {
+    void linkNode(NodePtr pNew,
+                  NodePtr pPrev,
+                  NodePtr pNext = nullptr) override {
         if (this->m_pTail)
             this->m_pTail->m_pNext = this->m_pRoot;
     }
