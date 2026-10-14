@@ -56,15 +56,18 @@ public:
     using ForwardIterator   = typename Traits::ForwardIterator;
     using Compare           = typename Traits::Compare;
     using Delim             = typename Node::Delim;
-private:
+protected:
     NodePtr m_pRoot = nullptr; // puntero al primer nodo de la lista enlazada
     NodePtr m_pTail = nullptr; // puntero al último nodo de la lista enlazada
-    
+
     Compare m_comp; // comparador para ordenar los nodos de la lista
     mutable std::mutex m_mutex; // mutex para sincronización
 
+    virtual void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) {}
+private:
+
     NodePtr GetRoot() const { return m_pRoot; }
-    void internalInsert(const value_type& value, Ref ref, NodePtr& rParent);
+    void internalInsert(const value_type& value, Ref ref, NodePtr& rParent, NodePtr pPrev = nullptr);
 
 public:
     LinkedList() {}
@@ -151,7 +154,7 @@ template <typename Traits>
 LinkedList<Traits>& LinkedList<Traits>::operator=(const LinkedList<Traits>& other){ 
     clear();
     if(!other.m_pRoot)
-        return;
+        return *this;
     std::lock_guard<std::mutex> lock(other.m_mutex);
 
     m_pRoot = new Node(other.GetRoot()->getValue(), other.GetRoot()->getRef(), nullptr);
@@ -171,8 +174,13 @@ LinkedList<Traits>& LinkedList<Traits>::operator=(const LinkedList<Traits>& othe
 template <typename Traits>
 void LinkedList<Traits>::clear(){
     scoped_lock lock(m_mutex);
-    for (auto it = begin(); it != end(); ++it){
-        delete& (*it);
+    if (!m_pRoot) return;
+    if (m_pTail) m_pTail->m_pNext = nullptr; // Si es circular rompe el ciclo
+    NodePtr curr = m_pRoot;
+    while (curr) {
+        NodePtr next = curr->m_pNext;
+        delete curr;
+        curr = next;
     }
     m_pRoot = nullptr;
     m_pTail = nullptr;
@@ -181,6 +189,7 @@ void LinkedList<Traits>::clear(){
 template<typename Traits>
 void LinkedList<Traits>::push_back(const value_type& value, Ref ref){
     scoped_lock lock(m_mutex);
+    NodePtr pPrev = this->m_pTail; // Guardar cola anterior antes de crear
     NodePtr new_node = new Node(value, ref, nullptr);
     if (!this->m_pRoot){
         this->m_pRoot = new_node;
@@ -189,6 +198,7 @@ void LinkedList<Traits>::push_back(const value_type& value, Ref ref){
         this->m_pTail->m_pNext = new_node;
         this->m_pTail = new_node;
     }
+    linkNode(new_node, pPrev, nullptr);
 }
 
 /*
@@ -197,12 +207,13 @@ si el nodo padre es nullptr, crea uno nuevo con el valor y retorna
 insert(...) empieza desde el nodo raiz
 */
 template <typename Traits>
-void LinkedList<Traits>::internalInsert(const value_type& value, Ref ref, NodePtr& rParent) {
+void LinkedList<Traits>::internalInsert(const value_type& value, Ref ref, NodePtr& rParent, NodePtr pPrev) {
     if (rParent == nullptr || value < rParent->getValue()) {
         rParent = new Node(value, ref, rParent);
-        m_pTail = rParent;
+        if (rParent->m_pNext == nullptr) m_pTail = rParent;
+        linkNode(rParent, pPrev, rParent->m_pNext);
         return;
     }
-    internalInsert(value, ref, rParent->m_pNext);
+    internalInsert(value, ref, rParent->m_pNext, rParent);
 }
 #endif // __LINKEDLIST_H__
