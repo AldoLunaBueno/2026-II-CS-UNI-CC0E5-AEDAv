@@ -19,9 +19,9 @@ public:
 template <typename T>
 class LinkedListForwardIterator : public GeneralIterator<LinkedListForwardIterator<T>, LinkedListNode<T>> {
 public:
-    using value_type = LinkedListNode<T>;
+    using Node = LinkedListNode<T>;
     using MySelf = LinkedListForwardIterator<T>;
-    using Parent = GeneralIterator<MySelf, value_type>;
+    using Parent = GeneralIterator<MySelf, Node>;
     using Parent::Parent; // Inherit constructor
     LinkedListForwardIterator& operator++() { Parent::m_ptr = Parent::m_ptr->m_pNext; return *this; }
 };
