@@ -18,13 +18,10 @@ public:
         : Base(values) {}
 
 protected:
-    void linkNode(NodePtr pNew,
-                  NodePtr pPrev,
-                  NodePtr pNext = nullptr) override {
+    void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) override {
         CircularBase::linkNode(pNew, pPrev, pNext);
         DoubleBase::linkNode(pNew, pPrev, pNext);
-        if (this->m_pRoot)
-            this->m_pRoot->m_pPrev = this->m_pTail;
+        if (this->m_pRoot) this->m_pRoot->m_pPrev = this->m_pTail;
     }
 };
 

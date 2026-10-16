@@ -11,11 +11,8 @@ public:
     using NodePtr = typename Base::NodePtr;
 
 protected:
-    void linkNode(NodePtr pNew,
-                  NodePtr pPrev,
-                  NodePtr pNext = nullptr) override {
-        if (this->m_pTail)
-            this->m_pTail->m_pNext = this->m_pRoot;
+    void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) override {
+        if (this->m_pTail) this->m_pTail->m_pNext = this->m_pRoot;
     }
 };
 

@@ -24,7 +24,10 @@ public:
     using MySelf = LinkedListForwardIterator<T>;
     using Parent = GeneralIterator<MySelf, value_type>;
     using Parent::Parent; // Inherit constructor
-    LinkedListForwardIterator& operator++() { Parent::m_ptr = Parent::m_ptr->m_pNext; return *this; }
+    LinkedListForwardIterator& operator++() { 
+        Parent::m_ptr = Parent::m_ptr->pNext == pTail ? nullptr : Parent::m_ptr->m_pNext;
+        return *this;
+    }
 };
 
 template <typename T, typename _Compare>

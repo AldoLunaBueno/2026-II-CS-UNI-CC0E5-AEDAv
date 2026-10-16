@@ -3,6 +3,26 @@
 
 #include "linkedlist.h"
 
+template <typename T>
+class LinkedListBackwardIterator : public GeneralIterator<LinkedListBackwardIterator<T>, LinkedListNode<T>> {
+public:
+    using value_type = LinkedListNode<T>;
+    using MySelf = LinkedListForwardIterator<T>;
+    using Parent = GeneralIterator<MySelf, value_type>;
+    using Parent::Parent; // Inherit constructor
+    LinkedListBackwardIterator& operator++() { Parent::m_ptr = Parent::m_ptr->m_pPrev; return *this; }
+};
+
+template <typename T>
+struct DoubleLinkedListAscTraits : public LinkedListAscTraits<T> {
+    using BackardIterator   = LinkedListBackwardIterator<T>;
+};
+
+template <typename T>
+struct DoubleLinkedListDescTraits : public LinkedListDescTraits<T> {
+    using BackardIterator   = LinkedListBackwardIterator<T>;
+};
+
 template <typename Traits>
 class DoubleLinkedList : virtual public LinkedList<Traits> {
 public:
@@ -12,12 +32,9 @@ public:
     using NodePtr          = typename Base::NodePtr;
 
 protected:
-    void linkNode(NodePtr pNew,
-                  NodePtr pPrev,
-                  NodePtr pNext = nullptr) override {
+    void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) override {
         pNew->m_pPrev = pPrev;
-        if (pNext)
-            pNext->m_pPrev = pNew;
+        if (pNext) pNext->m_pPrev = pNew;
     }
 
 public:
