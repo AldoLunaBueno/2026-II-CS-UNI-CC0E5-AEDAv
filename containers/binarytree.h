@@ -43,5 +43,6 @@ public:
     // Persistencia (operator << y operator >> globales para todas las estructuras pero si es para BT con indentacion entonces hacerlo por separado)
     // Concurrencia
     // Iteradores (forward y backward)
+    // FirstThat, ForEach, call, rcall por herencia
 };
 #endif // __BINARYTREE_H__
