@@ -7,6 +7,9 @@
 #include "foreach.h"
 #include "containers/vector.h"
 #include "containers/linkedlist.h"
+#include "containers/doublelinkedlist.h"
+#include "containers/circularlinkedlist.h"
+#include "containers/circulardoublelinkedlist.h"
 #include "Demos.h"
 using namespace std;
 
@@ -116,6 +119,7 @@ void TestForwardTraversal(Container &container){
 }
 
 void DemoVector() {
+    cout << "Pruebas del contenedor Vector" << endl;
     // Dejamos los archivos vacios para que TestContainer acumule (append)
     // el estado del container tras cada paso
     ofstream("vector.txt", ios::trunc).close();
@@ -177,45 +181,75 @@ void DemoRaceCondition() {
              << "sincroniza correctamente las inserciones concurrentes" << endl;
 }
 
-// TODO: Implementar DemoLinkedList() para probar la lista enlazada y sus iteradores.
-void DemoLinkedList()
-{
-    using IntLinkedList = LinkedList<LinkedListAscTraits<TX>>;
+template <typename Container>
+void TestLinkedList(Container &list, const string &filename) {
+    ofstream(filename, ios::trunc).close();
 
-    ofstream("linkedlist.txt", ios::trunc).close();
-
-    // Pruebas de pushback
-    IntLinkedList list;
-    TestContainer(list, {{5, 15}, {1, 11}, {8, 18}, {3, 13}}, "linkedlist.txt");
+    // Pruebas de push_back
+    TestContainer(list, {{5, 15}, {1, 11}, {8, 18}, {3, 13}}, filename);
     TestForwardTraversal(list);
 
-    auto elements = std::vector<pair<TX, Ref>>({{0, 10}, {1, 11}, {2, 12}, {3, 13}, {4, 14}});
-    for(auto& e : elements)
-        list.push_back(e.first, e.second);
+    InsertElements(list, {{0, 10}, {1, 11}, {2, 12}, {3, 13}, {4, 14}});
 
     // Pruebas de insert
     list.insert(4, 12);
     list.insert(11, 20);
     list.insert(7, 6);
-    cout << "LinkedList luego de hacer 3 inserts " << list << endl;
+    cout << "Lista luego de hacer 3 inserts: " << list << endl;
 
-    // Prueba de apply function
+    // Prueba de ApplyFunction
     list.ApplyFunction(AddOne);
-    cout << "LinkedList tras usar Add One a sus elementos: " << list << endl;
+    cout << "Lista tras usar AddOne a sus elementos: " << list << endl;
     list.ApplyFunction(AddX<TX>, TX(10));
-    cout << "LinkedList tras usar AddX(10) a sus elementos: " << list << endl;
+    cout << "Lista tras usar AddX(10) a sus elementos: " << list << endl;
 
     // Prueba de clear
     list.clear();
-    cout << "LinkedList luego de usar clear" << list << endl;
+    cout << "Lista luego de usar clear: " << list << endl;
     list.push_back(10, 2);
-    cout << "LinkedList luego de un nuevo push_back " << list << endl;
+    cout << "Lista luego de un nuevo push_back: " << list << endl;
 
-    // Prueba de lectura
-    IntLinkedList new_list;
-    ifstream in("linkedlist.txt");
+    // Prueba de lectura y asignacion (operator=)
+    Container new_list;
+    ifstream in(filename);
     in >> new_list;
     in.close();
-    cout << "LinkedList leida desde archivo: " << new_list << endl;
+    cout << "Lista leida desde archivo: " << new_list << endl;
     TestForwardTraversal(new_list);
+
+    list = new_list;
+}
+
+template <typename DoubleContainer>
+void TestDoubleLinkedListSpecifics(DoubleContainer &list) {
+    TestTraversal(list);
+
+    list.clear();
+    list.insert(5, 50);
+    list.insert(1, 10);
+    list.insert(9, 90);
+    list.insert(6, 60);
+    cout << "Lista tras inserts en cabeza, cola y medio: " << list << endl;
+    TestTraversal(list);
+}
+
+void DemoLinkedList()
+{
+    cout << "\nPruebas para LinkedList" << endl;
+    LinkedList<LinkedListAscTraits<TX>> list;
+    TestLinkedList(list, "linkedlist.txt");
+
+    cout << "\nPruebas para DoubleLinkedList" << endl;
+    DoubleLinkedList<DoubleLinkedListAscTraits<TX>> dlist;
+    TestLinkedList(dlist, "doublelinkedlist.txt");
+    TestDoubleLinkedListSpecifics(dlist);
+
+    cout << "\nPruebas para CircularLinkedList" << endl;
+    CircularLinkedList<LinkedListAscTraits<TX>> clist;
+    TestLinkedList(clist, "circularlinkedlist.txt");
+
+    cout << "\nPruebas para CircularDoubleLinkedList" << endl;
+    CircularDoubleLinkedList<DoubleLinkedListAscTraits<TX>> cdlist;
+    TestLinkedList(cdlist, "circulardoublelinkedlist.txt");
+    TestDoubleLinkedListSpecifics(cdlist);
 }
