@@ -25,7 +25,7 @@ public:
     using Parent = GeneralIterator<MySelf, value_type>;
     using Parent::Parent; // Inherit constructor
     LinkedListForwardIterator& operator++() { 
-        Parent::m_ptr = Parent::m_ptr->pNext == pTail ? nullptr : Parent::m_ptr->m_pNext;
+        Parent::m_ptr = Parent::m_ptr->m_pNext == Parent::m_pStart ? nullptr : Parent::m_ptr->m_pNext;
         return *this;
     }
 };
@@ -76,7 +76,7 @@ private:
 public:
     LinkedList() {}
     LinkedList(const LinkedList& another){ *this = another; } // copia profunda de la lista enlazada
-    LinkedList& operator=(const LinkedList& another); // no se permite asignacion
+    LinkedList& operator=(const LinkedList& another);
     LinkedList(initializer_list<pair<value_type, Ref>> values) {
         for (const auto &v : values)
             push_back(v.first, v.second);
@@ -91,6 +91,7 @@ public:
 
     void insert(const value_type& value, Ref ref) {
         scoped_lock lock(m_mutex);
+        if (m_pTail) m_pTail->m_pNext = nullptr; // Si es circular rompe el ciclo temporalmente
         internalInsert(value, ref, m_pRoot);
     }
 
@@ -156,22 +157,11 @@ public:
 
 template <typename Traits>
 LinkedList<Traits>& LinkedList<Traits>::operator=(const LinkedList<Traits>& other){ 
+    if (this == &other) return *this;
     clear();
-    if(!other.m_pRoot)
-        return *this;
     std::lock_guard<std::mutex> lock(other.m_mutex);
-
-    m_pRoot = new Node(other.GetRoot()->getValue(), other.GetRoot()->getRef(), nullptr);
-
-    NodePtr next = other.m_pRoot->m_pNext;
-    NodePtr curr = m_pRoot;
-
-    while(next){
-        curr->m_pNext = new Node(next->getValue(), next->getRef(), nullptr);
-        curr = curr->m_pNext;
-        next = next->m_pNext;
-    }
-    m_pTail = curr;
+    for (const auto& node : other)
+        push_back(node.getValue(), node.getRef());
     return *this;
 }
 
@@ -212,7 +202,7 @@ insert(...) empieza desde el nodo raiz
 */
 template <typename Traits>
 void LinkedList<Traits>::internalInsert(const value_type& value, Ref ref, NodePtr& rParent, NodePtr pPrev) {
-    if (rParent == nullptr || value < rParent->getValue()) {
+    if (rParent == nullptr || m_comp(value, rParent->getValue())) {
         rParent = new Node(value, ref, rParent);
         if (rParent->m_pNext == nullptr) m_pTail = rParent;
         linkNode(rParent, pPrev, rParent->m_pNext);

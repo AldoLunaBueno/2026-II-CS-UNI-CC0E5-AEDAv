@@ -6,8 +6,7 @@
 template < typename Traits >
 class CircularLinkedList : virtual public LinkedList< Traits > {
 public:
-    using Base = LinkedList<Traits>;
-    using Base::Base; // constructores default, initializer_list
+    using Base    = LinkedList<Traits>;
     using NodePtr = typename Base::NodePtr;
 
 protected:

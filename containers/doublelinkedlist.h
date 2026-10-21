@@ -7,20 +7,23 @@ template <typename T>
 class LinkedListBackwardIterator : public GeneralIterator<LinkedListBackwardIterator<T>, LinkedListNode<T>> {
 public:
     using value_type = LinkedListNode<T>;
-    using MySelf = LinkedListForwardIterator<T>;
+    using MySelf = LinkedListBackwardIterator<T>;
     using Parent = GeneralIterator<MySelf, value_type>;
     using Parent::Parent; // Inherit constructor
-    LinkedListBackwardIterator& operator++() { Parent::m_ptr = Parent::m_ptr->m_pPrev; return *this; }
+    LinkedListBackwardIterator& operator++() {
+        Parent::m_ptr = Parent::m_ptr->m_pPrev == Parent::m_pStart ? nullptr : Parent::m_ptr->m_pPrev;
+        return *this;
+    }
 };
 
 template <typename T>
 struct DoubleLinkedListAscTraits : public LinkedListAscTraits<T> {
-    using BackardIterator   = LinkedListBackwardIterator<T>;
+    using BackwardIterator  = LinkedListBackwardIterator<T>;
 };
 
 template <typename T>
 struct DoubleLinkedListDescTraits : public LinkedListDescTraits<T> {
-    using BackardIterator   = LinkedListBackwardIterator<T>;
+    using BackwardIterator  = LinkedListBackwardIterator<T>;
 };
 
 template <typename Traits>
@@ -28,7 +31,6 @@ class DoubleLinkedList : virtual public LinkedList<Traits> {
 public:
     using Base             = LinkedList<Traits>;
     using BackwardIterator = typename Traits::BackwardIterator;
-    using Base::Base;
     using NodePtr          = typename Base::NodePtr;
 
 protected:

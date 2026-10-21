@@ -13,10 +13,6 @@ public:
     using DoubleBase   = DoubleLinkedList<Traits>;
     using NodePtr      = typename Base::NodePtr;
 
-    CircularDoubleLinkedList() = default;
-    CircularDoubleLinkedList(std::initializer_list<std::pair<typename Traits::value_type, Ref>> values)
-        : Base(values) {}
-
 protected:
     void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) override {
         CircularBase::linkNode(pNew, pPrev, pNext);
