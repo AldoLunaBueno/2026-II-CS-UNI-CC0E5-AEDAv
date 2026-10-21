@@ -69,3 +69,6 @@ vcpkg_installed/
 Testing/
 .cache/
 main
+
+# Archivos de texto generados
+*.txt
