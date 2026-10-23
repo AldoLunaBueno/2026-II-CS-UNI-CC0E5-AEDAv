@@ -1,18 +1,22 @@
 #ifndef __HEAP_H__
 #define __HEAP_H__
 
+#include "GeneralContainer.h";
+
 template <typename Traits>
-class Heap {
+class Heap : GeneralContainer<Traits> {
     
 public:
-    using value_type        = typename Traits::value_type;
-    using Node              = typename Traits::Node;
+    using Base              = GeneralContainer<Traits>;
+    using value_type        = typename Base::value_type;
+    using Node              = typename Base::Node;
+    using ForwardIterator   = typename Traits::ForwardIterator;
     using NodePtr           = Node *;
     using Compare           = typename Traits::Compare;
 private:
     Vector<Node> m_data;
-    decltype(auto) begin() { return m_data.begin(); }
-    decltype(auto) end()   { return m_data.end();   }
+    decltype(auto) begin() const { return m_data.begin(); }
+    decltype(auto) end()   const { return m_data.end();   }
 
 public:
     friend ostream &operator <<(ostream &os, const Heap<Traits> &heap) {

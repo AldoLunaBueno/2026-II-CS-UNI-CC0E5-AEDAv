@@ -253,3 +253,8 @@ void DemoLinkedList()
     TestLinkedList(cdlist, "circulardoublelinkedlist.txt");
     TestDoubleLinkedListSpecifics(cdlist);
 }
+
+void DemoHeap() {
+    //Heap<VectorAscTraits<TX>> heap;
+    //TestHeap(heap);
+}

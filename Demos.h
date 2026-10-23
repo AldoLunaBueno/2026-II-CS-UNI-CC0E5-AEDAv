@@ -5,5 +5,6 @@
 void DemoVector();
 void DemoRaceCondition();
 void DemoLinkedList();
+void DemoHeap();
 
 #endif // __DEMOS_H__

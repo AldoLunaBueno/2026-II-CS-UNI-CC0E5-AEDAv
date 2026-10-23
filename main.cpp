@@ -10,5 +10,6 @@ int main() {
     DemoVector();
     DemoRaceCondition();
     DemoLinkedList();
+    DemoHeap();
     return 0;
 }
