@@ -37,37 +37,44 @@ public:
     virtual void clear() = 0;
     virtual void push_back(const value_type& value, Ref ref) = 0;
 
-    // Persistencia
-    friend std::ostream& operator<<(std::ostream& os, GeneralContainer& container) {
+    virtual std::ostream& write(std::ostream& os) {
         auto first = true;
         os << "[";
-        container.ApplyFunction([&os, &first](const Node& node){
+        for (auto it = this->begin(); it != this->end(); ++it ) {
             if (!first) os << ",";
-            os << node;
+            os << *it;
             first = false;
-        });
+        };
         return os << "]";
     }
 
-    friend std::istream &operator >>(std::istream& is, GeneralContainer& container) {
+    virtual std::istream& read(std::istream& is) {
         Delim d;
         Node node;
-        container.clear();
+        clear();
 
         is >> d;
         if (is >> d && d != ']'){
             is.unget();
             while(is >> node >> d){
-                container.push_back(node.getValue(), node.getRef());
+                push_back(node.getValue(), node.getRef());
                 if (d == ']') break;
             }    
         }
 
         return is; 
     }
-
-    std::ostream& write(std::ostream& os) { return os << *this; }
-    std::istream& read(std::istream& is) { return is >> *this; }
 };
+
+// Persistencia
+template <typename Traits, template <typename> typename... Mixins>
+std::ostream& operator<<(std::ostream& os, GeneralContainer<Traits, Mixins...>& container) {
+    return container.write(os);
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+std::istream& operator>>(std::istream& is, GeneralContainer<Traits, Mixins...>& container) {
+    return container.read(is);
+}
 
 #endif // __GENERAL_CONTAINER_H__
