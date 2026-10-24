@@ -38,6 +38,7 @@ public:
     size_t size() { return m_data.size(); }
 
     void push(const value_type &value, Ref ref) {
+        std::lock_guard<std::mutex> lock(m_mutex);
         m_data.push_back(value, ref);
         HeapifyUp(m_data.size() - 1);
     }
@@ -55,6 +56,7 @@ public:
     }
 
     Node pop() {
+        std::lock_guard<std::mutex> lock(m_mutex);
         static Node nullNode;
         if (m_data.empty()) return nullNode;
         Node root = m_data[0];
