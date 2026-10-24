@@ -29,6 +29,7 @@ public:
 protected:
     Heap() = default;
     using Parent::Parent;
+    using Parent::m_mutex;
     Vector<VectorAscTraits<value_type>> m_data;
 public:
     void push_back(const value_type& value, Ref ref) override { push(value, ref); }

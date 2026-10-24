@@ -11,5 +11,6 @@ int main() {
     DemoRaceCondition();
     DemoLinkedList();
     DemoHeap();
+    DemoBinaryTree();
     return 0;
 }

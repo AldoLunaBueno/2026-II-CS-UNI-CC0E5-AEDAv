@@ -10,6 +10,7 @@
 #include "containers/circularlinkedlist.h"
 #include "containers/circulardoublelinkedlist.h"
 #include "containers/Heap.h"
+#include "containers/binarytree.h"
 #include "Demos.h"
 using namespace std;
 
@@ -302,4 +303,38 @@ void DemoHeap() {
     cout << "\nPruebas para MaxHeap" << endl;
     MaxHeap maxHeap;
     TestHeap(maxHeap);
+}
+
+template <typename TreeContainer>
+void TestBinaryTree(TreeContainer &tree, const string &filename) {
+    ofstream(filename, ios::trunc).close();
+
+    // Pruebas de insercion y persistencia
+    TestContainer(tree, {{50, 5}, {20, 2}, {80, 8}, {10, 1}, {30, 3}, {70, 7}, {90, 9}}, filename);
+    // Recorrido in-order
+    TestTraversal(tree);
+
+    tree.ApplyFunction(AddOne);
+    cout << "Arbol tras usar AddOne: " << tree << endl;
+    tree.ApplyFunction(AddX<TX>, TX(10));
+    cout << "Arbol tras usar AddX(10): " << tree << endl;
+
+    tree.clear();
+    cout << "Arbol luego de usar clear: " << tree << endl;
+
+    // lectura
+    TreeContainer new_tree;
+    ifstream in(filename);
+    in >> new_tree;
+    in.close();
+    cout << "Arbol leido desde archivo: " << new_tree << endl;
+
+    tree = new_tree;
+    cout << "Arbol tras operator=: " << tree << endl;
+}
+
+void DemoBinaryTree() {
+    cout << "\nPruebas para BinaryTree" << endl;
+    BinaryTree<BinaryTreeAscTraits<TX>> tree;
+    TestBinaryTree(tree, "binarytree.txt");
 }
