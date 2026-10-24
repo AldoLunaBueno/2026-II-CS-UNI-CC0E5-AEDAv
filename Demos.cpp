@@ -37,7 +37,7 @@ template <typename Node>
 void PrintNode(Node &node, ostream &os) {
     os << node << " ";
 }
-const int NThreads = 5;
+const TX NThreads = 5;
 
 // Inserta secuencialmente cada pareja (valor, ref) de 'values' en el
 // Container, una por una. La insercion concurrente queda aislada en
@@ -153,7 +153,7 @@ void DemoRaceCondition() {
     // el mismo Vector, cada uno con un subconjunto entrelazado (stride)
     size_t n = values.size();
     vector<thread> workers;
-    for (int t = 0; t < NThreads; ++t) {
+    for (size_t t = 0; t < NThreads; ++t) {
         workers.emplace_back([&vec, &values, n, t](){
             for (size_t i = t; i < n; i += NThreads)
                 vec.push_back(values[i].first, values[i].second);
@@ -162,10 +162,10 @@ void DemoRaceCondition() {
     for (auto &worker : workers)
         worker.join();
 
-    long long expectedSum = 0;
+    TXX expectedSum = 0;
     for (auto &v : values) expectedSum += v.first;
 
-    long long actualSum = 0;
+    TXX actualSum = 0;
     for (size_t i = 0; i < vec.size(); ++i) actualSum += vec[i].getValue();
 
     cout << "DemoRaceCondition: se esperaban " << N << " elementos, "
