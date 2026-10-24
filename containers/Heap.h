@@ -1,26 +1,44 @@
 #ifndef __HEAP_H__
 #define __HEAP_H__
+#include "GeneralContainer.h"
+#include "vector.h"
 
-#include "GeneralContainer.h";
+template <typename T>
+struct HeapAscTraits : public AscendingTraits<T> {
+    using value_type        = T;
+    using Node              = GeneralNode<T>;
+    using ForwardIterator   = VectorForwardIterator<Node>;
+};
+
+template <typename T>
+struct HeapDescTraits : public DescendingTraits<T> {
+    using value_type        = T;
+    using Node              = GeneralNode<T>;
+    using ForwardIterator   = VectorForwardIterator<Node>;
+};
 
 template <typename Traits>
 class Heap : public GeneralContainer<Traits, Callable, Applicable> {
-    
 public:
-    using Parent              = GeneralContainer<Traits>;
+    using Parent            = GeneralContainer<Traits, Callable, Applicable>;
     using value_type        = typename Parent::value_type;
     using Node              = typename Parent::Node;
     using ForwardIterator   = typename Traits::ForwardIterator;
     using NodePtr           = Node *;
     using Compare           = typename Traits::Compare;
-private:
-    Vector<Node> m_data;
-    decltype(auto) begin() const override { return m_data.begin(); }
-    decltype(auto) end()   const override { return m_data.end();   }
-
+protected:
+    Heap() = default;
+    using Parent::Parent;
+    Vector<VectorAscTraits<value_type>> m_data;
 public:
+    void push_back(const value_type& value, Ref ref) override { push(value, ref); }
+
+    void clear() override { return m_data.clear(); }
+
+    size_t size() { return m_data.size(); }
+
     void push(const value_type &value, Ref ref) {
-        m_data.push_back(Node(value));
+        m_data.push_back(value, ref);
         HeapifyUp(m_data.size() - 1);
     }
 
@@ -35,25 +53,53 @@ public:
             }
         }
     }
+
     Node pop() {
-        if (m_data.empty()) return;
+        static Node nullNode;
+        if (m_data.empty()) return nullNode;
+        Node root = m_data[0];
         std::swap(m_data[0], m_data[m_data.size() - 1]);
         m_data.pop_back();
-        HeapifyDown(0);
+
+        if (!m_data.empty()) HeapifyDown(0);
+        return root;
     }
 
-};
+    void HeapifyDown(size_t index) {
+        while (true) {
+            size_t l = (index * 2) + 1;
+            size_t r = l + 1;
+            size_t best = index;
+            if (l < size() && Compare()(m_data[l].getValue(), m_data[best].getValue())) best = l;
+            if (r < size() && Compare()(m_data[r].getValue(), m_data[best].getValue())) best = r;
+            if (best == index) break;
+            std::swap(m_data[best], m_data[index]);
+            index = best;
+        }
+    }
 
-template <typename Traits>
-class MinHeap : public Heap<Traits> {
+    template <typename Func, typename... Args>
+    void ApplyFunction(Func func, Args&&... args) {
+        Parent::ApplyFunction(func, std::forward<Args>(args)...);
+        for (size_t i=1; i<size(); ++i) HeapifyUp(i);
+    }
 
-};
-
-template <typename Traits>
-class MaxHeap : public Heap<Traits> {
     
+    ForwardIterator begin() const override { return m_data.begin(); }
+    ForwardIterator end()   const override { return m_data.end();   }
 };
 
-
+class MinHeap : public Heap<HeapAscTraits<TX>> {
+public:
+    using Parent = Heap<HeapAscTraits<TX>>;
+    using Parent::Parent;
+    MinHeap() = default;
+};
+class MaxHeap : public Heap<HeapDescTraits<TX>> {
+public:
+    using Parent = Heap<HeapDescTraits<TX>>;
+    using Parent::Parent;
+    MaxHeap() = default;
+};
 
 #endif // __HEAP_H__

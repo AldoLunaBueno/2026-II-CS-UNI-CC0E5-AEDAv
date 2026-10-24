@@ -9,6 +9,7 @@
 #include "containers/doublelinkedlist.h"
 #include "containers/circularlinkedlist.h"
 #include "containers/circulardoublelinkedlist.h"
+#include "containers/Heap.h"
 #include "Demos.h"
 using namespace std;
 
@@ -23,6 +24,11 @@ void AddX(GeneralNode<T> &node, T x) {
 
 void Square(GeneralNode<TX> &node) {
     node.value() *= node.value();
+}
+
+template <typename T>
+void ModX(GeneralNode<T> &node, T x) {
+    node.value() %= x;
 }
 
 // Predicado generico para FirstThat/call: true si el valor del nodo es
@@ -253,7 +259,47 @@ void DemoLinkedList()
     TestDoubleLinkedListSpecifics(cdlist);
 }
 
+template <typename Heap>
+void InitHeap(Heap &heap) {
+    heap.push(50, 5);
+    heap.push(20, 2);
+    heap.push(80, 8);
+    heap.push(10, 1);
+    heap.push(30, 3);
+    heap.push(70, 7);
+    cout << "Tras inserciones: " << heap << endl;
+}
+
+template <typename Heap>
+void ExtractHeap(Heap &heap) {
+    cout << "Tras extracción: ";
+    while (!heap.empty()) {
+        auto node = heap.pop();
+        cout << node.getValue() << " ";
+    }
+    cout << endl;
+}
+
+template <typename Heap>
+void TestHeap(Heap& heap) {
+    InitHeap(heap);
+    ExtractHeap(heap);
+    InitHeap(heap);
+    heap.ApplyFunction(AddOne);
+    cout << "Tras aplicar AddOne: " << heap << endl;
+    TX m = 13;
+    heap.ApplyFunction(ModX<TX>, TX(m));
+    cout << "Tras aplicar mod " << m << ": " << heap << endl;
+    ExtractHeap(heap);
+    cout << endl;
+}
+
 void DemoHeap() {
-    //Heap<VectorAscTraits<TX>> heap;
-    //TestHeap(heap);
+    cout << "\nPruebas para MinHeap" << endl;
+    MinHeap minHeap;
+    TestHeap(minHeap);
+
+    cout << "\nPruebas para MaxHeap" << endl;
+    MaxHeap maxHeap;
+    TestHeap(maxHeap);
 }

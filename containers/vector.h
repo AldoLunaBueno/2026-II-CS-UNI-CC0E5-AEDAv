@@ -74,9 +74,7 @@ public:
             push_back(v.first, v.second);
     }
 
-    virtual ~Vector() {
-        clear();
-    }
+    virtual ~Vector() { clear(); }
 
     Vector(const Vector& other) {
         resize(other.m_size);
@@ -113,10 +111,9 @@ public:
         ++m_size;
     }
 
-    void pop_back() {
+    Node& pop_back() {
         lock_guard<mutex> lock(m_mutex);
-        if (m_size > 0)
-            --m_size;
+        if (m_size > 0) --m_size;
     }
 
     Node& operator[](size_t index) {

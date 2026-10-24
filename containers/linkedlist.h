@@ -19,12 +19,15 @@ public:
 template <typename T>
 class LinkedListForwardIterator : public GeneralIterator<LinkedListForwardIterator<T>, LinkedListNode<T>> {
 public:
-    using Node = LinkedListNode<T>;
+    using Node   = LinkedListNode<T>;
     using MySelf = LinkedListForwardIterator<T>;
     using Parent = GeneralIterator<MySelf, Node>;
     using Parent::Parent; // Inherit constructor
+    using Parent::m_ptr;
+    using Parent::m_pStart;
+
     LinkedListForwardIterator& operator++() { 
-        Parent::m_ptr = Parent::m_ptr->m_pNext == Parent::m_pStart ? nullptr : Parent::m_ptr->m_pNext;
+        m_ptr = m_ptr->m_pNext == m_pStart ? nullptr : m_ptr->m_pNext;
         return *this;
     }
 };

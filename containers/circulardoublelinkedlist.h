@@ -1,6 +1,5 @@
 #ifndef __CIRCULAR_DOUBLE_LINKEDLIST_H__
 #define __CIRCULAR_DOUBLE_LINKEDLIST_H__
-
 #include "circularlinkedlist.h"
 #include "doublelinkedlist.h"
 

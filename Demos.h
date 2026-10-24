@@ -1,6 +1,7 @@
 #ifndef __DEMOS_H__
 #define __DEMOS_H__
 #include "types.h"
+#include "containers/Heap.h"
 
 void DemoVector();
 void DemoRaceCondition();

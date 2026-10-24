@@ -13,7 +13,7 @@ public:
     using Parent::Parent; // hereda constructor
     using Parent::m_ptr;
     using Parent::m_pStart;
-public:
+
     LinkedListBackwardIterator& operator++() {
         m_ptr = m_ptr->m_pPrev == m_pStart ? nullptr : m_ptr->m_pPrev;
         return *this;
