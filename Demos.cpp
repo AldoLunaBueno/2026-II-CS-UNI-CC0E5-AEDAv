@@ -1,4 +1,3 @@
-
 #include <iostream>
 #include <fstream> // ofstream para escribir en archivo
 #include <string>

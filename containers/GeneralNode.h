@@ -2,6 +2,7 @@
 #define __GENERAL_NODE_H__
 #include <iostream>
 #include "../types.h" // Ref
+
 template <typename T>
 struct GeneralNode{
 private:

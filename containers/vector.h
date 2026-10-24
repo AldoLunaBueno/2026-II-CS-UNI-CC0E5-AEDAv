@@ -4,6 +4,8 @@
 #include "GeneralContainer.h"
 #include "GeneralIterator.h"
 #include "GeneralNode.h"
+#include "mixins.h"
+
 using namespace std;
 
 template <typename T>
@@ -39,19 +41,19 @@ struct VectorAscTraits {
 };
 
 template <typename Traits>
-class Vector : public GeneralContainer<Traits> {
+class Vector : public GeneralContainer<Traits, Callable, Applicable, Searchable, ReverseCallable> {
 public:
-    using Base              = GeneralContainer<Traits>;
-    using value_type        = typename Base::value_type;
-    using Node              = typename Base::Node;
-    using ForwardIterator   = typename Base::ForwardIterator;
+    using Parent            = GeneralContainer<Traits, Callable, Applicable, Searchable, ReverseCallable>;
+    using value_type        = typename Parent::value_type;
+    using Node              = typename Parent::Node;
+    using ForwardIterator   = typename Parent::ForwardIterator;
     using BackwardIterator  = Traits::BackwardIterator;
-
+protected:
+    using Parent::m_mutex;
 private:
     Node        *m_data     = nullptr;   // puntero al arreglo dinámico
     size_t       m_size     = 0,         // cantidad actual
                  m_capacity = 0;         // capacidad
-    using Base::m_mutex;
 
     void resize(size_t new_cap) {
         if (new_cap <= m_capacity) return;
@@ -140,30 +142,8 @@ public:
 
     ForwardIterator   begin() const override { return ForwardIterator(m_data); }
     ForwardIterator   end()   const override { return ForwardIterator(m_data + m_size); }
-    BackwardIterator rbegin() const { return BackwardIterator(m_data + m_size - 1); }
-    BackwardIterator rend()   const { return BackwardIterator(m_data - 1); }
-
-
-    // TODO: implementar la lectura de un vector desde un stream
-    istream &read(istream &is){
-        // Implementation for reading vector from stream
-    } 
-
-    // Igual que call(), pero recorriendo el container en sentido inverso
-    // (rbegin()/rend()) en vez de hacia adelante.
-    template<typename Func, typename... Args>
-    decltype(auto) rcall(Func func, Args&&... args)
-    {    lock_guard<mutex> lock(m_mutex);
-        if constexpr(is_void_v<invoke_result_t<Func, Node&, Args...>>)
-            ::call(rbegin(), rend(), std::forward<Func>(func), std::forward<Args>(args)...);
-        else // return type is not void:
-            return ::call(rbegin(), rend(), std::forward<Func>(func), std::forward<Args>(args)...);
-    }
+    BackwardIterator rbegin() const override { return BackwardIterator(m_data + m_size - 1); }
+    BackwardIterator rend()   const override { return BackwardIterator(m_data - 1); }
 };
-
-template <typename T>
-istream& operator>>(istream &is, Vector<T> &vec) {
-    return vec.read(is);
-}
 
 #endif // __VECTOR_H__

@@ -1,15 +1,12 @@
 #ifndef __GENERAL_CONTAINER_H__
 #define __GENERAL_CONTAINER_H__
-
-#include <mutex>
-#include "GeneralNode.h"
-#include "../foreach.h"
-#include "../types.h" // Ref
+#include "ContainerCore.h"
+#include "../types.h"
 
 template <typename T, typename _Compare>
 struct DefaultTraits {
-    using value_type        = T;
-    using Compare           = _Compare;
+    using value_type    = T;
+    using Compare       = _Compare;
 };
 template <typename T, typename _Compare = std::less<T>>
 struct AscendingTraits : public DefaultTraits<T, _Compare> {};
@@ -18,46 +15,30 @@ template <typename T, typename _Compare = std::greater<T>>
 struct DescendingTraits : public DefaultTraits<T, _Compare> {};
 
 
-template <typename Traits>
-class GeneralContainer {
+template <template <typename> typename T, typename Traits>
+concept IsContainerCore = std::derived_from<T<Traits>, ContainerCore<Traits>>;
+
+template <typename Traits, template <typename> typename... Mixins>
+    requires (IsContainerCore<Mixins, Traits> && ...)
+class GeneralContainer :
+    virtual public ContainerCore<Traits>,
+    virtual public Mixins<Traits>... {
 public:
-    using value_type        = Traits::value_type;
-    using Node              = Traits::Node;
-    using ForwardIterator   = Traits::ForwardIterator;
-    using Delim             = Node::Delim;
-
-protected:
-    mutable std::mutex m_mutex; // mutex para sincronización
-
+    using Core              = ContainerCore<Traits>;
+    using value_type        = typename Core::value_type;
+    using Node              = typename Core::Node;
+    using Delim             = typename Core::Delim;
+    using ForwardIterator   = typename Core::ForwardIterator;
 public:
-    virtual ForwardIterator begin() const = 0;
-    virtual ForwardIterator end() const = 0;
+    GeneralContainer() : Mixins<Traits>()... {}
+    using Mixins<Traits>::Mixins...;
 
-    virtual bool empty() const { return begin() == end(); }
+    virtual bool empty() const { return this->begin() == this->end(); }
     virtual void clear() = 0;
     virtual void push_back(const value_type& value, Ref ref) = 0;
 
-    template <typename Func, typename... Args>
-    void ApplyFunction(Func func, Args... args) {
-        call(func, std::forward<Args>(args)...);
-    }
-
-    template <typename Func, typename... Args>
-    Node& FirstThat(Func func, Args... args) {
-        return call(func, std::forward<Args>(args)...);
-    }
-
-    template<typename Func, typename... Args>
-    decltype(auto) call(Func func, Args&&... args) {
-        lock_guard<mutex> lock(m_mutex);
-        if constexpr(is_void_v<invoke_result_t<Func, Node&, Args...>>)
-            ::call(begin(), end(), std::forward<Func>(func), std::forward<Args>(args)...);
-        else // return type is not void:
-            return ::call(begin(), end(), std::forward<Func>(func), std::forward<Args>(args)...);
-    }
-
     // Persistencia
-    friend std::ostream& operator<<(std::ostream& os, GeneralContainer<Traits>& container) {
+    friend std::ostream& operator<<(std::ostream& os, GeneralContainer& container) {
         auto first = true;
         os << "[";
         container.ApplyFunction([&os, &first](const Node& node){
@@ -68,7 +49,7 @@ public:
         return os << "]";
     }
 
-    friend std::istream &operator >>(std::istream &is, GeneralContainer<Traits> &container) {
+    friend std::istream &operator >>(std::istream& is, GeneralContainer& container) {
         Delim d;
         Node node;
         container.clear();

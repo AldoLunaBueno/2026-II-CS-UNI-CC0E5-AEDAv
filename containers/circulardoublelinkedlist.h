@@ -5,19 +5,21 @@
 #include "doublelinkedlist.h"
 
 template <typename Traits>
-class CircularDoubleLinkedList : public CircularLinkedList<Traits>,
-                                 public DoubleLinkedList<Traits> {
+class CircularDoubleLinkedList : virtual public CircularLinkedList<Traits>,
+                                 virtual public DoubleLinkedList<Traits> {
 public:
-    using Base         = LinkedList<Traits>;
-    using CircularBase = CircularLinkedList<Traits>;
-    using DoubleBase   = DoubleLinkedList<Traits>;
-    using NodePtr      = typename Base::NodePtr;
-
+    using Parent            = LinkedList<Traits>;
+    using CircularParent    = CircularLinkedList<Traits>;
+    using DoubleParent      = DoubleLinkedList<Traits>;
+    using NodePtr           = typename Parent::NodePtr;
 protected:
+    using Parent::m_pRoot;
+    using Parent::m_pTail;
+
     void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) override {
-        CircularBase::linkNode(pNew, pPrev, pNext);
-        DoubleBase::linkNode(pNew, pPrev, pNext);
-        if (this->m_pRoot) this->m_pRoot->m_pPrev = this->m_pTail;
+        CircularParent::linkNode(pNew, pPrev, pNext);
+        DoubleParent::linkNode(pNew, pPrev, pNext);
+        if (m_pRoot) m_pRoot->m_pPrev = m_pTail;
     }
 };
 

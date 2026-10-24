@@ -4,31 +4,21 @@
 #include "GeneralContainer.h";
 
 template <typename Traits>
-class Heap : GeneralContainer<Traits> {
+class Heap : public GeneralContainer<Traits, Callable, Applicable> {
     
 public:
-    using Base              = GeneralContainer<Traits>;
-    using value_type        = typename Base::value_type;
-    using Node              = typename Base::Node;
+    using Parent              = GeneralContainer<Traits>;
+    using value_type        = typename Parent::value_type;
+    using Node              = typename Parent::Node;
     using ForwardIterator   = typename Traits::ForwardIterator;
     using NodePtr           = Node *;
     using Compare           = typename Traits::Compare;
 private:
     Vector<Node> m_data;
-    decltype(auto) begin() const { return m_data.begin(); }
-    decltype(auto) end()   const { return m_data.end();   }
+    decltype(auto) begin() const override { return m_data.begin(); }
+    decltype(auto) end()   const override { return m_data.end();   }
 
 public:
-    friend ostream &operator <<(ostream &os, const Heap<Traits> &heap) {
-        os << "[";
-        for (auto it = heap.begin(); it != heap.end(); ++it) {
-            os << *it;
-            if (std::next(it) != heap.end()) {
-                os << ", ";
-            }
-        }
-        return os << "]";
-    }
     void push(const value_type &value, Ref ref) {
         m_data.push_back(Node(value));
         HeapifyUp(m_data.size() - 1);

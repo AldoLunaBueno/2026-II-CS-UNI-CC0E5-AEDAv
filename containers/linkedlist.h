@@ -41,21 +41,21 @@ struct LinkedListDescTraits : public DescendingTraits<T> {
     using ForwardIterator   = LinkedListForwardIterator<T>;  // itera sobre Node, no sobre T
 };
 template <typename Traits>
-class LinkedList : public GeneralContainer<Traits> {
+class LinkedList : public GeneralContainer<Traits, Callable, Searchable, Applicable> {
 public:  
-    using Base            = GeneralContainer<Traits>;
-    using value_type      = typename Base::value_type;
-    using Node            = typename Base::Node;
-    using NodePtr         = Node*;
-    using ForwardIterator = typename Base::ForwardIterator;
-    using Compare         = typename Traits::Compare;
-    using Delim           = typename Base::Delim;
+    using Parent            = GeneralContainer<Traits, Callable, Searchable, Applicable>;
+    using value_type        = typename Parent::value_type;
+    using Node              = typename Parent::Node;
+    using NodePtr           = Node*;
+    using ForwardIterator   = typename Parent::ForwardIterator;
+    using Compare           = typename Traits::Compare;
+    using Delim             = typename Parent::Delim;
 protected:
     NodePtr m_pRoot = nullptr; // puntero al primer nodo de la lista enlazada
     NodePtr m_pTail = nullptr; // puntero al último nodo de la lista enlazada
 
     Compare m_comp; // comparador para ordenar los nodos de la lista
-    using Base::m_mutex;
+    using Parent::m_mutex;
 
     virtual void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) {}
 private:
@@ -119,14 +119,14 @@ void LinkedList<Traits>::clear(){
 template<typename Traits>
 void LinkedList<Traits>::push_back(const value_type& value, Ref ref){
     scoped_lock lock(m_mutex);
-    NodePtr pPrev = this->m_pTail; // Guardar cola anterior antes de crear
+    NodePtr pPrev = m_pTail; // Guardar cola anterior antes de crear
     NodePtr new_node = new Node(value, ref, nullptr);
-    if (!this->m_pRoot){
-        this->m_pRoot = new_node;
-        this->m_pTail = new_node;
+    if (!m_pRoot){
+        m_pRoot = new_node;
+        m_pTail = new_node;
     } else {
-        this->m_pTail->m_pNext = new_node;
-        this->m_pTail = new_node;
+        m_pTail->m_pNext = new_node;
+        m_pTail = new_node;
     }
     linkNode(new_node, pPrev, nullptr);
 }
