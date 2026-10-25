@@ -1,7 +1,6 @@
 #ifndef __GENERAL_CONTAINER_H__
 #define __GENERAL_CONTAINER_H__
 #include "ContainerCore.h"
-#include "../types.h"
 
 template <typename T, typename _Compare>
 struct DefaultTraits {
@@ -32,37 +31,6 @@ public:
 public:
     GeneralContainer() : Mixins<Traits>()... {}
     using Mixins<Traits>::Mixins...;
-
-    virtual bool empty() const { return this->begin() == this->end(); }
-    virtual void clear() = 0;
-    virtual void push_back(const value_type& value, Ref ref) = 0;
 };
-
-// Persistencia
-template <typename Traits, template <typename> typename... Mixins>
-std::ostream& operator<<(std::ostream& os, GeneralContainer<Traits, Mixins...>& container) {
-    std::string sep = "";
-    os << "[";
-    for (const auto& e : container) { os << sep << e; sep = ","; };
-    return os << "]";
-}
-
-template <typename Traits, template <typename> typename... Mixins>
-std::istream& operator>>(std::istream& is, GeneralContainer<Traits, Mixins...>& container) {
-    typename Traits::Node::Delim d;
-    typename Traits::Node node;
-    container.clear();
-
-    is >> d;
-    if (is >> d && d != ']'){
-        is.unget();
-        while(is >> node >> d){
-            container.push_back(node.getValue(), node.getRef());
-            if (d == ']') break;
-        }    
-    }
-
-    return is; 
-}
 
 #endif // __GENERAL_CONTAINER_H__

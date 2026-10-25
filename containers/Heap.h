@@ -18,14 +18,17 @@ struct HeapDescTraits : public DescendingTraits<T> {
 };
 
 template <typename Traits>
-class Heap : public GeneralContainer<Traits, Callable, Applicable> {
+using HeapParent = GeneralContainer<Traits, Callable, Applicable, Printable, Readable>;
+
+template <typename Traits>
+class Heap : public HeapParent<Traits> {
 public:
-    using Parent            = GeneralContainer<Traits, Callable, Applicable>;
-    using value_type        = typename Parent::value_type;
-    using Node              = typename Parent::Node;
-    using ForwardIterator   = typename Traits::ForwardIterator;
-    using NodePtr           = Node *;
-    using Compare           = typename Traits::Compare;
+    using Parent = HeapParent<Traits>;
+    using typename Parent::value_type;
+    using typename Parent::Node;
+    using typename Parent::NodePtr;
+    using typename Parent::ForwardIterator;
+    using Compare = typename Traits::Compare;
 protected:
     Heap() = default;
     using Parent::Parent;

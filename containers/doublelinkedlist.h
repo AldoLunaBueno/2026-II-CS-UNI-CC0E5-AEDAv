@@ -35,9 +35,9 @@ class DoubleLinkedList :
     virtual public LinkedList<Traits>,
     virtual public ReverseCallable<Traits> {
 public:
-    using Parent            = LinkedList<Traits>;
-    using BackwardIterator  = ReverseCallable<Traits>::BackwardIterator;
-    using NodePtr           = typename Parent::NodePtr;
+    using Parent = LinkedList<Traits>;
+    using typename ReverseCallable<Traits>::BackwardIterator;
+    using typename Parent::NodePtr;
 
 protected:
     using Parent::m_pTail;

@@ -75,17 +75,18 @@ struct BinaryTreeDescTraits : public DescendingTraits<T> {
 };
 
 template <typename Traits>
-class BinaryTree : public GeneralContainer<Traits, Callable, Applicable, Searchable, ReverseCallable> {
+using BinaryTreeParent = GeneralContainer<Traits, Callable, Applicable, Searchable, ReverseCallable, Printable, Readable>;
+
+template <typename Traits>
+class BinaryTree : public BinaryTreeParent<Traits> {
 public:
-    using Parent            = GeneralContainer<Traits, Callable, Applicable, Searchable, ReverseCallable>;
-    using value_type        = Traits::value_type;
-    using Node              = Traits::Node;
-    using NodePtr           = Node*;
-    using ForwardIterator   = Traits::ForwardIterator;
-    using BackwardIterator  = Traits::BackwardIterator;
-    using Compare           = Traits::Compare;
-
-
+    using Parent = BinaryTreeParent<Traits>;
+    using typename Parent::value_type;
+    using typename Parent::Node;
+    using typename Parent::NodePtr;
+    using typename Parent::ForwardIterator;
+    using typename Parent::BackwardIterator;
+    using Compare = typename Traits::Compare;
 
 private:
     NodePtr m_root = nullptr; // root of the binary tree

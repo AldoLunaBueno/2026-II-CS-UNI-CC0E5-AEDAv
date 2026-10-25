@@ -43,16 +43,20 @@ struct LinkedListDescTraits : public DescendingTraits<T> {
     using Node              = LinkedListNode<T>;
     using ForwardIterator   = LinkedListForwardIterator<T>;  // itera sobre Node, no sobre T
 };
+
 template <typename Traits>
-class LinkedList : public GeneralContainer<Traits, Callable, Searchable, Applicable> {
+using LinkedListParent = GeneralContainer<Traits, Callable, Searchable, Applicable, Printable, Readable>;
+
+template <typename Traits>
+class LinkedList : public LinkedListParent<Traits> {
 public:  
-    using Parent            = GeneralContainer<Traits, Callable, Searchable, Applicable>;
-    using value_type        = typename Parent::value_type;
-    using Node              = typename Parent::Node;
-    using NodePtr           = Node*;
-    using ForwardIterator   = typename Parent::ForwardIterator;
-    using Compare           = typename Traits::Compare;
-    using Delim             = typename Parent::Delim;
+    using Parent = LinkedListParent<Traits>;
+    using typename Parent::value_type;
+    using typename Parent::Node;
+    using typename Parent::NodePtr;
+    using typename Parent::ForwardIterator;
+    using typename Parent::Delim;
+    using Compare = typename Traits::Compare;
 protected:
     NodePtr m_pRoot = nullptr; // puntero al primer nodo de la lista enlazada
     NodePtr m_pTail = nullptr; // puntero al último nodo de la lista enlazada

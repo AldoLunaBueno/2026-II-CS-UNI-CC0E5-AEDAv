@@ -62,15 +62,15 @@ void TestContainer(Container &container,
                     const string &filename) {
     InsertElements(container, values);
 
-    // Impresion usando write()
-    cout << "Container using write(): ";
-    container.write(cout);
+    // Impresion usando operador de inserción
+    cout << "Container using operator<<: ";
+    cout << container;
     cout << endl;
 
     // Escritura hacia un archivo, en modo append para acumular cada estado
     // (el archivo se deja vacio una vez al inicio, ver DemoVector)
     ofstream of(filename, ios::app);
-    container.write(of);
+    of << container;
     of << endl;
     of.close();
 

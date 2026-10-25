@@ -41,23 +41,27 @@ struct VectorAscTraits {
 };
 
 template <typename Traits>
-class Vector : public GeneralContainer<Traits, Callable, Applicable, Searchable, ReverseCallable> {
+using VectorParent = GeneralContainer<Traits, Callable, Applicable, Searchable, ReverseCallable, Printable, Readable>;
+
+template <typename Traits>
+class Vector : public VectorParent<Traits> {
 public:
-    using Parent            = GeneralContainer<Traits, Callable, Applicable, Searchable, ReverseCallable>;
-    using value_type        = typename Parent::value_type;
-    using Node              = typename Parent::Node;
-    using ForwardIterator   = typename Parent::ForwardIterator;
-    using BackwardIterator  = Traits::BackwardIterator;
+    using Parent = VectorParent<Traits>;
+    using typename Parent::value_type;
+    using typename Parent::Node;
+    using typename Parent::ForwardIterator;
+    using typename Parent::BackwardIterator;
+    using typename Parent::NodePtr;
 protected:
     using Parent::m_mutex;
 private:
-    Node        *m_data     = nullptr;   // puntero al arreglo dinámico
+    NodePtr      m_data     = nullptr;   // puntero al arreglo dinámico
     size_t       m_size     = 0,         // cantidad actual
                  m_capacity = 0;         // capacidad
 
     void resize(size_t new_cap) {
         if (new_cap <= m_capacity) return;
-        Node* new_data = new Node[new_cap];
+        NodePtr new_data = new Node[new_cap];
         for (size_t i = 0; i < m_size; ++i)
             new_data[i] = m_data[i];
         delete[] m_data;
@@ -111,7 +115,7 @@ public:
         ++m_size;
     }
 
-    Node& pop_back() {
+    void pop_back() {
         lock_guard<mutex> lock(m_mutex);
         if (m_size > 0) --m_size;
     }

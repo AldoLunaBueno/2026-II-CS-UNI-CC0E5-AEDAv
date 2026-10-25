@@ -3,6 +3,9 @@
 #include "../foreach.h"
 #include "ContainerCore.h"
 
+// template <typename Traits>
+// using Parent = ContainerCore<Traits>;
+
 template <typename Traits>
 class Callable : virtual public ContainerCore<Traits>  {
 public:
@@ -45,6 +48,37 @@ public:
 
     virtual BackwardIterator rbegin() const = 0;
     virtual BackwardIterator rend() const = 0;
+};
+
+template <typename Traits>
+class Printable : virtual public ContainerCore<Traits> {
+    friend std::ostream& operator<<(std::ostream& os, const Printable& container) {
+        lock_guard<mutex> lock(container.m_mutex);
+        std::string sep = "";
+        os << "[";
+        for (const auto& e : container) { os << sep << e; sep = ","; };
+        return os << "]";
+    }
+};
+
+template <typename Traits>
+class Readable : virtual public ContainerCore<Traits> {
+    friend std::istream& operator>>(std::istream& is, Readable& container) {
+        typename Traits::Node::Delim d;
+        typename Traits::Node node;
+        container.clear();
+
+        is >> d;
+        if (is >> d && d != ']'){
+            is.unget();
+            while(is >> node >> d){
+                container.push_back(node.getValue(), node.getRef());
+                if (d == ']') break;
+            }    
+        }
+
+        return is; 
+    }
 };
 
 #endif
