@@ -21,14 +21,15 @@ public:
 };
 
 template <typename T>
-struct DoubleLinkedListAscTraits : public LinkedListAscTraits<T> {
+struct DoubleLinkedListTraits : public LinkedListTraits<T> {
     using BackwardIterator  = LinkedListBackwardIterator<T>;
 };
 
 template <typename T>
-struct DoubleLinkedListDescTraits : public LinkedListDescTraits<T> {
-    using BackwardIterator  = LinkedListBackwardIterator<T>;
-};
+struct DoubleLinkedListAscTraits : public AscendingTraits<T>, public DoubleLinkedListTraits<T> {};
+
+template <typename T>
+struct DoubleLinkedListDescTraits : public DescendingTraits<T>, public DoubleLinkedListTraits<T> {};
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseDoubleLinkedList;

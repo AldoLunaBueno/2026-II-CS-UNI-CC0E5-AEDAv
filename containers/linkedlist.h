@@ -33,16 +33,16 @@ public:
 };
 
 template <typename T>
-struct LinkedListAscTraits : public AscendingTraits<T> {
+struct LinkedListTraits {
     using Node              = LinkedListNode<T>;
     using ForwardIterator   = LinkedListForwardIterator<T>;  // itera sobre Node, no sobre T
 };
 
 template <typename T>
-struct LinkedListDescTraits : public DescendingTraits<T> {
-    using Node              = LinkedListNode<T>;
-    using ForwardIterator   = LinkedListForwardIterator<T>;  // itera sobre Node, no sobre T
-};
+struct LinkedListAscTraits : public AscendingTraits<T>, public LinkedListTraits<T> {};
+
+template <typename T>
+struct LinkedListDescTraits : public DescendingTraits<T>, public LinkedListTraits<T> {};
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseLinkedList;

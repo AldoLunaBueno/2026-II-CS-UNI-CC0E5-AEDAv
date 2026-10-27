@@ -33,12 +33,17 @@ public:
 };
 
 template <typename T>
-struct VectorAscTraits {
-    using value_type        = T;
+struct VectorTraits {
     using Node              = GeneralNode<T>;
     using ForwardIterator   = VectorForwardIterator<Node>;  // itera sobre Node, no sobre T
     using BackwardIterator  = VectorBackwardIterator<Node>; // itera sobre Node, no sobre T
 };
+
+template <typename T>
+struct VectorAscTraits : public AscendingTraits<T>, public VectorTraits<T> {};
+
+template <typename T>
+struct VectorDescTraits : public DescendingTraits<T>, public VectorTraits<T> {};
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseVector;

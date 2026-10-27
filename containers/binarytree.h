@@ -62,20 +62,17 @@ template <typename T>
 using BinaryTreeBackwardIterator = BinaryTreeIterator<T, 1>;
 
 template <typename T>
-struct BinaryTreeAscTraits : public AscendingTraits<T> {
-    using value_type        = T;
+struct BinaryTreeTraits {
     using Node              = BinaryTreeNode<T>;
     using ForwardIterator   = BinaryTreeForwardIterator<T>;
     using BackwardIterator  = BinaryTreeBackwardIterator<T>;
 };
 
 template <typename T>
-struct BinaryTreeDescTraits : public DescendingTraits<T> {
-    using value_type        = T;
-    using Node              = BinaryTreeNode<T>;
-    using ForwardIterator   = BinaryTreeForwardIterator<T>;
-    using BackwardIterator  = BinaryTreeBackwardIterator<T>;
-};
+struct BinaryTreeAscTraits : public AscendingTraits<T>, public BinaryTreeTraits<T> {};
+
+template <typename T>
+struct BinaryTreeDescTraits : public DescendingTraits<T>, public BinaryTreeTraits<T> {};
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseBinaryTree;

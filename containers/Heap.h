@@ -4,18 +4,16 @@
 #include "vector.h"
 
 template <typename T>
-struct HeapAscTraits : public AscendingTraits<T> {
-    using value_type        = T;
+struct HeapTraits {
     using Node              = GeneralNode<T>;
     using ForwardIterator   = VectorForwardIterator<Node>;
 };
 
 template <typename T>
-struct HeapDescTraits : public DescendingTraits<T> {
-    using value_type        = T;
-    using Node              = GeneralNode<T>;
-    using ForwardIterator   = VectorForwardIterator<Node>;
-};
+struct HeapAscTraits : public AscendingTraits<T>, public HeapTraits<T> {};
+
+template <typename T>
+struct HeapDescTraits : public DescendingTraits<T>, public HeapTraits<T> {};
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseHeap;
