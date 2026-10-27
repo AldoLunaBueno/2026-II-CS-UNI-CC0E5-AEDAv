@@ -30,26 +30,34 @@ struct DoubleLinkedListDescTraits : public LinkedListDescTraits<T> {
     using BackwardIterator  = LinkedListBackwardIterator<T>;
 };
 
+template <typename Traits, template <typename> typename... Mixins>
+class BaseDoubleLinkedList;
+
 template <typename Traits>
-class DoubleLinkedList :
-    virtual public LinkedList<Traits>,
-    virtual public ReverseCallable<Traits> {
+using DoubleLinkedList = BaseDoubleLinkedList<Traits, Callable, Searchable, Applicable, ReverseCallable, Printable, Readable>;
+
+template <typename Traits, template <typename> typename... Mixins>
+class BaseDoubleLinkedList :
+    virtual public BaseLinkedList<Traits, Mixins...> {
 public:
-    using Parent = LinkedList<Traits>;
-    using typename ReverseCallable<Traits>::BackwardIterator;
+    using Parent = BaseLinkedList<Traits, Mixins...>;
+    using BackwardIterator = typename Traits::BackwardIterator;
     using typename Parent::NodePtr;
 
 protected:
     using Parent::m_pTail;
 
-    void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) override {
-        pNew->m_pPrev = pPrev;
-        if (pNext) pNext->m_pPrev = pNew;
-    }
+    void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) override;
 
 public:
-    BackwardIterator rbegin() const override { return BackwardIterator(m_pTail); }
-    BackwardIterator rend()   const override { return BackwardIterator(nullptr); }
+    BackwardIterator rbegin() const { return BackwardIterator(m_pTail); }
+    BackwardIterator rend()   const { return BackwardIterator(nullptr); }
 };
+
+template <typename Traits, template <typename> typename... Mixins>
+void BaseDoubleLinkedList<Traits, Mixins...>::linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext) {
+    pNew->m_pPrev = pPrev;
+    if (pNext) pNext->m_pPrev = pNew;
+}
 
 #endif

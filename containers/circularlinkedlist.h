@@ -2,10 +2,16 @@
 #define __CIRCULAR_LINKEDLIST_H__
 #include "linkedlist.h"
 
+template <typename Traits, template <typename> typename... Mixins>
+class BaseCircularLinkedList;
+
 template <typename Traits>
-class CircularLinkedList : virtual public LinkedList<Traits> {
+using CircularLinkedList = BaseCircularLinkedList<Traits, Callable, Searchable, Applicable, Printable, Readable>;
+
+template <typename Traits, template <typename> typename... Mixins>
+class BaseCircularLinkedList : virtual public BaseLinkedList<Traits, Mixins...> {
 public:
-    using Parent    = LinkedList<Traits>;
+    using Parent = BaseLinkedList<Traits, Mixins...>;
     using NodePtr = typename Parent::NodePtr;
 protected:
     using Parent::m_pTail;

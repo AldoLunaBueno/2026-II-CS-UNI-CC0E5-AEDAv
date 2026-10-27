@@ -44,13 +44,16 @@ struct LinkedListDescTraits : public DescendingTraits<T> {
     using ForwardIterator   = LinkedListForwardIterator<T>;  // itera sobre Node, no sobre T
 };
 
-template <typename Traits>
-using LinkedListParent = GeneralContainer<Traits, Callable, Searchable, Applicable, Printable, Readable>;
+template <typename Traits, template <typename> typename... Mixins>
+class BaseLinkedList;
 
 template <typename Traits>
-class LinkedList : public LinkedListParent<Traits> {
+using LinkedList = BaseLinkedList<Traits, Callable, Searchable, Applicable, Printable, Readable>;
+
+template <typename Traits, template <typename> typename... Mixins>
+class BaseLinkedList : public GeneralContainer<Traits, Mixins...> {
 public:  
-    using Parent = LinkedListParent<Traits>;
+    using Parent = GeneralContainer<Traits, Mixins...>;
     using typename Parent::value_type;
     using typename Parent::Node;
     using typename Parent::NodePtr;
@@ -71,18 +74,18 @@ private:
     void internalInsert(const value_type& value, Ref ref, NodePtr& rParent, NodePtr pPrev = nullptr);
 
 public:
-    LinkedList() {}
-    LinkedList(const LinkedList& another){ *this = another; } // copia profunda de la lista enlazada
-    LinkedList& operator=(const LinkedList& another);
-    LinkedList(initializer_list<pair<value_type, Ref>> values) {
+    BaseLinkedList() {}
+    BaseLinkedList(const BaseLinkedList& another){ *this = another; } // copia profunda de la lista enlazada
+    BaseLinkedList& operator=(const BaseLinkedList& another);
+    BaseLinkedList(initializer_list<pair<value_type, Ref>> values) {
         for (const auto &v : values)
             push_back(v.first, v.second);
     }
 
-    void clear();
-    virtual ~LinkedList(){ clear(); };
+    void clear() override;
+    virtual ~BaseLinkedList(){ clear(); };
 
-    void push_back(const value_type& value, Ref ref);
+    void push_back(const value_type& value, Ref ref) override;
 
     void insert(const value_type& value, Ref ref) {
         scoped_lock lock(m_mutex);
@@ -98,8 +101,8 @@ public:
 };
 
 
-template <typename Traits>
-LinkedList<Traits>& LinkedList<Traits>::operator=(const LinkedList<Traits>& other){ 
+template <typename Traits, template <typename> typename... Mixins>
+auto BaseLinkedList<Traits, Mixins...>::operator=(const BaseLinkedList& other) -> BaseLinkedList& { 
     if (this == &other) return *this;
     clear();
     std::lock_guard<std::mutex> lock(other.m_mutex);
@@ -108,8 +111,8 @@ LinkedList<Traits>& LinkedList<Traits>::operator=(const LinkedList<Traits>& othe
     return *this;
 }
 
-template <typename Traits>
-void LinkedList<Traits>::clear(){
+template <typename Traits, template <typename> typename... Mixins>
+void BaseLinkedList<Traits, Mixins...>::clear(){
     scoped_lock lock(m_mutex);
     if (!m_pRoot) return;
     if (m_pTail) m_pTail->m_pNext = nullptr; // Si es circular rompe el ciclo
@@ -123,8 +126,8 @@ void LinkedList<Traits>::clear(){
     m_pTail = nullptr;
 }
 
-template<typename Traits>
-void LinkedList<Traits>::push_back(const value_type& value, Ref ref){
+template <typename Traits, template <typename> typename... Mixins>
+void BaseLinkedList<Traits, Mixins...>::push_back(const value_type& value, Ref ref){
     scoped_lock lock(m_mutex);
     NodePtr pPrev = m_pTail; // Guardar cola anterior antes de crear
     NodePtr new_node = new Node(value, ref, nullptr);
@@ -143,8 +146,8 @@ internalInsert(...) recorre todos los nodos hasta llegar al final, y en la condi
 si el nodo padre es nullptr, crea uno nuevo con el valor y retorna
 insert(...) empieza desde el nodo raiz
 */
-template <typename Traits>
-void LinkedList<Traits>::internalInsert(const value_type& value, Ref ref, NodePtr& rParent, NodePtr pPrev) {
+template <typename Traits, template <typename> typename... Mixins>
+void BaseLinkedList<Traits, Mixins...>::internalInsert(const value_type& value, Ref ref, NodePtr& rParent, NodePtr pPrev) {
     if (rParent == nullptr || m_comp(value, rParent->getValue())) {
         rParent = new Node(value, ref, rParent);
         if (rParent->m_pNext == nullptr) m_pTail = rParent;
@@ -153,4 +156,5 @@ void LinkedList<Traits>::internalInsert(const value_type& value, Ref ref, NodePt
     }
     internalInsert(value, ref, rParent->m_pNext, rParent);
 }
+
 #endif // __LINKEDLIST_H__

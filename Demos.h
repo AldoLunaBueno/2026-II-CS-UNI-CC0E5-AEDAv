@@ -4,6 +4,7 @@
 #include "containers/Heap.h"
 
 void DemoVector();
+void DemoCustomContainer();
 void DemoRaceCondition();
 void DemoLinkedList();
 void DemoHeap();

@@ -40,17 +40,21 @@ struct VectorAscTraits {
     using BackwardIterator  = VectorBackwardIterator<Node>; // itera sobre Node, no sobre T
 };
 
-template <typename Traits>
-using VectorParent = GeneralContainer<Traits, Callable, Applicable, Searchable, ReverseCallable, Printable, Readable>;
+template <typename Traits, template <typename> typename... Mixins>
+class BaseVector;
 
 template <typename Traits>
-class Vector : public VectorParent<Traits> {
+using Vector = BaseVector<Traits, Callable, Applicable, Searchable, ReverseCallable, Printable, Readable>;
+
+template <typename Traits, template <typename> typename... Mixins>
+class BaseVector : public GeneralContainer<Traits, Mixins...> {
 public:
-    using Parent = VectorParent<Traits>;
+    using MySelf = BaseVector;
+    using Parent = GeneralContainer<Traits, Mixins...>;
     using typename Parent::value_type;
     using typename Parent::Node;
     using typename Parent::ForwardIterator;
-    using typename Parent::BackwardIterator;
+    using BackwardIterator  = typename Traits::BackwardIterator;
     using typename Parent::NodePtr;
 protected:
     using Parent::m_mutex;
@@ -59,92 +63,117 @@ private:
     size_t       m_size     = 0,         // cantidad actual
                  m_capacity = 0;         // capacidad
 
-    void resize(size_t new_cap) {
-        if (new_cap <= m_capacity) return;
-        NodePtr new_data = new Node[new_cap];
-        for (size_t i = 0; i < m_size; ++i)
-            new_data[i] = m_data[i];
-        delete[] m_data;
-        m_data = new_data;
-        m_capacity = new_cap;
-    }
+    void resize(size_t new_cap);
 
 public:
-    Vector() {}
+    BaseVector() {}
 
     // Cada elemento de la lista es una pareja (valor, ref) para un Node
-    Vector(initializer_list<pair<value_type, Ref>> values) {
+    BaseVector(initializer_list<pair<value_type, Ref>> values) {
         for (const auto &v : values)
             push_back(v.first, v.second);
     }
 
-    virtual ~Vector() { clear(); }
+    virtual ~BaseVector() { clear(); }
 
-    Vector(const Vector& other) {
-        resize(other.m_size);
-        for (size_t i = 0; i < other.m_size; ++i)
-            m_data[i] = other.m_data[i];
-        m_size = other.m_size;
-    }
+    BaseVector(const BaseVector& other);
 
     // Move constructor and move assignment operator
-    Vector(Vector&& other) noexcept {
-        m_data     = std::exchange(other.m_data, nullptr);
-        m_size     = std::exchange(other.m_size, 0);
-        m_capacity = std::exchange(other.m_capacity, 0);
-    }
+    BaseVector(BaseVector&& other) noexcept;
 
     // Move assignment operator
-    Vector& operator=(Vector&& other) noexcept {
-        if (this != &other) {
-            clear();
-            m_data     = std::exchange(other.m_data, nullptr);
-            m_size     = std::exchange(other.m_size, 0);
-            m_capacity = std::exchange(other.m_capacity, 0);
-        }
-        return *this;
-    }
+    BaseVector& operator=(BaseVector&& other) noexcept;
 
-    void push_back(const value_type& value, Ref ref) {
-        lock_guard<mutex> lock(m_mutex);
-        if (m_size == m_capacity) {
-            size_t new_cap = (m_capacity == 0) ? 10 : m_capacity * 2;
-            resize(new_cap);
-        }
-        m_data[m_size] = Node(value, ref);
-        ++m_size;
-    }
+    void push_back(const value_type& value, Ref ref) override;
+    void pop_back();
 
-    void pop_back() {
-        lock_guard<mutex> lock(m_mutex);
-        if (m_size > 0) --m_size;
-    }
-
-    Node& operator[](size_t index) {
-        if (index >= m_size) throw std::out_of_range("Indice fuera de rango");
-        return m_data[index];
-    }
-
-    Node& at(size_t index) {
-        if (index >= m_size) throw std::out_of_range("Indice fuera de rango");
-        return m_data[index];
-    }
+    Node& operator[](size_t index);
+    Node& at(size_t index);
 
     size_t size()     const { return m_size; }
     size_t capacity() const { return m_capacity; }
 
-    void clear() {
-        lock_guard<mutex> lock(m_mutex);
-        delete [] m_data;
-        m_data     = nullptr;
-        m_size     = 0;
-        m_capacity = 0;
-    }
+    void clear() override;
 
     ForwardIterator   begin() const override { return ForwardIterator(m_data); }
     ForwardIterator   end()   const override { return ForwardIterator(m_data + m_size); }
-    BackwardIterator rbegin() const override { return BackwardIterator(m_data + m_size - 1); }
-    BackwardIterator rend()   const override { return BackwardIterator(m_data - 1); }
+    BackwardIterator rbegin() const { return BackwardIterator(m_data + m_size - 1); }
+    BackwardIterator rend()   const { return BackwardIterator(m_data - 1); }
 };
+
+template <typename Traits, template <typename> typename... Mixins>
+void BaseVector<Traits, Mixins...>::resize(size_t new_cap) {
+    if (new_cap <= m_capacity) return;
+    NodePtr new_data = new Node[new_cap];
+    for (size_t i = 0; i < m_size; ++i)
+        new_data[i] = m_data[i];
+    delete[] m_data;
+    m_data = new_data;
+    m_capacity = new_cap;
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+BaseVector<Traits, Mixins...>::BaseVector(const BaseVector& other) {
+    resize(other.m_size);
+    for (size_t i = 0; i < other.m_size; ++i)
+        m_data[i] = other.m_data[i];
+    m_size = other.m_size;
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+BaseVector<Traits, Mixins...>::BaseVector(BaseVector&& other) noexcept {
+    m_data     = std::exchange(other.m_data, nullptr);
+    m_size     = std::exchange(other.m_size, 0);
+    m_capacity = std::exchange(other.m_capacity, 0);
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+auto BaseVector<Traits, Mixins...>::operator=(BaseVector&& other) noexcept -> BaseVector& {
+    if (this != &other) {
+        clear();
+        m_data     = std::exchange(other.m_data, nullptr);
+        m_size     = std::exchange(other.m_size, 0);
+        m_capacity = std::exchange(other.m_capacity, 0);
+    }
+    return *this;
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+void BaseVector<Traits, Mixins...>::push_back(const value_type& value, Ref ref) {
+    lock_guard<mutex> lock(m_mutex);
+    if (m_size == m_capacity) {
+        size_t new_cap = (m_capacity == 0) ? 10 : m_capacity * 2;
+        resize(new_cap);
+    }
+    m_data[m_size] = Node(value, ref);
+    ++m_size;
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+void BaseVector<Traits, Mixins...>::pop_back() {
+    lock_guard<mutex> lock(m_mutex);
+    if (m_size > 0) --m_size;
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+auto BaseVector<Traits, Mixins...>::operator[](size_t index) -> Node& {
+    if (index >= m_size) throw std::out_of_range("Indice fuera de rango");
+    return m_data[index];
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+auto BaseVector<Traits, Mixins...>::at(size_t index) -> Node& {
+    if (index >= m_size) throw std::out_of_range("Indice fuera de rango");
+    return m_data[index];
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+void BaseVector<Traits, Mixins...>::clear() {
+    lock_guard<mutex> lock(m_mutex);
+    delete [] m_data;
+    m_data     = nullptr;
+    m_size     = 0;
+    m_capacity = 0;
+}
 
 #endif // __VECTOR_H__

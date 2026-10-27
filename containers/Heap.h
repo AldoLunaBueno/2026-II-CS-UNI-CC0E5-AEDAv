@@ -17,20 +17,24 @@ struct HeapDescTraits : public DescendingTraits<T> {
     using ForwardIterator   = VectorForwardIterator<Node>;
 };
 
-template <typename Traits>
-using HeapParent = GeneralContainer<Traits, Callable, Applicable, Printable, Readable>;
+template <typename Traits, template <typename> typename... Mixins>
+class BaseHeap;
 
 template <typename Traits>
-class Heap : public HeapParent<Traits> {
+using Heap = BaseHeap<Traits, Callable, Applicable, Printable, Readable>;
+
+template <typename Traits, template <typename> typename... Mixins>
+class BaseHeap : public GeneralContainer<Traits, Mixins...> {
 public:
-    using Parent = HeapParent<Traits>;
+    using MySelf = BaseHeap;
+    using Parent = GeneralContainer<Traits, Mixins...>;
     using typename Parent::value_type;
     using typename Parent::Node;
     using typename Parent::NodePtr;
     using typename Parent::ForwardIterator;
     using Compare = typename Traits::Compare;
 protected:
-    Heap() = default;
+    BaseHeap() = default;
     using Parent::Parent;
     using Parent::m_mutex;
     Vector<VectorAscTraits<value_type>> m_data;
@@ -41,59 +45,71 @@ public:
 
     size_t size() { return m_data.size(); }
 
-    void push(const value_type &value, Ref ref) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_data.push_back(value, ref);
-        HeapifyUp(m_data.size() - 1);
-    }
-
-    void HeapifyUp(size_t index) {
-        while (index > 0) {
-            size_t parentIndex = (index - 1) / 2;
-            if (Compare()(m_data[index].getValue(), m_data[parentIndex].getValue())) {
-                std::swap(m_data[index], m_data[parentIndex]);
-                index = parentIndex;
-            } else {
-                break;
-            }
-        }
-    }
-
-    Node pop() {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        static Node nullNode;
-        if (m_data.empty()) return nullNode;
-        Node root = m_data[0];
-        std::swap(m_data[0], m_data[m_data.size() - 1]);
-        m_data.pop_back();
-
-        if (!m_data.empty()) HeapifyDown(0);
-        return root;
-    }
-
-    void HeapifyDown(size_t index) {
-        while (true) {
-            size_t l = (index * 2) + 1;
-            size_t r = l + 1;
-            size_t best = index;
-            if (l < size() && Compare()(m_data[l].getValue(), m_data[best].getValue())) best = l;
-            if (r < size() && Compare()(m_data[r].getValue(), m_data[best].getValue())) best = r;
-            if (best == index) break;
-            std::swap(m_data[best], m_data[index]);
-            index = best;
-        }
-    }
+    void push(const value_type &value, Ref ref);
+    void HeapifyUp(size_t index);
+    Node pop();
+    void HeapifyDown(size_t index);
 
     template <typename Func, typename... Args>
-    void ApplyFunction(Func func, Args&&... args) {
-        Parent::ApplyFunction(func, std::forward<Args>(args)...);
-        for (size_t i=1; i<size(); ++i) HeapifyUp(i);
-    }
+    void ApplyFunction(Func func, Args&&... args);
 
-    
     ForwardIterator begin() const override { return m_data.begin(); }
     ForwardIterator end()   const override { return m_data.end();   }
 };
+
+template <typename Traits, template <typename> typename... Mixins>
+void BaseHeap<Traits, Mixins...>::push(const value_type &value, Ref ref) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_data.push_back(value, ref);
+    HeapifyUp(m_data.size() - 1);
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+void BaseHeap<Traits, Mixins...>::HeapifyUp(size_t index) {
+    while (index > 0) {
+        size_t parentIndex = (index - 1) / 2;
+        if (Compare()(m_data[index].getValue(), m_data[parentIndex].getValue())) {
+            std::swap(m_data[index], m_data[parentIndex]);
+            index = parentIndex;
+        } else {
+            break;
+        }
+    }
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+auto BaseHeap<Traits, Mixins...>::pop() -> Node {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    static Node nullNode;
+    if (m_data.empty()) return nullNode;
+    Node root = m_data[0];
+    std::swap(m_data[0], m_data[m_data.size() - 1]);
+    m_data.pop_back();
+
+    if (!m_data.empty()) HeapifyDown(0);
+    return root;
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+void BaseHeap<Traits, Mixins...>::HeapifyDown(size_t index) {
+    while (true) {
+        size_t l = (index * 2) + 1;
+        size_t r = l + 1;
+        size_t best = index;
+        if (l < size() && Compare()(m_data[l].getValue(), m_data[best].getValue())) best = l;
+        if (r < size() && Compare()(m_data[r].getValue(), m_data[best].getValue())) best = r;
+        if (best == index) break;
+        std::swap(m_data[best], m_data[index]);
+        index = best;
+    }
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+template <typename Func, typename... Args>
+void BaseHeap<Traits, Mixins...>::ApplyFunction(Func func, Args&&... args) {
+    Parent::ApplyFunction(func, std::forward<Args>(args)...);
+    for (size_t i=1; i<size(); ++i) HeapifyUp(i);
+}
 
 class MinHeap : public Heap<HeapAscTraits<TX>> {
 public:

@@ -3,23 +3,32 @@
 #include "circularlinkedlist.h"
 #include "doublelinkedlist.h"
 
+template <typename Traits, template <typename> typename... Mixins>
+class BaseCircularDoubleLinkedList;
+
 template <typename Traits>
-class CircularDoubleLinkedList : virtual public CircularLinkedList<Traits>,
-                                 virtual public DoubleLinkedList<Traits> {
+using CircularDoubleLinkedList = BaseCircularDoubleLinkedList<Traits, Callable, Searchable, Applicable, ReverseCallable, Printable, Readable>;
+
+template <typename Traits, template <typename> typename... Mixins>
+class BaseCircularDoubleLinkedList : virtual public BaseCircularLinkedList<Traits, Mixins...>,
+                                     virtual public BaseDoubleLinkedList<Traits, Mixins...> {
 public:
-    using Parent            = LinkedList<Traits>;
-    using CircularParent    = CircularLinkedList<Traits>;
-    using DoubleParent      = DoubleLinkedList<Traits>;
+    using Parent            = BaseLinkedList<Traits, Mixins...>;
+    using CircularParent    = BaseCircularLinkedList<Traits, Mixins...>;
+    using DoubleParent      = BaseDoubleLinkedList<Traits, Mixins...>;
     using NodePtr           = typename Parent::NodePtr;
 protected:
     using Parent::m_pRoot;
     using Parent::m_pTail;
 
-    void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) override {
-        CircularParent::linkNode(pNew, pPrev, pNext);
-        DoubleParent::linkNode(pNew, pPrev, pNext);
-        if (m_pRoot) m_pRoot->m_pPrev = m_pTail;
-    }
+    void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) override;
 };
+
+template <typename Traits, template <typename> typename... Mixins>
+void BaseCircularDoubleLinkedList<Traits, Mixins...>::linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext) {
+    CircularParent::linkNode(pNew, pPrev, pNext);
+    DoubleParent::linkNode(pNew, pPrev, pNext);
+    if (m_pRoot) m_pRoot->m_pPrev = m_pTail;
+}
 
 #endif
