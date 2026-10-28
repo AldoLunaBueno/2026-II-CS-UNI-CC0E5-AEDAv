@@ -1,24 +1,40 @@
 #ifndef __CIRCULAR_DOUBLE_LINKEDLIST_H__
 #define __CIRCULAR_DOUBLE_LINKEDLIST_H__
-
 #include "circularlinkedlist.h"
 #include "doublelinkedlist.h"
 
-template <typename Traits>
-class CircularDoubleLinkedList : public CircularLinkedList<Traits>,
-                                 public DoubleLinkedList<Traits> {
-public:
-    using Base         = LinkedList<Traits>;
-    using CircularBase = CircularLinkedList<Traits>;
-    using DoubleBase   = DoubleLinkedList<Traits>;
-    using NodePtr      = typename Base::NodePtr;
+template <typename Traits, template <typename> typename... Mixins>
+class BaseCircularDoubleLinkedList;
 
+template <typename Traits>
+using CircularDoubleLinkedList = BaseCircularDoubleLinkedList<Traits, Callable, Searchable, Applicable, ReverseCallable, Printable, Readable>;
+
+template <typename Traits, template <typename> typename... Mixins>
+class BaseCircularDoubleLinkedList : virtual public BaseCircularLinkedList<Traits, Mixins...>,
+                                     virtual public BaseDoubleLinkedList<Traits, Mixins...> {
+public:
+    using Parent            = BaseLinkedList<Traits, Mixins...>;
+    using CircularParent    = BaseCircularLinkedList<Traits, Mixins...>;
+    using DoubleParent      = BaseDoubleLinkedList<Traits, Mixins...>;
+    using NodePtr           = typename Parent::NodePtr;
 protected:
-    void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) override {
-        CircularBase::linkNode(pNew, pPrev, pNext);
-        DoubleBase::linkNode(pNew, pPrev, pNext);
-        if (this->m_pRoot) this->m_pRoot->m_pPrev = this->m_pTail;
-    }
+    using Parent::m_pRoot;
+    using Parent::m_pTail;
+
+    void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) override;
+public:
+    BaseCircularDoubleLinkedList() = default;
+    BaseCircularDoubleLinkedList(const BaseCircularDoubleLinkedList& other) { *this = other; }
+    BaseCircularDoubleLinkedList(BaseCircularDoubleLinkedList&& other) noexcept { *this = std::move(other); }
+    BaseCircularDoubleLinkedList& operator=(const BaseCircularDoubleLinkedList& other) { Parent::operator=(other); return *this; }
+    BaseCircularDoubleLinkedList& operator=(BaseCircularDoubleLinkedList&& other) noexcept { Parent::operator=(std::move(other)); return *this; }
 };
+
+template <typename Traits, template <typename> typename... Mixins>
+void BaseCircularDoubleLinkedList<Traits, Mixins...>::linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext) {
+    CircularParent::linkNode(pNew, pPrev, pNext);
+    DoubleParent::linkNode(pNew, pPrev, pNext);
+    if (m_pRoot) m_pRoot->m_pPrev = m_pTail;
+}
 
 #endif

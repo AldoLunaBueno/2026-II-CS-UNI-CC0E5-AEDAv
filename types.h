@@ -2,6 +2,7 @@
 #define __TYPES_H__
 
 using TX = int;
+using TXX = long long;
 using Ref = long long;
 
 // Crear el tipo CW como char si estamos en architectura de 16 bits

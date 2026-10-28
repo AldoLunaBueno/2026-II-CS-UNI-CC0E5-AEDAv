@@ -10,5 +10,7 @@ int main() {
     DemoVector();
     DemoRaceCondition();
     DemoLinkedList();
+    DemoHeap();
+    DemoBinaryTree();
     return 0;
 }
