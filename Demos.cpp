@@ -11,6 +11,7 @@
 #include "containers/circulardoublelinkedlist.h"
 #include "containers/Heap.h"
 #include "containers/binarytree.h"
+#include "utilities/printcolored.h"
 #include "Demos.h"
 using namespace std;
 
@@ -125,7 +126,7 @@ void TestForwardTraversal(Container &container){
 }
 
 void DemoVector() {
-    cout << "Pruebas del contenedor Vector" << endl;
+    PrintColored(cout, "Pruebas del contenedor Vector", Color::Yellow);
     // Dejamos los archivos vacios para que TestContainer acumule (append)
     // el estado del container tras cada paso
     ofstream("vector.txt", ios::trunc).close();
@@ -140,6 +141,15 @@ void DemoVector() {
     Vector<VectorAscTraits<string>> strVec;
     TestContainer(strVec, {{"Hello", 1}, {"World", 2}}, "vector_str.txt");
     TestTraversal(strVec);
+}
+
+void TestCustomVector() {
+    BaseVector<VectorAscTraits<TX>, Callable, Applicable, Searchable, ReverseCallable> vec({{0, 10}, {1, 11}, {2, 12}, {3, 13}, {4, 14}});
+
+}
+
+void DemoCustomContainer() {
+    TestCustomVector();
 }
 
 // Insertamos muchos elementos (generados en un loop, no a mano)
@@ -241,20 +251,24 @@ void TestDoubleLinkedListSpecifics(DoubleContainer &list) {
 
 void DemoLinkedList()
 {
-    cout << "\nPruebas para LinkedList" << endl;
+    cout << "\n";
+    PrintColored(cout, "Pruebas para LinkedList", Color::Yellow);
     LinkedList<LinkedListAscTraits<TX>> list;
     TestLinkedList(list, "linkedlist.txt");
 
-    cout << "\nPruebas para DoubleLinkedList" << endl;
+    cout << "\n";
+    PrintColored(cout, "Pruebas para DoubleLinkedList", Color::Yellow);
     DoubleLinkedList<DoubleLinkedListAscTraits<TX>> dlist;
     TestLinkedList(dlist, "doublelinkedlist.txt");
     TestDoubleLinkedListSpecifics(dlist);
 
-    cout << "\nPruebas para CircularLinkedList" << endl;
+    cout << "\n";
+    PrintColored(cout, "Pruebas para CircularLinkedList", Color::Yellow);
     CircularLinkedList<LinkedListAscTraits<TX>> clist;
     TestLinkedList(clist, "circularlinkedlist.txt");
 
-    cout << "\nPruebas para CircularDoubleLinkedList" << endl;
+    cout << "\n";
+    PrintColored(cout, "Pruebas para CircularDoubleLinkedList", Color::Yellow);
     CircularDoubleLinkedList<DoubleLinkedListAscTraits<TX>> cdlist;
     TestLinkedList(cdlist, "circulardoublelinkedlist.txt");
     TestDoubleLinkedListSpecifics(cdlist);
@@ -296,11 +310,13 @@ void TestHeap(Heap& heap) {
 }
 
 void DemoHeap() {
-    cout << "\nPruebas para MinHeap" << endl;
+    cout << "\n";
+    PrintColored(cout, "Pruebas para MinHeap", Color::Yellow);
     MinHeap minHeap;
     TestHeap(minHeap);
 
-    cout << "\nPruebas para MaxHeap" << endl;
+    cout << "\n";
+    PrintColored(cout, "Pruebas para MaxHeap", Color::Yellow);
     MaxHeap maxHeap;
     TestHeap(maxHeap);
 }
@@ -334,7 +350,8 @@ void TestBinaryTree(TreeContainer &tree, const string &filename) {
 }
 
 void DemoBinaryTree() {
-    cout << "\nPruebas para BinaryTree" << endl;
+    cout << "\n";
+    PrintColored(cout, "Pruebas para BinaryTree", Color::Yellow);
     BinaryTree<BinaryTreeAscTraits<TX>> tree;
     TestBinaryTree(tree, "binarytree.txt");
 }
