@@ -32,16 +32,35 @@ public:
     using typename Parent::ForwardIterator;
     using Compare = typename Traits::Compare;
 protected:
-    BaseHeap() = default;
     using Parent::Parent;
     using Parent::m_mutex;
     Vector<VectorAscTraits<value_type>> m_data;
 public:
+    BaseHeap() = default;
+    BaseHeap(const BaseHeap& other) { *this = other; }
+    BaseHeap(BaseHeap&& other) noexcept { *this = std::move(other); }
+    virtual ~BaseHeap() { clear(); }
+
+    BaseHeap& operator=(const BaseHeap& other) {
+        this->copy_from(other);
+        return *this;
+    }
+    BaseHeap& operator=(BaseHeap&& other) noexcept {
+        this->move_from(other, [&]{ m_data = std::move(other.m_data); });
+        return *this;
+    }
+
     void push_back(const value_type& value, Ref ref) override { push(value, ref); }
 
-    void clear() override { return m_data.clear(); }
+    void clear() override {
+        std::lock_guard lock(m_mutex);
+        m_data.clear();
+    }
 
-    size_t size() { return m_data.size(); }
+    size_t size() const {
+        std::lock_guard lock(m_mutex);
+        return m_data.size();
+    }
 
     void push(const value_type &value, Ref ref);
     void HeapifyUp(size_t index);
@@ -57,7 +76,7 @@ public:
 
 template <typename Traits, template <typename> typename... Mixins>
 void BaseHeap<Traits, Mixins...>::push(const value_type &value, Ref ref) {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
     m_data.push_back(value, ref);
     HeapifyUp(m_data.size() - 1);
 }
@@ -77,7 +96,7 @@ void BaseHeap<Traits, Mixins...>::HeapifyUp(size_t index) {
 
 template <typename Traits, template <typename> typename... Mixins>
 auto BaseHeap<Traits, Mixins...>::pop() -> Node {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
     static Node nullNode;
     if (m_data.empty()) return nullNode;
     Node root = m_data[0];
@@ -105,6 +124,7 @@ void BaseHeap<Traits, Mixins...>::HeapifyDown(size_t index) {
 template <typename Traits, template <typename> typename... Mixins>
 template <typename Func, typename... Args>
 void BaseHeap<Traits, Mixins...>::ApplyFunction(Func func, Args&&... args) {
+    std::lock_guard lock(m_mutex);
     Parent::ApplyFunction(func, std::forward<Args>(args)...);
     for (size_t i=1; i<size(); ++i) HeapifyUp(i);
 }

@@ -51,6 +51,12 @@ protected:
     void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) override;
 
 public:
+    BaseDoubleLinkedList() = default;
+    BaseDoubleLinkedList(const BaseDoubleLinkedList& other) { *this = other; }
+    BaseDoubleLinkedList(BaseDoubleLinkedList&& other) noexcept { *this = std::move(other); }
+    BaseDoubleLinkedList& operator=(const BaseDoubleLinkedList& other) { Parent::operator=(other); return *this; }
+    BaseDoubleLinkedList& operator=(BaseDoubleLinkedList&& other) noexcept { Parent::operator=(std::move(other)); return *this; }
+
     BackwardIterator rbegin() const { return BackwardIterator(m_pTail); }
     BackwardIterator rend()   const { return BackwardIterator(nullptr); }
 };

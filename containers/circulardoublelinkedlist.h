@@ -22,6 +22,12 @@ protected:
     using Parent::m_pTail;
 
     void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) override;
+public:
+    BaseCircularDoubleLinkedList() = default;
+    BaseCircularDoubleLinkedList(const BaseCircularDoubleLinkedList& other) { *this = other; }
+    BaseCircularDoubleLinkedList(BaseCircularDoubleLinkedList&& other) noexcept { *this = std::move(other); }
+    BaseCircularDoubleLinkedList& operator=(const BaseCircularDoubleLinkedList& other) { Parent::operator=(other); return *this; }
+    BaseCircularDoubleLinkedList& operator=(BaseCircularDoubleLinkedList&& other) noexcept { Parent::operator=(std::move(other)); return *this; }
 };
 
 template <typename Traits, template <typename> typename... Mixins>

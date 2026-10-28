@@ -20,6 +20,12 @@ protected:
     void linkNode(NodePtr pNew, NodePtr pPrev, NodePtr pNext = nullptr) override {
         if (m_pTail) m_pTail->m_pNext = m_pRoot;
     }
+public:
+    BaseCircularLinkedList() = default;
+    BaseCircularLinkedList(const BaseCircularLinkedList& other) { *this = other; }
+    BaseCircularLinkedList(BaseCircularLinkedList&& other) noexcept { *this = std::move(other); }
+    BaseCircularLinkedList& operator=(const BaseCircularLinkedList& other) { Parent::operator=(other); return *this; }
+    BaseCircularLinkedList& operator=(BaseCircularLinkedList&& other) noexcept { Parent::operator=(std::move(other)); return *this; }
 };
 
 #endif

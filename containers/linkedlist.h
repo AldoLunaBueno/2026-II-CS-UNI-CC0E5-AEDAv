@@ -74,16 +74,18 @@ private:
     void internalInsert(const value_type& value, Ref ref, NodePtr& rParent, NodePtr pPrev = nullptr);
 
 public:
-    BaseLinkedList() {}
-    BaseLinkedList(const BaseLinkedList& another){ *this = another; } // copia profunda de la lista enlazada
+    BaseLinkedList() = default;
+    BaseLinkedList(const BaseLinkedList& another) { *this = another; }
+    BaseLinkedList(BaseLinkedList&& another) noexcept { *this = std::move(another); }
     BaseLinkedList& operator=(const BaseLinkedList& another);
+    BaseLinkedList& operator=(BaseLinkedList&& another) noexcept;
     BaseLinkedList(initializer_list<pair<value_type, Ref>> values) {
         for (const auto &v : values)
             push_back(v.first, v.second);
     }
 
     void clear() override;
-    virtual ~BaseLinkedList(){ clear(); };
+    virtual ~BaseLinkedList() { clear(); }
 
     void push_back(const value_type& value, Ref ref) override;
 
@@ -103,11 +105,16 @@ public:
 
 template <typename Traits, template <typename> typename... Mixins>
 auto BaseLinkedList<Traits, Mixins...>::operator=(const BaseLinkedList& other) -> BaseLinkedList& { 
-    if (this == &other) return *this;
-    clear();
-    std::lock_guard<std::mutex> lock(other.m_mutex);
-    for (const auto& node : other)
-        push_back(node.getValue(), node.getRef());
+    this->copy_from(other);
+    return *this;
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+auto BaseLinkedList<Traits, Mixins...>::operator=(BaseLinkedList&& other) noexcept -> BaseLinkedList& {
+    this->move_from(other, [&]{
+        m_pRoot = std::exchange(other.m_pRoot, nullptr);
+        m_pTail = std::exchange(other.m_pTail, nullptr);
+    });
     return *this;
 }
 

@@ -81,12 +81,10 @@ public:
 
     virtual ~BaseVector() { clear(); }
 
-    BaseVector(const BaseVector& other);
+    BaseVector(const BaseVector& other) { *this = other; }
+    BaseVector(BaseVector&& other) noexcept { *this = std::move(other); }
 
-    // Move constructor and move assignment operator
-    BaseVector(BaseVector&& other) noexcept;
-
-    // Move assignment operator
+    BaseVector& operator=(const BaseVector& other);
     BaseVector& operator=(BaseVector&& other) noexcept;
 
     void push_back(const value_type& value, Ref ref) override;
@@ -118,34 +116,24 @@ void BaseVector<Traits, Mixins...>::resize(size_t new_cap) {
 }
 
 template <typename Traits, template <typename> typename... Mixins>
-BaseVector<Traits, Mixins...>::BaseVector(const BaseVector& other) {
-    resize(other.m_size);
-    for (size_t i = 0; i < other.m_size; ++i)
-        m_data[i] = other.m_data[i];
-    m_size = other.m_size;
-}
-
-template <typename Traits, template <typename> typename... Mixins>
-BaseVector<Traits, Mixins...>::BaseVector(BaseVector&& other) noexcept {
-    m_data     = std::exchange(other.m_data, nullptr);
-    m_size     = std::exchange(other.m_size, 0);
-    m_capacity = std::exchange(other.m_capacity, 0);
+auto BaseVector<Traits, Mixins...>::operator=(const BaseVector& other) -> BaseVector& {
+    this->copy_from(other);
+    return *this;
 }
 
 template <typename Traits, template <typename> typename... Mixins>
 auto BaseVector<Traits, Mixins...>::operator=(BaseVector&& other) noexcept -> BaseVector& {
-    if (this != &other) {
-        clear();
+    this->move_from(other, [&]{
         m_data     = std::exchange(other.m_data, nullptr);
         m_size     = std::exchange(other.m_size, 0);
         m_capacity = std::exchange(other.m_capacity, 0);
-    }
+    });
     return *this;
 }
 
 template <typename Traits, template <typename> typename... Mixins>
 void BaseVector<Traits, Mixins...>::push_back(const value_type& value, Ref ref) {
-    lock_guard<mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
     if (m_size == m_capacity) {
         size_t new_cap = (m_capacity == 0) ? 10 : m_capacity * 2;
         resize(new_cap);
@@ -156,7 +144,7 @@ void BaseVector<Traits, Mixins...>::push_back(const value_type& value, Ref ref) 
 
 template <typename Traits, template <typename> typename... Mixins>
 void BaseVector<Traits, Mixins...>::pop_back() {
-    lock_guard<mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
     if (m_size > 0) --m_size;
 }
 
@@ -174,7 +162,7 @@ auto BaseVector<Traits, Mixins...>::at(size_t index) -> Node& {
 
 template <typename Traits, template <typename> typename... Mixins>
 void BaseVector<Traits, Mixins...>::clear() {
-    lock_guard<mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
     delete [] m_data;
     m_data     = nullptr;
     m_size     = 0;

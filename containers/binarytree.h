@@ -92,14 +92,20 @@ public:
     using BackwardIterator = typename Traits::BackwardIterator;
     using Compare = typename Traits::Compare;
 
+protected:
+    using Parent::m_mutex;
+
 private:
     NodePtr m_root = nullptr; // root of the binary tree
     void internal_insert(NodePtr& node, const value_type& value, Ref ref, NodePtr parent = nullptr);
 public:
+    BaseBinaryTree() = default;
+    BaseBinaryTree(const BaseBinaryTree& another) { *this = another; }
+    BaseBinaryTree(BaseBinaryTree&& another) noexcept { *this = std::move(another); }
     virtual ~BaseBinaryTree() { clear(); }
 
     void insert(const value_type& value, Ref ref) {
-        // Implement insertion logic for binary tree
+        std::lock_guard lock(this->m_mutex);
         internal_insert(m_root, value, ref);
     }
     // Move constructor and move assignment operator
@@ -121,7 +127,8 @@ public:
     BackwardIterator rbegin() const;
     BackwardIterator rend() const { return BackwardIterator(nullptr); }
 
-    BaseBinaryTree& operator=(BaseBinaryTree& another) noexcept;
+    BaseBinaryTree& operator=(const BaseBinaryTree& another);
+    BaseBinaryTree& operator=(BaseBinaryTree&& another) noexcept;
 };
 
 template <typename Traits, template <typename> typename... Mixins>
@@ -137,6 +144,7 @@ void BaseBinaryTree<Traits, Mixins...>::internal_insert(NodePtr& node, const val
 
 template <typename Traits, template <typename> typename... Mixins>
 void BaseBinaryTree<Traits, Mixins...>::clear() {
+    std::lock_guard lock(this->m_mutex);
     clear_recursive(m_root);
     m_root = nullptr;
 }
@@ -164,10 +172,14 @@ auto BaseBinaryTree<Traits, Mixins...>::rbegin() const -> BackwardIterator {
 }
 
 template <typename Traits, template <typename> typename... Mixins>
-auto BaseBinaryTree<Traits, Mixins...>::operator=(BaseBinaryTree& another) noexcept -> BaseBinaryTree& {
-    std::scoped_lock lock(this->m_mutex, another.m_mutex);
-    clear_recursive(m_root);
-    m_root = std::exchange(another.m_root, nullptr);
+auto BaseBinaryTree<Traits, Mixins...>::operator=(const BaseBinaryTree& another) -> BaseBinaryTree& {
+    this->copy_from(another);
+    return *this;
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+auto BaseBinaryTree<Traits, Mixins...>::operator=(BaseBinaryTree&& another) noexcept -> BaseBinaryTree& {
+    this->move_from(another, [&]{ m_root = std::exchange(another.m_root, nullptr); });
     return *this;
 }
 

@@ -11,7 +11,7 @@ class Callable : virtual public ContainerCore<Traits>  {
 public:
     template<typename Func, typename... Args>
     decltype(auto) call(Func func, Args&&... args) {
-        lock_guard<mutex> lock(this->m_mutex);
+        std::lock_guard lock(this->m_mutex);
         return ::call(this->begin(), this->end(), std::forward<Func>(func), std::forward<Args>(args)...);
     }
 };
@@ -42,7 +42,7 @@ public:
     // (rbegin()/rend()) en vez de hacia adelante.
     template<typename Func, typename... Args>
     decltype(auto) rcall(Func func, Args&&... args) {
-        lock_guard<mutex> lock(this->m_mutex);
+        std::lock_guard lock(this->m_mutex);
         return ::call(rbegin(), rend(), std::forward<Func>(func), std::forward<Args>(args)...);
     }
 
@@ -53,7 +53,7 @@ public:
 template <typename Traits>
 class Printable : virtual public ContainerCore<Traits> {
     friend std::ostream& operator<<(std::ostream& os, const Printable& container) {
-        lock_guard<mutex> lock(container.m_mutex);
+        std::lock_guard lock(container.m_mutex);
         std::string sep = "";
         os << "[";
         for (const auto& e : container) { os << sep << e; sep = ","; };
@@ -64,6 +64,7 @@ class Printable : virtual public ContainerCore<Traits> {
 template <typename Traits>
 class Readable : virtual public ContainerCore<Traits> {
     friend std::istream& operator>>(std::istream& is, Readable& container) {
+        std::lock_guard lock(container.m_mutex);
         typename Traits::Node::Delim d;
         typename Traits::Node node;
         container.clear();
