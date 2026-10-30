@@ -326,9 +326,13 @@ void TestBinaryTree(TreeContainer &tree, const string &filename) {
     ofstream(filename, ios::trunc).close();
 
     // Pruebas de insercion y persistencia
-    TestContainer(tree, {{50, 5}, {20, 2}, {80, 8}, {10, 1}, {30, 3}, {70, 7}, {90, 9}}, filename);
+    TestContainer(tree, {{50, 5}, {20, 2}, {80, 8}, {10, 1}, {30, 3}, {70, 7}, {90, 9}, {55, 10}, {25, 12}, {85, 8}, {100, 14}, {35, 13}, {75, 17}, {95, 19}}, filename);
     // Recorrido in-order
     TestTraversal(tree);
+
+    PrintColored(cout, "Diagrama de árbol:", Color::Red);
+    std::cout << "Altura: " << tree.height() << std::endl;
+    tree.draw(cout);
 
     tree.ApplyFunction(AddOne);
     cout << "Arbol tras usar AddOne: " << tree << endl;
