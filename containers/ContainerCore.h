@@ -1,7 +1,6 @@
 #ifndef __CONTAINER_CORE__
 #define __CONTAINER_CORE__
 #include <mutex>
-#include <utility>
 #include "../types.h"
 
 template <typename Traits>
@@ -23,8 +22,8 @@ protected:
             this->push_back(node.getValue(), node.getRef());
     }
 
-    template <typename Derived, typename StealFunc>
-    void move_from(Derived& other, StealFunc steal_fn) noexcept {
+    template <typename StealFunc>
+    void move_from(ContainerCore& other, StealFunc steal_fn) noexcept {
         if (this == &other) return;
         std::scoped_lock lock(this->m_mutex, other.m_mutex);
         this->clear();
@@ -43,7 +42,7 @@ public:
         return this->begin() == this->end();
     }
     virtual void clear() = 0;
-    virtual void push_back(const value_type& value, Ref ref) = 0;
+    virtual void push_back(const value_type& value, Ref ref = 0) = 0;
 
     virtual ForwardIterator begin() const = 0;
     virtual ForwardIterator end() const = 0;

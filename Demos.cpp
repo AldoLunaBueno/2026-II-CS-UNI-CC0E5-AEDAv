@@ -12,6 +12,7 @@
 #include "containers/Heap.h"
 #include "containers/binarytree.h"
 #include "utilities/printcolored.h"
+#include "utilities/render.h"
 #include "Demos.h"
 using namespace std;
 
@@ -326,13 +327,21 @@ void TestBinaryTree(TreeContainer &tree, const string &filename) {
     ofstream(filename, ios::trunc).close();
 
     // Pruebas de insercion y persistencia
-    TestContainer(tree, {{50, 5}, {20, 2}, {80, 8}, {10, 1}, {30, 3}, {70, 7}, {90, 9}, {55, 10}, {25, 12}, {85, 8}, {100, 14}, {35, 13}, {75, 17}, {95, 19}}, filename);
+    TestContainer(tree, 
+        {
+            {50, 5},  {20, 2},  {80, 8},  {10, 1},   {30, 3},  {70, 7},  {90, 9},
+            {55, 10}, {25, 12}, {85, 18}, {100, 14}, {35, 13}, {75, 17}, {95, 19},
+            {43, 20}, {33, 22}, {73, 28}, {93, 24},  {83, 23}, {71, 27}, {63, 29},
+            {96, 30}
+        }, 
+        filename);
     // Recorrido in-order
     TestTraversal(tree);
 
     PrintColored(cout, "Diagrama de árbol:", Color::Red);
-    std::cout << "Altura: " << tree.height() << std::endl;
-    tree.draw(cout);
+    std::cout << "(Altura: " << tree.height() << ")" << std::endl;
+    tree.draw(ConsoleGraphRenderer(cout));
+    std::cout << std::endl;
 
     tree.ApplyFunction(AddOne);
     cout << "Arbol tras usar AddOne: " << tree << endl;

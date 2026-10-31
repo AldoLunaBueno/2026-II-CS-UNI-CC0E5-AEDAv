@@ -87,7 +87,7 @@ public:
     BaseVector& operator=(const BaseVector& other);
     BaseVector& operator=(BaseVector&& other) noexcept;
 
-    void push_back(const value_type& value, Ref ref) override;
+    void push_back(const value_type& value, Ref ref = 0) override;
     void pop_back();
 
     Node& operator[](size_t index);

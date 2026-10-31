@@ -5,9 +5,8 @@
 #include "GeneralContainer.h"
 #include "mixins.h"
 #include "../types.h"
+#include "../utilities/render.h"
 #include <iostream>
-#include <iomanip>
-#include <cstring>
 
 template <typename T>
 class BinaryTreeNode : public GeneralNode<T> {
@@ -82,7 +81,7 @@ template <typename Traits, template <typename> typename... Mixins>
 class BaseBinaryTree;
 
 template <typename Traits>
-using BinaryTree = BaseBinaryTree<Traits, Callable, Applicable, Searchable, ReverseCallable, Printable, Readable>;
+using BinaryTree = BaseBinaryTree<Traits, Callable, Applicable, Searchable, ReverseCallable, Printable, Readable, Drawable>;
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseBinaryTree : public GeneralContainer<Traits, Mixins...> {
@@ -134,9 +133,9 @@ public:
     BaseBinaryTree& operator=(const BaseBinaryTree& another);
     BaseBinaryTree& operator=(BaseBinaryTree&& another) noexcept;
 
-    ostream& draw(ostream&);
+    VisualGraph sketch() const;
     TX height(const NodePtr&) const;
-    TX height() { return height(m_pRoot); };
+    TX height() const { return height(m_pRoot); };
 };
 
 template <typename Traits, template <typename> typename... Mixins>
@@ -192,66 +191,70 @@ auto BaseBinaryTree<Traits, Mixins...>::operator=(BaseBinaryTree&& another) noex
 }
 
 template <typename Traits, template <typename> typename... Mixins>
-ostream& BaseBinaryTree<Traits, Mixins...>::draw(ostream& os) {
-    TX cell_width = 6;
-    const CW RIGHT_B = '_';
-    const CW ANGLE_B = '\\';
-    const CW DOWN_B = '|';
-    const CW SPACE = ' ';
+VisualGraph BaseBinaryTree<Traits, Mixins...>::sketch() const {
+    VisualGraph graph;
+    if (!m_pRoot) return graph;
 
-    NodePtr* curr_level = new NodePtr[1];
-    curr_level[0] = m_pRoot;
-    TX num_level_nodes = 1;
+    TX cell_width = 3;
     TX h = height();
-    TX line_width = (1<<(h-1)) * cell_width;
+    TX line_width = (1 << (h - 1)) * cell_width;
+    TX total_height = h > 0 ? (h - 1) * cell_width + 1 : 0;
 
-    for (TX k=0; k < h; k++) {
-        TX segment_width = cell_width * (1<<(h-k-1));
-        for (TX i=0; i < num_level_nodes; i++) {
-            TX filler_len = std::max(0, segment_width / 2 - cell_width);
-            string segment = std::string(segment_width, SPACE);
-            if (curr_level[i]) {
-                string value = std::to_string(curr_level[i]->getValue());
-                string content;
-                if (curr_level[i]->m_pChild[1]) content = std::string(filler_len, RIGHT_B);
-                else content = std::string(filler_len, SPACE);
-                content.replace(0, value.size(), value);
-                segment.replace(0, content.size(), content);
+    graph.width = line_width;
+    graph.height = total_height;
+    graph.cell_width = cell_width;
+
+    SimpleVector<NodePtr> curr_level;
+    curr_level.push_back(m_pRoot);
+
+    SimpleVector<TX> curr_ids;
+    curr_ids.push_back(0);
+    TX next_id = 1;
+    TX num_level_nodes = 1;
+
+    for (TX k = 0; k < h; k++) {
+        TX segment_width = cell_width * (1 << (h - k - 1));
+        SimpleVector<NodePtr> next_level;
+        SimpleVector<TX> next_ids;
+        TX next_size = 1 << (k + 1);
+        for (TX s = 0; s < next_size; s++) {
+            next_level.push_back(nullptr);
+            next_ids.push_back(-1);
+        }
+
+        for (TX i = 0; i < num_level_nodes; i++) {
+            NodePtr node = curr_level[i].getValue();
+            if (node) {
+                TX node_id = curr_ids[i].getValue();
+                TX x = i * segment_width;
+                TX y = k * cell_width;
+
+                graph.nodes.push_back(VisualNode{node_id, std::to_string(node->getValue()), x, y});
+
+                // crear aristas
+                for (size_t j=0; j<2; j++) {
+                    if (node->m_pChild[j]) {
+                        next_level[2 * i + j].value() = node->m_pChild[j];
+                        TX to_id = next_id++;
+                        next_ids[2 * i + j].value() = to_id;
+                        graph.edges.push_back(VisualEdge{
+                            node_id,
+                            to_id,
+                            (j == 0 ? VisualEdgeType::LeftChild : VisualEdgeType::RightChild)
+                        });
+                    }
+                }
             }
-            os << segment;
-        }
-        os << std::endl;
-
-        if (k == h - 1) {
-            delete[] curr_level;
-            return os;
         }
 
-        NodePtr* next_level = new NodePtr[1<<(k+1)];
-        for (TX i=0; i < num_level_nodes; i++) {
-            if (curr_level[i]) {
-                next_level[2*i] = curr_level[i]->m_pChild[0];
-                next_level[2*i+1] = curr_level[i]->m_pChild[1];
-            } else {
-                next_level[2*i] = nullptr;
-                next_level[2*i+1] = nullptr;
-            }
-        }
+        if (k == h - 1) break;
 
-        for (TX i=0; i<cell_width-1; i++) {
-            string line = std::string(line_width, SPACE);
-            for (TX j=0; j<num_level_nodes; j++) {
-                if (next_level[2*j]) line[j*segment_width] = DOWN_B;
-                if (next_level[2*j+1]) line[j*segment_width+segment_width/2-cell_width+i+1] = ANGLE_B;
-            }
-            os << line << std::endl;
-        }
-
-        delete[] curr_level; 
-        curr_level = next_level;
+        curr_level = std::move(next_level);
+        curr_ids = std::move(next_ids);
         num_level_nodes *= 2;
     }
-    return os;
+
+    return graph;
 }
 
 template <typename Traits, template <typename> typename... Mixins>
