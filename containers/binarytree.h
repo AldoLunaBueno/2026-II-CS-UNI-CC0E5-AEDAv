@@ -33,9 +33,13 @@ public:
     using MySelf = BinaryTreeIterator<T, Order, Dir>;
     using Parent = GeneralIterator<MySelf, Node>;
     using NodePtr = Node*;
-    using Parent::Parent;
     NodePtr m_parent = nullptr;
     static const TX order = Order;
+
+    BinaryTreeIterator(NodePtr root) : Parent(root) {
+        if (Parent::m_ptr && MySelf::order != TraversalOrder::PreOrder)
+            step_until_order(0);
+    }
 
     MySelf &operator++();
 
@@ -120,8 +124,8 @@ public:
     using typename Parent::Node;
     using typename Parent::NodePtr;
     using typename Parent::ForwardIterator;
-    using BackwardIterator = typename Traits::BackwardIterator;
-    using Compare = typename Traits::Compare;
+    using BackwardIterator  = typename Traits::BackwardIterator;
+    using Compare           = typename Traits::Compare;
 protected:
     using Parent::m_mutex;
 private:
@@ -144,11 +148,11 @@ public:
 
     void clear_recursive(NodePtr);
 
-    ForwardIterator begin() const override;
-    ForwardIterator end() const override { return ForwardIterator(nullptr); }
+    ForwardIterator begin() const override { return ForwardIterator(m_pRoot); }
+    ForwardIterator end()   const override { return ForwardIterator(nullptr); }
 
-    BackwardIterator rbegin() const;
-    BackwardIterator rend() const { return BackwardIterator(nullptr); }
+    BackwardIterator rbegin() const { return BackwardIterator(m_pRoot); }
+    BackwardIterator rend()   const { return BackwardIterator(nullptr); }
 
     BaseBinaryTree& operator=(const BaseBinaryTree& another);
     BaseBinaryTree& operator=(BaseBinaryTree&& another) noexcept;
@@ -182,20 +186,6 @@ void BaseBinaryTree<Traits, Mixins...>::clear_recursive(NodePtr node) {
     clear_recursive(node->m_pChild[0]);
     clear_recursive(node->m_pChild[1]);
     delete node;
-}
-
-template <typename Traits, template <typename> typename... Mixins>
-auto BaseBinaryTree<Traits, Mixins...>::begin() const -> ForwardIterator {
-    if (!m_pRoot) return ForwardIterator(nullptr);
-    auto it = ForwardIterator(m_pRoot);
-    if constexpr (ForwardIterator::order != TraversalOrder::PreOrder)
-        it.step_until_order(0);
-    return it;
-}
-
-template <typename Traits, template <typename> typename... Mixins>
-auto BaseBinaryTree<Traits, Mixins...>::rbegin() const -> BackwardIterator {
-    return BackwardIterator(m_pRoot);
 }
 
 template <typename Traits, template <typename> typename... Mixins>

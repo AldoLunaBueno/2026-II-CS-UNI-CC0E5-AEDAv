@@ -15,7 +15,7 @@ public:
     using pointer           = value_type *;
     using reference         = value_type&;
 protected:
-    pointer m_ptr;
+    pointer m_ptr; // puntero al nodo actual
     pointer m_pStart;
 public:
     GeneralIterator(pointer ptr) : m_ptr(ptr), m_pStart(ptr) {}
