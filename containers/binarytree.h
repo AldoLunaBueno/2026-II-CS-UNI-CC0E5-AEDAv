@@ -23,7 +23,27 @@ public:
 
 };
 
-namespace TraversalOrder { enum Type { PreOrder = 0, InOrder = 1, PostOrder = 2 }; };
+namespace Phase {
+    enum Type {
+        Pre  = 0b100,
+        In   = 0b010,
+        Post = 0b001
+    };
+};
+
+namespace TraversalOrder {
+    enum Type {
+    // Puros
+        PreOrder        = Phase::Pre,
+        InOrder         =              Phase::In,
+        PostOrder       =                          Phase::Post,
+    // Híbridos
+        PreInOrder      = Phase::Pre + Phase::In,
+        PrePostOrder    = Phase::Pre             + Phase::Post,
+        InPostOrder     =              Phase::In + Phase::Post,
+        PreInPostOrder  = Phase::Pre + Phase::In + Phase::Post,
+    };
+};
 namespace Direction { enum Type {Asc = 0, Desc = 1 }; };
 
 template <typename T, TX Order, TX Dir>
@@ -33,49 +53,55 @@ public:
     using MySelf = BinaryTreeIterator<T, Order, Dir>;
     using Parent = GeneralIterator<MySelf, Node>;
     using NodePtr = Node*;
-    NodePtr m_parent = nullptr;
+    using Parent::m_ptr;
+protected:
     static const TX order = Order;
-
+    TX m_phase;
+public:
     BinaryTreeIterator(NodePtr root) : Parent(root) {
-        if (Parent::m_ptr && MySelf::order != TraversalOrder::PreOrder)
-            step_until_order(0);
+        m_phase = Phase::Pre;
+        if (m_ptr && !(MySelf::order & Phase::Pre)) {
+            step_until_phase();
+        }
     }
-
+    
     MySelf &operator++();
 
-    void step_until_order(TX phase);
+    friend bool operator== (const MySelf& a, const MySelf& b) { return a.m_ptr == b.m_ptr && a.m_phase == b.m_phase; };
+    friend bool operator!= (const MySelf& a, const MySelf& b) { return a.m_ptr != b.m_ptr && a.m_phase != b.m_phase; };
+
+    void step_until_phase();
 };
 
 template <typename T, TX Order, TX Dir>
 auto BinaryTreeIterator<T, Order, Dir>::operator++() -> MySelf& {
-    step_until_order(Order);
+    step_until_phase();
     return *this;
 }
 
 // Máquina de estados del recorrido de Euler por fases
 template <typename T, TX Order, TX Dir>
-void BinaryTreeIterator<T, Order, Dir>::step_until_order(TX phase) {
-    auto& node = Parent::m_ptr;
+void BinaryTreeIterator<T, Order, Dir>::step_until_phase() {
     do {
-        switch (phase) {
-        case 0:
-            if (node->m_pChild[Dir]) node = node->m_pChild[Dir];
-            else phase = 1;
+        switch (m_phase) {
+        case Phase::Pre:
+            if (m_ptr->m_pChild[Dir]) m_ptr = m_ptr->m_pChild[Dir];
+            else m_phase = Phase::In;
             break;
-        case 1:
-            if (node->m_pChild[1 - Dir]) {
-                node = node->m_pChild[1 - Dir];
-                phase = 0;
+        case Phase::In:
+            if (m_ptr->m_pChild[1 - Dir]) {
+                m_ptr = m_ptr->m_pChild[1 - Dir];
+                m_phase = Phase::Pre;
             }
-            else phase = 2;
+            else m_phase = Phase::Post;
             break;
-        default:
-            auto parent = node->m_parent;
-            if (parent && parent->m_pChild[Dir] && node == parent->m_pChild[Dir])
-                phase = 1;
-            node = parent;
+        case Phase::Post:
+            auto parent = m_ptr->m_parent;
+            if (parent && parent->m_pChild[Dir] && m_ptr == parent->m_pChild[Dir])
+                m_phase = Phase::In;
+            m_ptr = parent;
         }
-    } while (phase != Order && node);
+    } while (m_ptr && !(m_phase & Order));
 }
 
 template <typename T>
