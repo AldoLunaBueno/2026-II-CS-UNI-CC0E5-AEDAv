@@ -55,20 +55,26 @@ public:
     using NodePtr = Node*;
     using Parent::m_ptr;
 protected:
-    static const TX order = Order;
+    static const TX order      = Order;
+    static const TX FirstPhase = (Dir == Direction::Asc) ? Phase::Pre  : Phase::Post;
+    static const TX LastPhase  = (Dir == Direction::Asc) ? Phase::Post : Phase::Pre;
     TX m_phase;
 public:
     BinaryTreeIterator(NodePtr root) : Parent(root) {
-        m_phase = Phase::Pre;
-        if (m_ptr && !(MySelf::order & Phase::Pre)) {
+        m_phase = FirstPhase;
+        if (m_ptr && !(MySelf::order & FirstPhase)) {
             step_until_phase();
         }
     }
     
     MySelf &operator++();
 
-    friend bool operator== (const MySelf& a, const MySelf& b) { return a.m_ptr == b.m_ptr && a.m_phase == b.m_phase; };
-    friend bool operator!= (const MySelf& a, const MySelf& b) { return a.m_ptr != b.m_ptr && a.m_phase != b.m_phase; };
+    friend bool operator== (const MySelf& a, const MySelf& b) {
+        return a.m_ptr == b.m_ptr && a.m_phase == b.m_phase;
+    }
+    friend bool operator!= (const MySelf& a, const MySelf& b) {
+        return a.m_ptr != b.m_ptr || a.m_phase != b.m_phase;
+    }
 
     void step_until_phase();
 };
@@ -84,56 +90,39 @@ template <typename T, TX Order, TX Dir>
 void BinaryTreeIterator<T, Order, Dir>::step_until_phase() {
     do {
         switch (m_phase) {
-        case Phase::Pre:
+        case FirstPhase:
             if (m_ptr->m_pChild[Dir]) m_ptr = m_ptr->m_pChild[Dir];
             else m_phase = Phase::In;
             break;
         case Phase::In:
             if (m_ptr->m_pChild[1 - Dir]) {
                 m_ptr = m_ptr->m_pChild[1 - Dir];
-                m_phase = Phase::Pre;
+                m_phase = FirstPhase;
             }
-            else m_phase = Phase::Post;
+            else m_phase = LastPhase;
             break;
-        case Phase::Post:
+        case LastPhase:
             auto parent = m_ptr->m_parent;
             if (parent && parent->m_pChild[Dir] && m_ptr == parent->m_pChild[Dir])
                 m_phase = Phase::In;
             m_ptr = parent;
         }
     } while (m_ptr && !(m_phase & Order));
+    if (!m_ptr) m_phase = FirstPhase;
 }
 
-template <typename T>
-using BinaryTreeInOrderForwardIterator = BinaryTreeIterator<T, TraversalOrder::InOrder, Direction::Asc>;
-
-template <typename T>
-using BinaryTreeInOrderBackwardIterator = BinaryTreeIterator<T, TraversalOrder::InOrder, Direction::Desc>;
-
-template <typename T>
-using BinaryTreePreOrderForwardIterator = BinaryTreeIterator<T, TraversalOrder::PreOrder, Direction::Asc>;
-
-template <typename T>
-using BinaryTreePreOrderBackwardIterator = BinaryTreeIterator<T, TraversalOrder::PreOrder, Direction::Desc>;
-
-template <typename T>
-using BinaryTreePostOrderForwardIterator = BinaryTreeIterator<T, TraversalOrder::PostOrder, Direction::Asc>;
-
-template <typename T>
-using BinaryTreePostOrderBackwardIterator = BinaryTreeIterator<T, TraversalOrder::PostOrder, Direction::Desc>;
-
-template <typename T>
+template <typename T, TX Order>
 struct BinaryTreeTraits {
     using Node              = BinaryTreeNode<T>;
-    using ForwardIterator   = BinaryTreeInOrderForwardIterator<T>;
-    using BackwardIterator  = BinaryTreeInOrderBackwardIterator<T>;
+    using ForwardIterator   = BinaryTreeIterator<T, Order, 0>;
+    using BackwardIterator  = BinaryTreeIterator<T, Order, 1>;
 };
 
-template <typename T>
-struct BinaryTreeAscTraits : public AscendingTraits<T>, public BinaryTreeTraits<T> {};
+template <typename T, TX Order = TraversalOrder::InOrder>
+struct BinaryTreeAscTraits : public AscendingTraits<T>, public BinaryTreeTraits<T, Order> {};
 
-template <typename T>
-struct BinaryTreeDescTraits : public DescendingTraits<T>, public BinaryTreeTraits<T> {};
+template <typename T, TX Order = TraversalOrder::InOrder>
+struct BinaryTreeDescTraits : public DescendingTraits<T>, public BinaryTreeTraits<T, Order> {};
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseBinaryTree;

@@ -1,4 +1,5 @@
 #include <iostream>
+#include <ostream>
 #include <fstream> // ofstream para escribir en archivo
 #include <string>
 #include <thread>
@@ -322,8 +323,11 @@ void DemoHeap() {
     TestHeap(maxHeap);
 }
 
-template <typename TreeContainer>
-void TestBinaryTree(TreeContainer &tree, const string &filename) {
+// 1. TreeContainer aquí SÍ es un tipo completo (ya instanciado), se queda con typename
+template < typename TreeContainer >
+void TestBinaryTreeGeneral(TreeContainer &tree, const string &filename) {
+    using ValueType = typename TreeContainer::value_type;
+
     ofstream(filename, ios::trunc).close();
 
     // Pruebas de insercion y persistencia
@@ -335,17 +339,18 @@ void TestBinaryTree(TreeContainer &tree, const string &filename) {
             {96, 30}
         }, 
         filename);
-    // Recorrido in-order
-    TestTraversal(tree);
 
     PrintColored(cout, "Diagrama de árbol:", Color::Red);
     std::cout << "(Altura: " << tree.height() << ")" << std::endl;
     tree.draw(ConsoleGraphRenderer(cout));
     std::cout << std::endl;
 
+    // in-order
+    TestTraversal(tree);
+
     tree.ApplyFunction(AddOne);
     cout << "Arbol tras usar AddOne: " << tree << endl;
-    tree.ApplyFunction(AddX<TX>, TX(10));
+    tree.ApplyFunction(AddX< ValueType >, ValueType(10));
     cout << "Arbol tras usar AddX(10): " << tree << endl;
 
     tree.clear();
@@ -362,9 +367,79 @@ void TestBinaryTree(TreeContainer &tree, const string &filename) {
     cout << "Arbol tras operator=: " << tree << endl;
 }
 
+template < template < typename > class BinaryTree, TX Order >
+void TestOneOrderTour(const vector< pair< TX, Ref > > &values) {
+    using Tree = BinaryTree<BinaryTreeAscTraits<TX, Order>>;
+    using Node = typename Tree::Node;
+
+    Tree tree;
+    InsertElements(tree, values);
+    cout << "- Ascendente:  ";
+    cout << " [" ;
+    tree.call(PrintNode<Node>, cout);
+    cout << "]" << endl;
+    cout << "- Descendente: ";
+    cout << " [";
+    tree.rcall(PrintNode<Node>, cout);
+    cout << "]" << endl;
+}
+
+template < template < typename > class BinaryTree >
+void TestAllTours() {
+    PrintColored(cout, "Probar los 14 recorridos posibles:", Color::Green);
+    
+    // Instanciamos con InOrder para la presentación
+    using DefaultTree = BinaryTree< BinaryTreeAscTraits<TX, TraversalOrder::InOrder>>;
+    DefaultTree tree;
+
+    vector< pair< typename DefaultTree::value_type, Ref > > values = {
+        {50, 5}, {20, 2}, {80, 8}, {10, 1}, {30, 3}, {70, 7}, {90, 9}
+    };
+
+    InsertElements(tree, values);
+    cout << "(Altura: " << tree.height() << ")" << std::endl;
+    tree.draw(ConsoleGraphRenderer(cout));
+    cout << endl;
+
+    // Pasamos 'values' como argumento en cada llamada
+    cout << "Recorrido in-order:" << endl;
+    TestOneOrderTour<BinaryTree, TraversalOrder::InOrder>(values);
+    
+    cout << "Recorrido pre-order:" << endl;
+    TestOneOrderTour<BinaryTree, TraversalOrder::PreOrder>(values);
+
+    cout << "Recorrido post-order:" << endl;
+    TestOneOrderTour<BinaryTree, TraversalOrder::PostOrder>(values);
+
+    // Pasamos 'values' como argumento en cada llamada
+    cout << "Recorrido pre-in-order:" << endl;
+    TestOneOrderTour<BinaryTree, TraversalOrder::PreInOrder>(values);
+    
+    cout << "Recorrido pre-post-order:" << endl;
+    TestOneOrderTour<BinaryTree, TraversalOrder::PrePostOrder>(values);
+
+    cout << "Recorrido in-post-order:" << endl;
+    TestOneOrderTour<BinaryTree, TraversalOrder::InPostOrder>(values);
+
+    cout << "Recorrido pre-in-post-order:" << endl;
+    TestOneOrderTour<BinaryTree, TraversalOrder::PreInPostOrder>(values);
+}
+
+template < template < typename > class TreeContainer >
+void TestBinaryTree(const string &filename = "tree_test.txt") {
+    // Aquí delegamos e instanciamos la plantilla con sus traits
+    TreeContainer< BinaryTreeAscTraits< TX > > tree;
+    
+    // El compilador deduce el tipo completo de 'tree' automáticamente
+    TestBinaryTreeGeneral(tree, filename);
+    
+    // Aquí pasamos la plantilla pura (sin instanciar) a TestAllTours
+    TestAllTours< TreeContainer >();
+}
+
 void DemoBinaryTree() {
-    cout << "\n";
     PrintColored(cout, "Pruebas para BinaryTree", Color::Yellow);
-    BinaryTree<BinaryTreeAscTraits<TX>> tree;
-    TestBinaryTree(tree, "binarytree.txt");
+    cout << endl;
+    // Ahora sí puedes pasar solo el nombre de la plantilla BinaryTree
+    TestBinaryTree< BinaryTree >();
 }
