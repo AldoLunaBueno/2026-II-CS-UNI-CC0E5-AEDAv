@@ -323,7 +323,7 @@ void DemoHeap() {
     TestHeap(maxHeap);
 }
 
-// 1. TreeContainer aquí SÍ es un tipo completo (ya instanciado), se queda con typename
+// contenedor instanciado como tipo concreto
 template < typename TreeContainer >
 void TestBinaryTreeGeneral(TreeContainer &tree, const string &filename) {
     using ValueType = typename TreeContainer::value_type;
@@ -367,7 +367,7 @@ void TestBinaryTreeGeneral(TreeContainer &tree, const string &filename) {
     cout << "Arbol tras operator=: " << tree << endl;
 }
 
-template < template < typename > class BinaryTree, TX Order >
+template < template < typename > class BinaryTree, TraversalOrder Order >
 void TestOneOrderTour(const vector< pair< TX, Ref > > &values) {
     using Tree = BinaryTree<BinaryTreeAscTraits<TX, Order>>;
     using Node = typename Tree::Node;
@@ -427,13 +427,12 @@ void TestAllTours() {
 
 template < template < typename > class TreeContainer >
 void TestBinaryTree(const string &filename = "tree_test.txt") {
-    // Aquí delegamos e instanciamos la plantilla con sus traits
+    // instanciación con traits por defecto
     TreeContainer< BinaryTreeAscTraits< TX > > tree;
     
-    // El compilador deduce el tipo completo de 'tree' automáticamente
     TestBinaryTreeGeneral(tree, filename);
     
-    // Aquí pasamos la plantilla pura (sin instanciar) a TestAllTours
+    // prueba de recorridos parametrizando la plantilla
     TestAllTours< TreeContainer >();
 }
 

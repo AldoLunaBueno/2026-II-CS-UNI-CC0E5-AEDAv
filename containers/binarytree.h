@@ -22,16 +22,13 @@ public:
     TX m_height = 0;
 };
 
-namespace Phase {
-    enum Type {
+namespace detail {
+    enum Phase : TX {
         Pre  = 0b100,
         In   = 0b010,
         Post = 0b001
     };
-};
-
-namespace TraversalOrder {
-    enum Type {
+    enum TraversalOrder : TX {
     // Puros
         PreOrder        = Phase::Pre,
         InOrder         =              Phase::In,
@@ -42,10 +39,14 @@ namespace TraversalOrder {
         InPostOrder     =              Phase::In + Phase::Post,
         PreInPostOrder  = Phase::Pre + Phase::In + Phase::Post,
     };
-};
-namespace Direction { enum Type {Asc = 0, Desc = 1 }; };
+    enum Direction : TX {Asc = 0, Desc = 1 };
+}
 
-template <typename T, TX Order, TX Dir>
+using detail::Phase;
+using detail::TraversalOrder;
+using detail::Direction;
+
+template <typename T, TraversalOrder Order, Direction Dir>
 class BinaryTreeIterator : public GeneralIterator<BinaryTreeIterator<T, Order, Dir>, BinaryTreeNode<T>> {
 public:
     using Node = BinaryTreeNode<T>;
@@ -78,14 +79,14 @@ public:
     void step_until_phase();
 };
 
-template <typename T, TX Order, TX Dir>
+template <typename T, TraversalOrder Order, Direction Dir>
 auto BinaryTreeIterator<T, Order, Dir>::operator++() -> MySelf& {
     step_until_phase();
     return *this;
 }
 
 // Máquina de estados del recorrido de Euler por fases
-template <typename T, TX Order, TX Dir>
+template <typename T, TraversalOrder Order, Direction Dir>
 void BinaryTreeIterator<T, Order, Dir>::step_until_phase() {
     do {
         switch (m_phase) {
@@ -110,17 +111,17 @@ void BinaryTreeIterator<T, Order, Dir>::step_until_phase() {
     if (!m_ptr) m_phase = FirstPhase;
 }
 
-template <typename T, TX Order>
+template <typename T, TraversalOrder Order>
 struct BinaryTreeTraits {
     using Node              = BinaryTreeNode<T>;
-    using ForwardIterator   = BinaryTreeIterator<T, Order, 0>;
-    using BackwardIterator  = BinaryTreeIterator<T, Order, 1>;
+    using ForwardIterator   = BinaryTreeIterator<T, Order, Direction::Asc>;
+    using BackwardIterator  = BinaryTreeIterator<T, Order, Direction::Desc>;
 };
 
-template <typename T, TX Order = TraversalOrder::InOrder>
+template <typename T, TraversalOrder Order = TraversalOrder::InOrder>
 struct BinaryTreeAscTraits : public AscendingTraits<T>, public BinaryTreeTraits<T, Order> {};
 
-template <typename T, TX Order = TraversalOrder::InOrder>
+template <typename T, TraversalOrder Order = TraversalOrder::InOrder>
 struct BinaryTreeDescTraits : public DescendingTraits<T>, public BinaryTreeTraits<T, Order> {};
 
 template <typename Traits, template <typename> typename... Mixins>
