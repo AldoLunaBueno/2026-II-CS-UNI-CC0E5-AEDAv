@@ -1,6 +1,7 @@
 #ifndef __GENERAL_CONTAINER_H__
 #define __GENERAL_CONTAINER_H__
 #include "ContainerCore.h"
+#include <functional>
 
 template <typename T, typename _Compare>
 struct DefaultTraits {

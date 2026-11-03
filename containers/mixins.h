@@ -2,6 +2,8 @@
 #define __MIXINS__
 #include "../foreach.h"
 #include "ContainerCore.h"
+#include <ostream>
+#include <istream>
 
 // template <typename Traits>
 // using Parent = ContainerCore<Traits>;

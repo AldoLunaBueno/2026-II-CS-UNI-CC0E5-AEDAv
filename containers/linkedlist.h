@@ -3,6 +3,7 @@
 #include "GeneralContainer.h"
 #include "GeneralIterator.h"
 #include "GeneralNode.h"
+#include "mixins.h"
 
 template <typename T>
 class LinkedListNode : public GeneralNode<T> {
