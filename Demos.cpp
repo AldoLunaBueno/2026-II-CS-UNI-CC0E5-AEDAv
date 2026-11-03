@@ -4,7 +4,6 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include "foreach.h"
 #include "containers/vector.h"
 #include "containers/linkedlist.h"
 #include "containers/doublelinkedlist.h"
@@ -12,6 +11,7 @@
 #include "containers/circulardoublelinkedlist.h"
 #include "containers/Heap.h"
 #include "containers/binarytree.h"
+#include "containers/avltree.h"
 #include "utilities/printcolored.h"
 #include "utilities/render.h"
 #include "Demos.h"
@@ -440,6 +440,10 @@ void TestBinaryTree(const string &filename = "tree_test.txt") {
 void DemoBinaryTree() {
     PrintColored(cout, "Pruebas para BinaryTree", Color::Yellow);
     cout << endl;
-    // Ahora sí puedes pasar solo el nombre de la plantilla BinaryTree
-    TestBinaryTree< BinaryTree >();
+    TestBinaryTree<BinaryTree>("binarytree_test.txt");
+    cout << endl;
+    
+    PrintColored(cout, "Pruebas para AVLTree", Color::Yellow);
+    cout << endl;
+    TestBinaryTree<AVLTree>("avltree_test.txt");
 }

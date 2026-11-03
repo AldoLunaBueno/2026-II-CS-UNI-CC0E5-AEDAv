@@ -16,11 +16,10 @@ public:
     using Node              = MySelf;
     using NodePtr           = Node*;
     using Parent            = GeneralNode<T>;
-    using Parent::Parent; // Inherit constructor
-
-    NodePtr m_pChild[2] = {nullptr, nullptr}; // left and right children
-    NodePtr m_parent = nullptr;
-
+    using Parent::Parent; // constructor heredado
+    NodePtr m_pChild[2] = {nullptr, nullptr}; // hijo izquierdo y derecho
+    NodePtr m_parent = nullptr; // padre
+    TX m_height = 0;
 };
 
 namespace Phase {
@@ -143,9 +142,9 @@ public:
     using Compare           = typename Traits::Compare;
 protected:
     using Parent::m_mutex;
-private:
     NodePtr m_pRoot = nullptr; // raíz del árbol binario
-    void internal_insert(NodePtr& node, const value_type& value, Ref ref, NodePtr parent = nullptr);
+    auto internalInsert(NodePtr& node, const value_type& value, Ref ref, NodePtr parent = nullptr);
+    virtual void rebalance(NodePtr node) {}
 public:
     BaseBinaryTree() = default;
     BaseBinaryTree(const BaseBinaryTree& another) { *this = another; }
@@ -154,7 +153,8 @@ public:
 
     void insert(const value_type& value, Ref ref) {
         std::lock_guard lock(this->m_mutex);
-        internal_insert(m_pRoot, value, ref);
+        NodePtr node = internalInsert(m_pRoot, value, ref);
+        rebalance(node);
     }
 
     void clear() override;
@@ -178,14 +178,14 @@ public:
 };
 
 template <typename Traits, template <typename> typename... Mixins>
-void BaseBinaryTree<Traits, Mixins...>::internal_insert(NodePtr& node, const value_type& value, Ref ref, NodePtr parent) {
+auto BaseBinaryTree<Traits, Mixins...>::internalInsert(NodePtr& node, const value_type& value, Ref ref, NodePtr parent) {
     if (!node) {
         node = new Node(value, ref);
         node->m_parent = parent;
-        return;
+        return parent;
     }
     auto branch = Compare()(node->getValue(), value);
-    internal_insert(node->m_pChild[branch], value, ref, node); // Tail recursion to insert in the correct branch
+    return internalInsert(node->m_pChild[branch], value, ref, node); // Tail recursion to insert in the correct branch
 }
 
 template <typename Traits, template <typename> typename... Mixins>
