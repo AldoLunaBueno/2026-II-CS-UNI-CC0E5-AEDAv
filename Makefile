@@ -1,17 +1,23 @@
-CXX      := g++
-CXXFLAGS := -std=c++23
-TARGET   := main
-SRCS     := main.cpp Demos.cpp
+CXX        := g++
+CXXFLAGS   := -std=c++23
+TARGET     := main
+SRCS       := main.cpp Demos.cpp
+PR_OUT     := tmp/pr_comment.md
+PR_SCRIPT  := scripts/gen_pr_comment.sh
 
-.PHONY: all run clean
+.PHONY: all run pr-comment clean
 
-all: $(TARGET)
+all: clean $(TARGET) run pr-comment
 
 $(TARGET): $(SRCS)
 	$(CXX) $(CXXFLAGS) $(SRCS) -o $(TARGET)
 
-run: all
+run: $(TARGET)
 	./$(TARGET)
 
+pr-comment:
+	@bash $(PR_SCRIPT) README.md $(PR_OUT)
+
 clean:
-	rm -f $(TARGET)
+	rm -rf $(TARGET) tmp
+	@clear 2>/dev/null || printf "\033c"

@@ -72,3 +72,4 @@ main
 
 # Archivos de texto generados
 *.txt
+tmp/
