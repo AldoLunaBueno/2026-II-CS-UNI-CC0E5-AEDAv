@@ -1,0 +1,262 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-450 -270 900 560" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <!-- Marcador de flecha para el contorno del recorrido de Euler -->
+    <marker id="arrow-tour" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#3949AB" />
+    </marker>
+
+    <!-- Pastilla base para las etiquetas de paso (definida una sola vez) -->
+    <rect id="step-pill" x="-48" y="-12" width="96" height="24" rx="12" />
+
+    <!-- Rama base del árbol (se reutiliza reflejada para la rama izquierda) -->
+    <line id="tree-branch" class="tree-edge" x1="36" y1="-76" x2="179" y2="45" />
+
+    <!-- Contorno inferior de nodo hoja (0 ➔ 1 ➔ 2), reutilizado en I y D -->
+    <g id="leaf-contour">
+      <path class="tour-arc" d="M -50 15 C -48 50, -32 60, -16 52" marker-end="url(#arrow-tour)" />
+      <path class="tour-arc" d="M  16 52 C  32 60,  48 50,  50 15" marker-end="url(#arrow-tour)" />
+    </g>
+
+    <!-- Nodo base del árbol con sus 3 puntos de contacto de fase (0, 1, 2) -->
+    <g id="node-base">
+      <circle class="node-body" r="46" />
+      <g class="pos-p0">
+        <circle class="phase-dot p0-color" r="13" />
+        <text class="phase-num" dy="0.35em">0</text>
+      </g>
+      <g class="pos-p1">
+        <circle class="phase-dot p1-color" r="13" />
+        <text class="phase-num" dy="0.35em">1</text>
+      </g>
+      <g class="pos-p2">
+        <circle class="phase-dot p2-color" r="13" />
+        <text class="phase-num" dy="0.35em">2</text>
+      </g>
+    </g>
+
+    <style>
+      :root {
+        /* 1. Coordenadas de los 3 nodos del árbol respecto al centro (0, 0) */
+        --node-dx:     215px;
+        --root-y:     -105px;
+        --child-y:      75px;
+
+        /* 2. Radio del nodo para ubicar los satélites de fase (0, 1, 2) */
+        --r-node:       46px;
+
+        /* 3. Desplazamientos locales de las pastillas de paso respecto a su nodo */
+        --badge-dx:    116px;
+        --badge-bot-y:  80px;
+
+        /* 4. Posiciones simétricas de las etiquetas de transición y aristas */
+        --edge-lbl-x:  116px;
+        --edge-lbl-y:  -24px;
+        --io-lbl-x:    132px;
+        --io-lbl-y:   -162px;
+        --tr-out-x:    238px;
+        --tr-out-y:    -46px;
+        --tr-in-x:      78px;
+        --tr-in-y:      32px;
+        --tr-leaf-y:   118px;
+      }
+
+      /* Simetría horizontal para reutilizar geometría */
+      .mirror-x   { transform: scale(-1, 1); }
+
+      /* Posicionamiento de los 3 nodos */
+      .pos-node-r { transform: translate(0px,                      var(--root-y)); }
+      .pos-node-i { transform: translate(calc(-1 * var(--node-dx)), var(--child-y)); }
+      .pos-node-d { transform: translate(var(--node-dx),            var(--child-y)); }
+
+      /* Posicionamiento local de las 3 fases en el perímetro de cada nodo */
+      .pos-p0 { transform: translate(calc(-1 * var(--r-node)), 0px); }
+      .pos-p1 { transform: translate(0px,                      var(--r-node)); }
+      .pos-p2 { transform: translate(var(--r-node),            0px); }
+
+      /* Posicionamiento local de las pastillas (Paso k · Fase) en cada nodo */
+      .pos-badge-0 { transform: translate(calc(-1 * var(--badge-dx)), 0px); }
+      .pos-badge-1 { transform: translate(0px,                        var(--badge-bot-y)); }
+      .pos-badge-2 { transform: translate(var(--badge-dx),            0px); }
+
+      /* Posicionamiento simétrico de etiquetas de aristas y transiciones */
+      .pos-edge-l  { transform: translate(calc(-1 * var(--edge-lbl-x)), var(--edge-lbl-y)) rotate(-40deg); }
+      .pos-edge-r  { transform: translate(var(--edge-lbl-x),            var(--edge-lbl-y)) rotate(40deg); }
+      .pos-io-in   { transform: translate(calc(-1 * var(--io-lbl-x)),   var(--io-lbl-y)); }
+      .pos-io-out  { transform: translate(var(--io-lbl-x),              var(--io-lbl-y)); }
+      .pos-tr-1    { transform: translate(calc(-1 * var(--tr-out-x)),   var(--tr-out-y)); }
+      .pos-tr-6    { transform: translate(var(--tr-out-x),              var(--tr-out-y)); }
+      .pos-tr-3    { transform: translate(calc(-1 * var(--tr-in-x)),    var(--tr-in-y)); }
+      .pos-tr-4    { transform: translate(var(--tr-in-x),               var(--tr-in-y)); }
+      .pos-tr-leaf { transform: translate(0px,                          var(--tr-leaf-y)); }
+
+      /* Estilos generales */
+      .bg         { fill: #FAFAFA; stroke: #CFD8DC; stroke-width: 2; rx: 16; }
+      .title      { font-size: 20px; font-weight: 700; fill: #1A237E; text-anchor: middle; }
+      .subtitle   { font-size: 13px; fill: #455A64; text-anchor: middle; }
+      .formula    { font-size: 12.2px; font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #283593; text-anchor: middle; }
+
+      /* Aristas del árbol y arcos del contorno */
+      .tree-edge  { stroke: #2E7D32; stroke-width: 4; stroke-linecap: round; }
+      .edge-lbl   { font-size: 11.5px; font-weight: 700; fill: #2E7D32; text-anchor: middle; }
+      .tour-arc   { fill: none; stroke: #3949AB; stroke-width: 2.2; stroke-dasharray: 6 4; }
+
+      /* Nodos y puntos de fase */
+      .node-body  { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 2.5; }
+      .node-title { font-size: 14px; font-weight: 700; fill: #1B5E20; text-anchor: middle; }
+      .node-val   { font-size: 16px; font-weight: 800; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #111111; text-anchor: middle; }
+
+      .phase-dot  { stroke-width: 2; }
+      .phase-num  { font-size: 12px; font-weight: 800; fill: #111111; text-anchor: middle; }
+      .p0-color   { fill: #C8E6C9; stroke: #2E7D32; }
+      .p1-color   { fill: #FFF9C4; stroke: #F9A825; }
+      .p2-color   { fill: #FFCDD2; stroke: #C62828; }
+
+      /* Pastillas de pasos y textos de transición */
+      .pill-0     { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.5; }
+      .pill-1     { fill: #FFFDE7; stroke: #F9A825; stroke-width: 1.5; }
+      .pill-2     { fill: #FFEBEE; stroke: #C62828; stroke-width: 1.5; }
+      .pill-txt   { font-size: 11.5px; font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #1A1A1A; text-anchor: middle; }
+
+      .tr-step    { font-size: 12px; font-weight: 700; fill: #283593; text-anchor: middle; }
+      .tr-sub     { font-size: 11px; font-style: italic; fill: #455A64; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <!-- Fondo general centrado en (0, 0) -->
+  <rect class="bg" x="-440" y="-260" width="880" height="540" />
+
+  <!-- Encabezado -->
+  <text class="title" x="0" y="-224">Contorno del Recorrido de Euler (ejemplo con 3 nodos)</text>
+  <text class="subtitle" x="0" y="-200">
+    Caminata continua por el perímetro exterior tocando cada nodo en 3 fases: 0 (Pre · izq), 1 (In · abajo) y 2 (Post · der)
+  </text>
+
+  <!-- ===================================================================== -->
+  <!-- 1. ARISTAS REALES DEL ÁRBOL (reutilizan #tree-branch por simetría)    -->
+  <!-- ===================================================================== -->
+  <use href="#tree-branch" class="mirror-x" />
+  <use href="#tree-branch" />
+
+  <text class="edge-lbl pos-edge-l">Arista Izq</text>
+  <text class="edge-lbl pos-edge-r">Arista Der</text>
+
+  <!-- ===================================================================== -->
+  <!-- 2. ARCOS DEL CONTORNO ENTRE NIVELES (Inicio, 1, 3, 4, 6 y Fin)        -->
+  <!-- ===================================================================== -->
+  <!-- Entrada a R:0 y salida desde R:2 hacia end(nullptr) -->
+  <path class="tour-arc" d="M -92 -165 C -68 -165, -54 -148, -48 -122" marker-end="url(#arrow-tour)" />
+  <path class="tour-arc" d="M  48 -122 C  54 -148,  68 -165,  92 -165" marker-end="url(#arrow-tour)" />
+  <text class="tr-step pos-io-in">begin()</text>
+  <text class="tr-step pos-io-out">end (nullptr)</text>
+
+  <!-- 1. Baja por fuera de la arista izquierda (R:0 ➔ I:0) -->
+  <path class="tour-arc" d="M -56 -88 C -145 -72, -242 -10, -260 56" marker-end="url(#arrow-tour)" />
+  <text class="pos-tr-1">
+    <tspan class="tr-step" x="0" dy="0">1. Baja a I</tspan>
+    <tspan class="tr-sub"  x="0" dy="1.25em">(desde fase 0)</tspan>
+  </text>
+
+  <!-- 3. Sube por dentro de la arista izquierda (I:2 ➔ R:1) -->
+  <path class="tour-arc" d="M -165 58 C -130 12, -82 -48, -17 -58" marker-end="url(#arrow-tour)" />
+  <text class="pos-tr-3">
+    <tspan class="tr-step" x="0" dy="0">3. Sube a R</tspan>
+    <tspan class="tr-sub"  x="0" dy="1.25em">(a fase 1 · In)</tspan>
+  </text>
+
+  <!-- 4. Baja por dentro de la arista derecha (R:1 ➔ D:0) -->
+  <path class="tour-arc" d="M 17 -58 C 82 -48, 130 12, 162 58" marker-end="url(#arrow-tour)" />
+  <text class="pos-tr-4">
+    <tspan class="tr-step" x="0" dy="0">4. Baja a D</tspan>
+    <tspan class="tr-sub"  x="0" dy="1.25em">(desde fase 1)</tspan>
+  </text>
+
+  <!-- 6. Sube por fuera de la arista derecha (D:2 ➔ R:2) -->
+  <path class="tour-arc" d="M 260 56 C 242 -10, 145 -72, 58 -88" marker-end="url(#arrow-tour)" />
+  <text class="pos-tr-6">
+    <tspan class="tr-step" x="0" dy="0">6. Sube a R</tspan>
+    <tspan class="tr-sub"  x="0" dy="1.25em">(a fase 2 · Post)</tspan>
+  </text>
+
+  <!-- ===================================================================== -->
+  <!-- 3. NODOS DEL ÁRBOL (reutilizan #node-base y posiciones locales)       -->
+  <!-- ===================================================================== -->
+
+  <!-- NODO RAÍZ R (50) -->
+  <g class="pos-node-r">
+    <use href="#node-base" />
+    <text>
+      <tspan class="node-title" x="0" dy="-6">Raíz R</tspan>
+      <tspan class="node-val"   x="0" dy="1.25em">50</tspan>
+    </text>
+
+    <g class="pos-badge-0">
+      <use href="#step-pill" class="pill-0" />
+      <text class="pill-txt" dy="0.35em">Paso 1 · Pre</text>
+    </g>
+    <g class="pos-badge-1">
+      <use href="#step-pill" class="pill-1" />
+      <text class="pill-txt" dy="0.35em">Paso 5 · In</text>
+    </g>
+    <g class="pos-badge-2">
+      <use href="#step-pill" class="pill-2" />
+      <text class="pill-txt" dy="0.35em">Paso 9 · Post</text>
+    </g>
+  </g>
+
+  <!-- NODO HIJO IZQUIERDO I (20) -->
+  <g class="pos-node-i">
+    <use href="#leaf-contour" />
+    <use href="#node-base" />
+    <text>
+      <tspan class="node-title" x="0" dy="-6">Hijo Izq I</tspan>
+      <tspan class="node-val"   x="0" dy="1.25em">20</tspan>
+    </text>
+
+    <g class="pos-badge-0">
+      <use href="#step-pill" class="pill-0" />
+      <text class="pill-txt" dy="0.35em">Paso 2 · Pre</text>
+    </g>
+    <g class="pos-badge-1">
+      <use href="#step-pill" class="pill-1" />
+      <text class="pill-txt" dy="0.35em">Paso 3 · In</text>
+    </g>
+    <g class="pos-badge-2">
+      <use href="#step-pill" class="pill-2" />
+      <text class="pill-txt" dy="0.35em">Paso 4 · Post</text>
+    </g>
+    <text class="pos-tr-leaf">
+      <tspan class="tr-step" x="0" dy="0">2. Sin hijos: 0 ➔ 1 ➔ 2</tspan>
+    </text>
+  </g>
+
+  <!-- NODO HIJO DERECHO D (80) -->
+  <g class="pos-node-d">
+    <use href="#leaf-contour" />
+    <use href="#node-base" />
+    <text>
+      <tspan class="node-title" x="0" dy="-6">Hijo Der D</tspan>
+      <tspan class="node-val"   x="0" dy="1.25em">80</tspan>
+    </text>
+
+    <g class="pos-badge-0">
+      <use href="#step-pill" class="pill-0" />
+      <text class="pill-txt" dy="0.35em">Paso 6 · Pre</text>
+    </g>
+    <g class="pos-badge-1">
+      <use href="#step-pill" class="pill-1" />
+      <text class="pill-txt" dy="0.35em">Paso 7 · In</text>
+    </g>
+    <g class="pos-badge-2">
+      <use href="#step-pill" class="pill-2" />
+      <text class="pill-txt" dy="0.35em">Paso 8 · Post</text>
+    </g>
+    <text class="pos-tr-leaf">
+      <tspan class="tr-step" x="0" dy="0">5. Sin hijos: 0 ➔ 1 ➔ 2</tspan>
+    </text>
+  </g>
+
+  <!-- Pie con traza completa -->
+  <text class="formula" x="0" y="252">
+    Traza: (50:Pre) ➔ (20:Pre) ➔ (20:In) ➔ (20:Post) ➔ (50:In) ➔ (80:Pre) ➔ (80:In) ➔ (80:Post) ➔ (50:Post) ➔ end
+  </text>
+</svg>

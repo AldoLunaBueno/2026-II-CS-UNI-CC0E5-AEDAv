@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-420 -295 840 625" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <!-- Círculo base único: el radio se define en un solo lugar -->
+    <circle id="set-circle" r="170" />
+
+    <style>
+      :root {
+        /* 1. Desplazamientos de los 3 círculos respecto al centro (0, 0) */
+        --c-dx:       95px;
+        --c-dy-top:  -50px;
+        --c-dy-bot:  100px;
+
+        /* 2. Posiciones de las 3 regiones Puras */
+        --pure-x:      185px;
+        --pure-y-top: -100px;
+        --pure-y-bot:  190px;
+
+        /* 3. Posiciones de las 3 intersecciones Híbridas dobles */
+        --hyb-x:       118px;
+        --hyb-y-top:  -120px;
+        --hyb-y-bot:    62px;
+
+        /* 4. Posiciones de las etiquetas exteriores de conjunto */
+        --lbl-x-top:   245px;
+        --lbl-y-top:  -205px;
+        --lbl-x-bot:   190px;
+        --lbl-y-bot:   195px;
+      }
+
+      /* Posicionamiento simétrico mediante calc() */
+      .pos-circle-pre   { transform: translate(calc(-1 * var(--c-dx)), var(--c-dy-top)); }
+      .pos-circle-in    { transform: translate(var(--c-dx),            var(--c-dy-top)); }
+      .pos-circle-post  { transform: translate(0px,                    var(--c-dy-bot)); }
+
+      .pos-pure-pre     { transform: translate(calc(-1 * var(--pure-x)), var(--pure-y-top)); }
+      .pos-pure-in      { transform: translate(var(--pure-x),            var(--pure-y-top)); }
+      .pos-pure-post    { transform: translate(0px,                      var(--pure-y-bot)); }
+
+      .pos-hyb-pre-in   { transform: translate(0px,                     var(--hyb-y-top)); }
+      .pos-hyb-pre-post { transform: translate(calc(-1 * var(--hyb-x)), var(--hyb-y-bot)); }
+      .pos-hyb-in-post  { transform: translate(var(--hyb-x),            var(--hyb-y-bot)); }
+      .pos-center       { transform: translate(0px,                     0px); }
+
+      .pos-lbl-pre      { transform: translate(calc(-1 * var(--lbl-x-top)), var(--lbl-y-top)); }
+      .pos-lbl-in       { transform: translate(var(--lbl-x-top),            var(--lbl-y-top)); }
+      .pos-lbl-post     { transform: translate(var(--lbl-x-bot),            var(--lbl-y-bot)); }
+
+      /* Estilos visuales */
+      .bg          { fill: #FAFAFA; stroke: #CFD8DC; stroke-width: 2; rx: 16; }
+      .title       { font-size: 20px; font-weight: 700; fill: #1A237E; text-anchor: middle; }
+      .formula     { font-size: 14px; font-weight: 700; fill: #283593; text-anchor: middle; }
+
+      .c-pre       { fill: #43A047; fill-opacity: 0.18; stroke: #2E7D32; stroke-width: 2.5; }
+      .c-in        { fill: #FDD835; fill-opacity: 0.22; stroke: #F9A825; stroke-width: 2.5; }
+      .c-post      { fill: #E53935; fill-opacity: 0.16; stroke: #C62828; stroke-width: 2.5; }
+
+      .set-hdr     { font-size: 15px; font-weight: 700; text-anchor: middle; }
+      .set-sub     { font-size: 12px; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #455A64; text-anchor: middle; }
+      .pre-color   { fill: #1B5E20; }
+      .in-color    { fill: #E65100; }
+      .post-color  { fill: #B71C1C; }
+
+      .ord-name    { font-size: 15px; font-weight: 700; fill: #111111; text-anchor: middle; }
+      .ord-code    { font-size: 12px; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #37474F; text-anchor: middle; }
+      .ord-desc    { font-size: 11.5px; font-style: italic; fill: #455A64; text-anchor: middle; }
+
+      .center-badge { fill: #FFFFFF; fill-opacity: 0.88; stroke: #3949AB; stroke-width: 1.8; rx: 8; }
+      .euler-tag    { font-size: 11px; font-weight: 700; fill: #283593; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <!-- Fondo general centrado en (0, 0) -->
+  <rect class="bg" x="-410" y="-285" width="820" height="605" />
+
+  <!-- Encabezado -->
+  <text class="title" x="0" y="-248">Composición de Fases en TraversalOrder</text>
+
+  <!-- ===================================================================== -->
+  <!-- 1. CÍRCULOS DE LOS 3 CONJUNTOS (FASES)                                -->
+  <!-- ===================================================================== -->
+  <use href="#set-circle" class="c-pre  pos-circle-pre" />
+  <use href="#set-circle" class="c-in   pos-circle-in" />
+  <use href="#set-circle" class="c-post pos-circle-post" />
+
+  <!-- Etiquetas exteriores de cada conjunto -->
+  <text class="pos-lbl-pre">
+    <tspan class="set-hdr pre-color" x="0" dy="0">Fase 0</tspan>
+    <tspan class="set-sub"           x="0" dy="1.35em">Phase::Pre = 0b100</tspan>
+  </text>
+
+  <text class="pos-lbl-in">
+    <tspan class="set-hdr in-color" x="0" dy="0">Fase 1</tspan>
+    <tspan class="set-sub"          x="0" dy="1.35em">Phase::In = 0b010</tspan>
+  </text>
+
+  <text class="pos-lbl-post">
+    <tspan class="set-hdr post-color" x="0" dy="0">Fase 2</tspan>
+    <tspan class="set-sub"            x="0" dy="1.35em">Phase::Post = 0b001</tspan>
+  </text>
+
+  <!-- ===================================================================== -->
+  <!-- 2. REGIONES PURAS (1 sola fase activa)                                -->
+  <!-- ===================================================================== -->
+  <text class="pos-pure-pre">
+    <tspan class="ord-name" x="0" dy="0">PreOrder</tspan>
+    <tspan class="ord-code" x="0" dy="1.35em">0b100</tspan>
+    <tspan class="ord-desc" x="0" dy="1.35em">Puro: 0 ➔ 0 ➔ 0</tspan>
+  </text>
+
+  <text class="pos-pure-in">
+    <tspan class="ord-name" x="0" dy="0">InOrder</tspan>
+    <tspan class="ord-code" x="0" dy="1.35em">0b010</tspan>
+    <tspan class="ord-desc" x="0" dy="1.35em">Puro: 1 ➔ 1 ➔ 1</tspan>
+  </text>
+
+  <text class="pos-pure-post">
+    <tspan class="ord-name" x="0" dy="0">PostOrder</tspan>
+    <tspan class="ord-code" x="0" dy="1.35em">0b001</tspan>
+    <tspan class="ord-desc" x="0" dy="1.35em">Puro: 2 ➔ 2 ➔ 2</tspan>
+  </text>
+
+  <!-- ===================================================================== -->
+  <!-- 3. INTERSECCIONES DOBLES (Híbridos de 2 fases)                        -->
+  <!-- ===================================================================== -->
+  <text class="pos-hyb-pre-in">
+    <tspan class="ord-name" x="0" dy="0">PreInOrder</tspan>
+    <tspan class="ord-code" x="0" dy="1.35em">Pre + In = 0b110</tspan>
+    <tspan class="ord-desc" x="0" dy="1.35em">Híbrido: fases 0 / 1</tspan>
+  </text>
+
+  <text class="pos-hyb-pre-post">
+    <tspan class="ord-name" x="0" dy="0">PrePostOrder</tspan>
+    <tspan class="ord-code" x="0" dy="1.35em">Pre + Post = 0b101</tspan>
+    <tspan class="ord-desc" x="0" dy="1.35em">Híbrido: fases 0 / 2</tspan>
+  </text>
+
+  <text class="pos-hyb-in-post">
+    <tspan class="ord-name" x="0" dy="0">InPostOrder</tspan>
+    <tspan class="ord-code" x="0" dy="1.35em">In + Post = 0b011</tspan>
+    <tspan class="ord-desc" x="0" dy="1.35em">Híbrido: fases 1 / 2</tspan>
+  </text>
+
+  <!-- ===================================================================== -->
+  <!-- 4. INTERSECCIÓN TRIPLE CENTRAL (Recorrido de Euler Completo)          -->
+  <!-- ===================================================================== -->
+  <g class="pos-center">
+    <rect class="center-badge" x="-78" y="-22" width="156" height="68" />
+    <text>
+      <tspan class="ord-name"  x="0" dy="-4">PreInPostOrder</tspan>
+      <tspan class="ord-code"  x="0" dy="1.4em">0b111 (fases 0 / 1 / 2)</tspan>
+      <tspan class="euler-tag" x="0" dy="1.45em">★ Euler Completo ★</tspan>
+    </text>
+  </g>
+
+  <!-- Pie con fórmula resaltada -->
+  <text class="formula" x="0" y="300">
+    7 órdenes de fase (3 Puros + 4 Híbridos) × 2 direcciones (Asc / Desc) = 14 recorridos
+  </text>
+</svg>

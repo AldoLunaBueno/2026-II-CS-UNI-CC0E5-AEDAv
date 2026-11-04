@@ -343,32 +343,7 @@ El iterador [`BinaryTreeIterator<T, Order, Dir>`](containers/binarytree.h) model
 - **🟡 Fase `1` (`Phase::In` = `0b010`):** al pasar por debajo del nodo (después de volver de `I` y antes de bajar a su subárbol derecho `D`).
 - **🔴 Fase `2` (`LastPhase` = `Phase::Post` = `0b001`):** al subir por el costado derecho del nodo (después de volver de `D`, listo para regresar a su padre `P`).
 
-```mermaid
-flowchart TB
-    subgraph CONTORNO["Contorno del Recorrido de Euler (ejemplo con 3 nodos)"]
-        direction TB
-        R["<b>Raíz R (50)</b><br/>🟢 0: Pre (paso 1)<br/>🟡 1: In (paso 5)<br/>🔴 2: Post (paso 9)"]
-        I["<b>Hijo Izq I (20)</b><br/>🟢 0: Pre (paso 2)<br/>🟡 1: In (paso 3)<br/>🔴 2: Post (paso 4)"]
-        D["<b>Hijo Der D (80)</b><br/>🟢 0: Pre (paso 6)<br/>🟡 1: In (paso 7)<br/>🔴 2: Post (paso 8)"]
-
-        R ===|"Arista Izq"| I
-        R ===|"Arista Der"| D
-
-        R -. "1. Baja a I (desde 0)" .-> I
-        I -. "2. Sin hijos: 0 ➔ 1 ➔ 2" .-> I
-        I -. "3. Sube a R como hijo Izq (a fase 1)" .-> R
-        R -. "4. Baja a D (desde 1)" .-> D
-        D -. "5. Sin hijos: 0 ➔ 1 ➔ 2" .-> D
-        D -. "6. Sube a R como hijo Der (a fase 2)" .-> R
-    end
-
-    classDef nodo fill:#E8F5E9,stroke:#2E7D32,color:#1A1A1A,stroke-width:2px;
-    class R,I,D nodo
-    style CONTORNO fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
-```
-
-> **Traza completa de estados `(Nodo:Fase)` a lo largo del contorno:**
-> `(50:Pre)` ➔ `(20:Pre)` ➔ `(20:In)` ➔ `(20:Post)` ➔ `(50:In)` ➔ `(80:Pre)` ➔ `(80:In)` ➔ `(80:Post)` ➔ `(50:Post)` ➔ `end(nullptr)`
+![Contorno del Recorrido de Euler](docs/euler_contour.svg)
 
 ---
 
@@ -431,47 +406,10 @@ flowchart TB
 
 ---
 
-#### C. Composición por Máscara de Bits: I) Puros, II) Híbridos y Simetría `Dir` (14 Recorridos)
+#### C. Composición por Máscara de Bits: Diagrama de Venn de los 14 Recorridos
 
-La condición de parada `while (m_ptr && !(m_phase & Order))` filtra en tiempo de ejecución en qué fases se detiene `operator++`, mientras que `Dir` invierte simétricamente el sentido del contorno:
+La condición de parada `while (m_ptr && !(m_phase & Order))` filtra en qué fases se detiene `operator++`. Las $2^3 - 1 = 7$ regiones no vacías de intersección entre los tres conjuntos `{Phase::Pre, Phase::In, Phase::Post}` definen los 3 órdenes **Puros** y los 4 órdenes **Híbridos** (con el recorrido de Euler completo en la intersección triple central), que multiplicados por las 2 direcciones (`Asc` y `Desc`) producen los **14 recorridos**:
 
-```mermaid
-flowchart LR
-    subgraph PUROS["I) Órdenes Puros (1 bit activo: detiene 1 vez por nodo)"]
-        direction TB
-        PRE["<b>Pre-Order (0 ➔ 0 ➔ 0)</b><br/>Máscara: <code>0b100</code><br/>Orden: <b>R ➔ I ➔ D</b>"]
-        IN["<b>In-Order (1 ➔ 1 ➔ 1)</b><br/>Máscara: <code>0b010</code><br/>Orden: <b>I ➔ R ➔ D</b>"]
-        POST["<b>Post-Order (2 ➔ 2 ➔ 2)</b><br/>Máscara: <code>0b001</code><br/>Orden: <b>I ➔ D ➔ R</b>"]
-    end
-
-    subgraph HIBRIDOS["II) Órdenes Híbridos (Suma de bits: detiene 2 o 3 veces por nodo)"]
-        direction TB
-        PI_O["<b>Pre-In (0 / 1)</b><br/><code>Pre + In = 0b110</code>"]
-        PP_O["<b>Pre-Post (0 / 2)</b><br/><code>Pre + Post = 0b101</code>"]
-        IP_O["<b>In-Post (1 / 2)</b><br/><code>In + Post = 0b011</code>"]
-        PIP_O["<b>Pre-In-Post (0 / 1 / 2)</b><br/><code>Pre + In + Post = 0b111</code><br/>⭐ <i>Recorrido de Euler Completo</i>"]
-    end
-
-    subgraph SIMETRIA["III) Simetría por Dirección (Dir)"]
-        direction TB
-        ASC_D["<b>Direction::Asc (0)</b><br/>Hijos: Izq (0) luego Der (1)<br/>FirstPhase = Pre | LastPhase = Post"]
-        DESC_D["<b>Direction::Desc (1)</b><br/>Hijos: Der (1) luego Izq (0)<br/>FirstPhase = Post | LastPhase = Pre"]
-    end
-
-    PUROS ==>|"Combinados por suma (+)"| HIBRIDOS
-    HIBRIDOS ==>|"7 órdenes × 2 direcciones = 14 recorridos"| SIMETRIA
-
-    classDef puro fill:#E8F5E9,stroke:#2E7D32,color:#111,stroke-width:1.5px;
-    classDef hib fill:#FFF3E0,stroke:#EF6C00,color:#111,stroke-width:1.5px;
-    classDef sim fill:#E8EAF6,stroke:#3949AB,color:#111,stroke-width:1.5px;
-
-    class PRE,IN,POST puro
-    class PI_O,PP_O,IP_O,PIP_O hib
-    class ASC_D,DESC_D sim
-
-    style PUROS fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
-    style HIBRIDOS fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
-    style SIMETRIA fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
-```
+![Diagrama de Venn de los 14 Recorridos](docs/euler_venn.svg)
 
 </details>
