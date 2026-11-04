@@ -33,7 +33,7 @@ public:
     ContainerCore() = default;
     virtual ~ContainerCore() = default;
 
-    // para que ContainerCore sea asignable se debe hacer explícito (no copia/mueve el mutex):
+    // asignación explícita sin copiar mutex
     ContainerCore(const ContainerCore&) {}
     ContainerCore& operator=(const ContainerCore&) { return *this; }
 

@@ -359,13 +359,15 @@ void TestBinaryTreeGeneral(TreeContainer &tree, const string &filename) {
     for (const auto &val : to_remove) {
         Node &target_node = tree.FirstThat(IsEqualTo<Node, ValueType>, val);
         tree.remove(&target_node);
-        cout << "Arbol tras remove(" << val << "): " << tree << endl;
+        string s = "Arbol tras remove(" + std::to_string(val) + "): ";
+        PrintColored(cout,  s, Color::Red);
+        std::cout << tree << endl;
+        PrintColored(cout, "Diagrama de árbol tras eliminaciones:", Color::Red);
+        std::cout << "(Altura: " << tree.height() << ")" << std::endl;
+        tree.draw(ConsoleGraphRenderer(cout));
+        std::cout << std::endl;
     }
 
-    PrintColored(cout, "Diagrama de árbol tras eliminaciones:", Color::Red);
-    std::cout << "(Altura: " << tree.height() << ")" << std::endl;
-    tree.draw(ConsoleGraphRenderer(cout));
-    std::cout << std::endl;
 
     tree.ApplyFunction(AddOne);
     cout << "Arbol tras usar AddOne: " << tree << endl;

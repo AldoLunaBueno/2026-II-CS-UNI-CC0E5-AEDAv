@@ -10,10 +10,9 @@ class LinkedListNode : public GeneralNode<T> {
     using Node = LinkedListNode<T>;
     using NodePtr = Node*;
 public:
-    Node* m_pNext = nullptr; // puntero al siguiente nodo, npara acceso directo necesita ser publico
-    Node* m_pPrev = nullptr;
+    Node* m_pNext = nullptr; // puntero al siguiente nodo
+    Node* m_pPrev = nullptr; // puntero al anterior nodo
     LinkedListNode() : GeneralNode<T>(T{}, Ref{}), m_pNext(nullptr) {}
-    // añadir friend class añade otro typename al template
     LinkedListNode(const T& value, Ref ref, Node* pNext) : GeneralNode<T>(value, ref), m_pNext(pNext) {}
 };
 
