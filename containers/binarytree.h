@@ -145,6 +145,7 @@ protected:
     using Parent::m_mutex;
     NodePtr m_pRoot = nullptr; // raíz del árbol binario
     auto internalInsert(NodePtr& node, const value_type& value, Ref ref, NodePtr parent = nullptr);
+    auto internalRemove(NodePtr node);
     virtual void rebalance(NodePtr node) {}
 public:
     BaseBinaryTree() = default;
@@ -152,11 +153,10 @@ public:
     BaseBinaryTree(BaseBinaryTree&& another) noexcept { *this = std::move(another); }
     virtual ~BaseBinaryTree() { clear(); }
 
-    void insert(const value_type& value, Ref ref) {
-        std::lock_guard lock(this->m_mutex);
-        NodePtr node = internalInsert(m_pRoot, value, ref);
-        rebalance(node);
-    }
+    void insert(const value_type&, Ref);
+    void remove(NodePtr);
+
+    void connect(NodePtr, NodePtr, TX);
 
     void clear() override;
 
@@ -170,9 +170,10 @@ public:
     BackwardIterator rbegin() const { return BackwardIterator(m_pRoot); }
     BackwardIterator rend()   const { return BackwardIterator(nullptr); }
 
-    BaseBinaryTree& operator=(const BaseBinaryTree& another);
-    BaseBinaryTree& operator=(BaseBinaryTree&& another) noexcept;
+    BaseBinaryTree& operator=(const BaseBinaryTree&);
+    BaseBinaryTree& operator=(BaseBinaryTree&&) noexcept;
 
+    // TODO: Segregar a clase aparte
     VisualGraph sketch() const;
     TX height(const NodePtr&) const;
     TX height() const { return height(m_pRoot); };
@@ -187,6 +188,49 @@ auto BaseBinaryTree<Traits, Mixins...>::internalInsert(NodePtr& node, const valu
     }
     auto branch = Compare()(node->getValue(), value);
     return internalInsert(node->m_pChild[branch], value, ref, node); // Tail recursion to insert in the correct branch
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+void BaseBinaryTree<Traits, Mixins...>::insert(const value_type& value, Ref ref) {
+    std::lock_guard lock(this->m_mutex);
+    NodePtr node = internalInsert(m_pRoot, value, ref);
+    rebalance(node);
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+void BaseBinaryTree<Traits, Mixins...>::remove(NodePtr node) {
+    std::lock_guard lock(this->m_mutex);
+    if (!node) return;
+    NodePtr parent = internalRemove(node);
+    rebalance(parent);
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+auto BaseBinaryTree<Traits, Mixins...>::internalRemove(NodePtr node) {
+    if (node->m_pChild[0] && node->m_pChild[1]) {
+        NodePtr successor = node->m_pChild[1];
+        while (successor->m_pChild[0]) successor = successor->m_pChild[0];
+        node->value() = successor->getValue();
+        node->ref() = successor->getRef();
+        node = successor;
+    }
+    NodePtr parent = node->m_parent;
+    TX dc = node->m_pChild[1] != nullptr;
+    TX dp = parent && node == parent->m_pChild[1];
+    connect(parent, node->m_pChild[dc], dp);
+    delete node;
+    return parent;
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+void BaseBinaryTree<Traits, Mixins...>::connect(NodePtr parent, NodePtr child, TX d) {
+    if (!parent) {
+        if(child) child->m_parent = nullptr;
+        m_pRoot = child;
+        return;
+    }
+    parent->m_pChild[d] = child;
+    if (child) child->m_parent = parent;
 }
 
 template <typename Traits, template <typename> typename... Mixins>

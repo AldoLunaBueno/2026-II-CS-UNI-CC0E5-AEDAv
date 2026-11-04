@@ -43,6 +43,11 @@ bool IsGreaterThan(Node &node, T threshold) {
     return node.getValue() > threshold;
 }
 
+template <typename Node, typename T>
+bool IsEqualTo(Node &node, T target) {
+    return node.getValue() == target;
+}
+
 template <typename Node>
 void PrintNode(Node &node, ostream &os) {
     os << node << " ";
@@ -347,6 +352,20 @@ void TestBinaryTreeGeneral(TreeContainer &tree, const string &filename) {
 
     // in-order
     TestTraversal(tree);
+
+    // Pruebas de eliminacion (hoja, 1 hijo, 2 hijos / raiz)
+    using Node = typename TreeContainer::Node;
+    vector<ValueType> to_remove = {10, 55, 20, 80, 50};
+    for (const auto &val : to_remove) {
+        Node &target_node = tree.FirstThat(IsEqualTo<Node, ValueType>, val);
+        tree.remove(&target_node);
+        cout << "Arbol tras remove(" << val << "): " << tree << endl;
+    }
+
+    PrintColored(cout, "Diagrama de árbol tras eliminaciones:", Color::Red);
+    std::cout << "(Altura: " << tree.height() << ")" << std::endl;
+    tree.draw(ConsoleGraphRenderer(cout));
+    std::cout << std::endl;
 
     tree.ApplyFunction(AddOne);
     cout << "Arbol tras usar AddOne: " << tree << endl;

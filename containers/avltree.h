@@ -28,20 +28,20 @@ protected:
     TX getbf(const NodePtr& node) const {
         return getHeight(node->m_pChild[0]) - getHeight(node->m_pChild[1]);
     }
-    TX parentHeight(NodePtr parent) const { 
-        return 1 + std::max(getHeight(parent->m_pChild[0]), getHeight(parent->m_pChild[1]));
+    TX calcHeight(NodePtr node) const {
+        return 1 + std::max(getHeight(node->m_pChild[0]), getHeight(node->m_pChild[1]));
     }
 
     void rebalance(NodePtr node) override {
         for(; node; node = node->m_parent) {
-            node->m_height = parentHeight(node); // z
+            node->m_height = calcHeight(node); // z
             TX bf_z = getbf(node);
             if (std::abs(bf_z) <= 1 ) continue;
             node = node->m_pChild[bf_z < 0]; // y: hijo más alto de z
             TX bf_y = getbf(node);
             node = node->m_pChild[bf_y < 0]; // x: hijo más alto de y
 
-            if (bf_z * bf_y > 0) {
+            if (bf_z * bf_y > 0 || bf_y == 0) {
                 rotate_up(node->m_parent); // rota 1 vez y
             } else {
                 rotate_up(node); // rota 2 veces x 
@@ -61,14 +61,8 @@ protected:
     }
 
     void connect(NodePtr parent, NodePtr child, TX d) {
-        if (!parent) {
-            m_pRoot = child;
-            child->m_parent = nullptr;
-            return;
-        }
-        parent->m_pChild[d] = child;
-        if (child) child->m_parent = parent;
-        parent->m_height = parentHeight(parent);
+        Parent::connect(parent, child, d);
+        if (parent) parent->m_height = calcHeight(parent);
     }
 };
 
