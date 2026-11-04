@@ -343,6 +343,8 @@ El iterador [`BinaryTreeIterator<T, Order, Dir>`](containers/binarytree.h) model
 - **🟡 Fase `1` (`Phase::In` = `0b010`):** al pasar por debajo del nodo (después de volver de `I` y antes de bajar a su subárbol derecho `D`).
 - **🔴 Fase `2` (`LastPhase` = `Phase::Post` = `0b001`):** al subir por el costado derecho del nodo (después de volver de `D`, listo para regresar a su padre `P`).
 
+La caminata completa genera la traza maestra del recorrido de Euler (`PreInPostOrder`), y tanto los recorridos **puros** (como `InOrder`) como los **híbridos** (como `PrePostOrder`) son **subsecuencias** filtradas de esta secuencia completa:
+
 ![Contorno del Recorrido de Euler](docs/euler_contour.svg)
 
 ---
@@ -406,9 +408,17 @@ flowchart TB
 
 ---
 
-#### C. Composición por Máscara de Bits: Diagrama de Venn de los 14 Recorridos
+#### C. Puente entre Fases y Órdenes: Codificación en Máscara Binaria
 
-La condición de parada `while (m_ptr && !(m_phase & Order))` filtra en qué fases se detiene `operator++`. Las $2^3 - 1 = 7$ regiones no vacías de intersección entre los tres conjuntos `{Phase::Pre, Phase::In, Phase::Post}` definen los 3 órdenes **Puros** y los 4 órdenes **Híbridos** (con el recorrido de Euler completo en la intersección triple central), que multiplicados por las 2 direcciones (`Asc` y `Desc`) producen los **14 recorridos**:
+Numerar las fases como `0`, `1` y `2` es un recurso didáctico para distinguir los tres contactos al rodear un nodo, pero en el código ([`containers/binarytree.h`](containers/binarytree.h)) cada fase es una potencia de 2 que ocupa **una posición de bit exclusiva** dentro de un número binario de 3 cifras (`Phase::Pre = 0b100`, `Phase::In = 0b010`, `Phase::Post = 0b001`). Así, cualquier `TraversalOrder` funciona como un panel de 3 interruptores donde cada cifra binaria **enciende (`1`)** o **apaga (`0`)** la parada del iterador en esa fase mediante `while (m_ptr && !(m_phase & Order))`:
+
+![Puente entre Fases y Máscara Binaria](docs/euler_bitmask.svg)
+
+---
+
+#### D. Composición por Máscara de Bits: Diagrama de Venn de los 14 Recorridos
+
+Al combinar los 3 bits de `{Phase::Pre, Phase::In, Phase::Post}`, las $2^3 - 1 = 7$ regiones no vacías de intersección definen los 3 órdenes **Puros** y los 4 órdenes **Híbridos** (con el recorrido de Euler completo `0b111` en la intersección triple central), que multiplicados por las 2 direcciones (`Asc` y `Desc`) producen los **14 recorridos**:
 
 ![Diagrama de Venn de los 14 Recorridos](docs/euler_venn.svg)
 

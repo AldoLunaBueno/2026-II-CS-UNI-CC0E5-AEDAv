@@ -1,12 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-450 -270 900 560" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-460 -270 920 685" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
   <defs>
-    <!-- Marcador de flecha para el contorno del recorrido de Euler -->
+    <!-- Marcadores de flecha -->
     <marker id="arrow-tour" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
       <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#3949AB" />
     </marker>
+    <marker id="arrow-seq" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#546E7A" />
+    </marker>
 
-    <!-- Pastilla base para las etiquetas de paso (definida una sola vez) -->
+    <!-- Pastilla base para las etiquetas de paso en el árbol -->
     <rect id="step-pill" x="-48" y="-12" width="96" height="24" rx="12" />
+
+    <!-- Pastilla base para cada estado (Nodo:Fase) en la tabla de traza -->
+    <rect id="tok-pill" x="-30" y="-11" width="60" height="22" rx="6" />
+    <rect id="end-pill" x="-22" y="-11" width="44" height="22" rx="6" />
+
+    <!-- Línea guía vertical por columna de la traza -->
+    <line id="col-guide" class="guide-line" x1="0" y1="0" x2="0" y2="108" />
 
     <!-- Rama base del árbol (se reutiliza reflejada para la rama izquierda) -->
     <line id="tree-branch" class="tree-edge" x1="36" y1="-76" x2="179" y2="45" />
@@ -34,30 +44,80 @@
       </g>
     </g>
 
+    <!-- 10 tokens de la traza definidos una sola vez en su columna respectiva -->
+    <g id="tok-1" class="t-col-1">
+      <use href="#tok-pill" class="pill-0" />
+      <text class="tok-txt txt-pre" dy="0.35em">(50:Pre)</text>
+    </g>
+    <g id="tok-2" class="t-col-2">
+      <use href="#tok-pill" class="pill-0" />
+      <text class="tok-txt txt-pre" dy="0.35em">(20:Pre)</text>
+    </g>
+    <g id="tok-3" class="t-col-3">
+      <use href="#tok-pill" class="pill-1" />
+      <text class="tok-txt txt-in" dy="0.35em">(20:In)</text>
+    </g>
+    <g id="tok-4" class="t-col-4">
+      <use href="#tok-pill" class="pill-2" />
+      <text class="tok-txt txt-post" dy="0.35em">(20:Post)</text>
+    </g>
+    <g id="tok-5" class="t-col-5">
+      <use href="#tok-pill" class="pill-1" />
+      <text class="tok-txt txt-in" dy="0.35em">(50:In)</text>
+    </g>
+    <g id="tok-6" class="t-col-6">
+      <use href="#tok-pill" class="pill-0" />
+      <text class="tok-txt txt-pre" dy="0.35em">(80:Pre)</text>
+    </g>
+    <g id="tok-7" class="t-col-7">
+      <use href="#tok-pill" class="pill-1" />
+      <text class="tok-txt txt-in" dy="0.35em">(80:In)</text>
+    </g>
+    <g id="tok-8" class="t-col-8">
+      <use href="#tok-pill" class="pill-2" />
+      <text class="tok-txt txt-post" dy="0.35em">(80:Post)</text>
+    </g>
+    <g id="tok-9" class="t-col-9">
+      <use href="#tok-pill" class="pill-2" />
+      <text class="tok-txt txt-post" dy="0.35em">(50:Post)</text>
+    </g>
+    <g id="tok-end" class="t-col-10">
+      <use href="#end-pill" class="pill-end" />
+      <text class="tok-txt txt-end" dy="0.35em">end</text>
+    </g>
+
     <style>
       :root {
         /* 1. Coordenadas de los 3 nodos del árbol respecto al centro (0, 0) */
         --node-dx:     215px;
-        --root-y:     -105px;
-        --child-y:      75px;
+        --root-y:     -110px;
+        --child-y:      68px;
 
         /* 2. Radio del nodo para ubicar los satélites de fase (0, 1, 2) */
         --r-node:       46px;
 
         /* 3. Desplazamientos locales de las pastillas de paso respecto a su nodo */
         --badge-dx:    116px;
-        --badge-bot-y:  80px;
+        --badge-bot-y:  78px;
 
         /* 4. Posiciones simétricas de las etiquetas de transición y aristas */
         --edge-lbl-x:  116px;
-        --edge-lbl-y:  -24px;
+        --edge-lbl-y:  -28px;
         --io-lbl-x:    132px;
-        --io-lbl-y:   -162px;
+        --io-lbl-y:   -167px;
         --tr-out-x:    238px;
-        --tr-out-y:    -46px;
+        --tr-out-y:    -50px;
         --tr-in-x:      78px;
-        --tr-in-y:      32px;
-        --tr-leaf-y:   118px;
+        --tr-in-y:      26px;
+        --tr-leaf-y:   112px;
+
+        /* 5. Matriz de subsecuencias de la traza (10 columnas × 3 filas) */
+        --trace-x:      72px;
+        --step-dx:      66px;
+        --row-all-y:   258px;
+        --row-pure-y:  312px;
+        --row-hyb-y:   366px;
+        --hdr-x:      -298px;
       }
 
       /* Simetría horizontal para reutilizar geometría */
@@ -89,41 +149,73 @@
       .pos-tr-4    { transform: translate(var(--tr-in-x),               var(--tr-in-y)); }
       .pos-tr-leaf { transform: translate(0px,                          var(--tr-leaf-y)); }
 
+      /* Posicionamiento de las 10 columnas y 3 filas de la traza */
+      .trace-grid  { transform: translate(var(--trace-x), 0px); }
+      .t-col-1     { transform: translate(calc(-4 * var(--step-dx)), 0px); }
+      .t-col-2     { transform: translate(calc(-3 * var(--step-dx)), 0px); }
+      .t-col-3     { transform: translate(calc(-2 * var(--step-dx)), 0px); }
+      .t-col-4     { transform: translate(calc(-1 * var(--step-dx)), 0px); }
+      .t-col-5     { transform: translate(0px,                       0px); }
+      .t-col-6     { transform: translate(calc( 1 * var(--step-dx)), 0px); }
+      .t-col-7     { transform: translate(calc( 2 * var(--step-dx)), 0px); }
+      .t-col-8     { transform: translate(calc( 3 * var(--step-dx)), 0px); }
+      .t-col-9     { transform: translate(calc( 4 * var(--step-dx)), 0px); }
+      .t-col-10    { transform: translate(calc( 5 * var(--step-dx)), 0px); }
+
+      .row-guides  { transform: translate(0px, var(--row-all-y)); }
+      .row-all     { transform: translate(0px, var(--row-all-y)); }
+      .row-pure    { transform: translate(0px, var(--row-pure-y)); }
+      .row-hyb     { transform: translate(0px, var(--row-hyb-y)); }
+      .pos-hdr     { transform: translate(var(--hdr-x), 0px); }
+
       /* Estilos generales */
-      .bg         { fill: #FAFAFA; stroke: #CFD8DC; stroke-width: 2; rx: 16; }
-      .title      { font-size: 20px; font-weight: 700; fill: #1A237E; text-anchor: middle; }
-      .subtitle   { font-size: 13px; fill: #455A64; text-anchor: middle; }
-      .formula    { font-size: 12.2px; font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #283593; text-anchor: middle; }
+      .bg          { fill: #FAFAFA; stroke: #CFD8DC; stroke-width: 2; rx: 16; }
+      .trace-panel { fill: #F3F5F7; stroke: #CFD8DC; stroke-width: 1.5; rx: 12; }
+      .title       { font-size: 20px; font-weight: 700; fill: #1A237E; text-anchor: middle; }
+      .subtitle    { font-size: 13px; fill: #455A64; text-anchor: middle; }
 
       /* Aristas del árbol y arcos del contorno */
-      .tree-edge  { stroke: #2E7D32; stroke-width: 4; stroke-linecap: round; }
-      .edge-lbl   { font-size: 11.5px; font-weight: 700; fill: #2E7D32; text-anchor: middle; }
-      .tour-arc   { fill: none; stroke: #3949AB; stroke-width: 2.2; stroke-dasharray: 6 4; }
+      .tree-edge   { stroke: #2E7D32; stroke-width: 4; stroke-linecap: round; }
+      .edge-lbl    { font-size: 11.5px; font-weight: 700; fill: #2E7D32; text-anchor: middle; }
+      .tour-arc    { fill: none; stroke: #3949AB; stroke-width: 2.2; stroke-dasharray: 6 4; }
 
       /* Nodos y puntos de fase */
-      .node-body  { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 2.5; }
-      .node-title { font-size: 14px; font-weight: 700; fill: #1B5E20; text-anchor: middle; }
-      .node-val   { font-size: 16px; font-weight: 800; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #111111; text-anchor: middle; }
+      .node-body   { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 2.5; }
+      .node-title  { font-size: 14px; font-weight: 700; fill: #1B5E20; text-anchor: middle; }
+      .node-val    { font-size: 16px; font-weight: 800; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #111111; text-anchor: middle; }
 
-      .phase-dot  { stroke-width: 2; }
-      .phase-num  { font-size: 12px; font-weight: 800; fill: #111111; text-anchor: middle; }
-      .p0-color   { fill: #C8E6C9; stroke: #2E7D32; }
-      .p1-color   { fill: #FFF9C4; stroke: #F9A825; }
-      .p2-color   { fill: #FFCDD2; stroke: #C62828; }
+      .phase-dot   { stroke-width: 2; }
+      .phase-num   { font-size: 12px; font-weight: 800; fill: #111111; text-anchor: middle; }
+      .p0-color    { fill: #C8E6C9; stroke: #2E7D32; }
+      .p1-color    { fill: #FFF9C4; stroke: #F9A825; }
+      .p2-color    { fill: #FFCDD2; stroke: #C62828; }
 
       /* Pastillas de pasos y textos de transición */
-      .pill-0     { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.5; }
-      .pill-1     { fill: #FFFDE7; stroke: #F9A825; stroke-width: 1.5; }
-      .pill-2     { fill: #FFEBEE; stroke: #C62828; stroke-width: 1.5; }
-      .pill-txt   { font-size: 11.5px; font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #1A1A1A; text-anchor: middle; }
+      .pill-0      { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.5; }
+      .pill-1      { fill: #FFFDE7; stroke: #F9A825; stroke-width: 1.5; }
+      .pill-2      { fill: #FFEBEE; stroke: #C62828; stroke-width: 1.5; }
+      .pill-end    { fill: #ECEFF1; stroke: #546E7A; stroke-width: 1.5; }
+      .pill-txt    { font-size: 11.5px; font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #1A1A1A; text-anchor: middle; }
 
-      .tr-step    { font-size: 12px; font-weight: 700; fill: #283593; text-anchor: middle; }
-      .tr-sub     { font-size: 11px; font-style: italic; fill: #455A64; text-anchor: middle; }
+      .tr-step     { font-size: 12px; font-weight: 700; fill: #283593; text-anchor: middle; }
+      .tr-sub      { font-size: 11px; font-style: italic; fill: #455A64; text-anchor: middle; }
+
+      /* Estilos de la tabla de subsecuencias */
+      .guide-line  { stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 3 3; }
+      .seq-line    { stroke: #78909C; stroke-width: 2; }
+      .tok-txt     { font-size: 9.8px; font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', monospace; text-anchor: middle; }
+      .txt-pre     { fill: #1B5E20; }
+      .txt-in      { fill: #E65100; }
+      .txt-post    { fill: #B71C1C; }
+      .txt-end     { fill: #37474F; }
+
+      .seq-kind    { font-size: 11px; font-weight: 700; fill: #546E7A; text-anchor: end; }
+      .seq-name    { font-size: 13px; font-weight: 800; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #1A237E; text-anchor: end; }
     </style>
   </defs>
 
   <!-- Fondo general centrado en (0, 0) -->
-  <rect class="bg" x="-440" y="-260" width="880" height="540" />
+  <rect class="bg" x="-450" y="-260" width="900" height="665" />
 
   <!-- Encabezado -->
   <text class="title" x="0" y="-224">Contorno del Recorrido de Euler (ejemplo con 3 nodos)</text>
@@ -144,34 +236,34 @@
   <!-- 2. ARCOS DEL CONTORNO ENTRE NIVELES (Inicio, 1, 3, 4, 6 y Fin)        -->
   <!-- ===================================================================== -->
   <!-- Entrada a R:0 y salida desde R:2 hacia end(nullptr) -->
-  <path class="tour-arc" d="M -92 -165 C -68 -165, -54 -148, -48 -122" marker-end="url(#arrow-tour)" />
-  <path class="tour-arc" d="M  48 -122 C  54 -148,  68 -165,  92 -165" marker-end="url(#arrow-tour)" />
+  <path class="tour-arc" d="M -92 -170 C -68 -170, -54 -153, -48 -127" marker-end="url(#arrow-tour)" />
+  <path class="tour-arc" d="M  48 -127 C  54 -153,  68 -170,  92 -170" marker-end="url(#arrow-tour)" />
   <text class="tr-step pos-io-in">begin()</text>
   <text class="tr-step pos-io-out">end (nullptr)</text>
 
   <!-- 1. Baja por fuera de la arista izquierda (R:0 ➔ I:0) -->
-  <path class="tour-arc" d="M -56 -88 C -145 -72, -242 -10, -260 56" marker-end="url(#arrow-tour)" />
+  <path class="tour-arc" d="M -56 -93 C -145 -77, -242 -15, -260 50" marker-end="url(#arrow-tour)" />
   <text class="pos-tr-1">
     <tspan class="tr-step" x="0" dy="0">1. Baja a I</tspan>
     <tspan class="tr-sub"  x="0" dy="1.25em">(desde fase 0)</tspan>
   </text>
 
   <!-- 3. Sube por dentro de la arista izquierda (I:2 ➔ R:1) -->
-  <path class="tour-arc" d="M -165 58 C -130 12, -82 -48, -17 -58" marker-end="url(#arrow-tour)" />
+  <path class="tour-arc" d="M -165 52 C -130 6, -82 -53, -17 -63" marker-end="url(#arrow-tour)" />
   <text class="pos-tr-3">
     <tspan class="tr-step" x="0" dy="0">3. Sube a R</tspan>
     <tspan class="tr-sub"  x="0" dy="1.25em">(a fase 1 · In)</tspan>
   </text>
 
   <!-- 4. Baja por dentro de la arista derecha (R:1 ➔ D:0) -->
-  <path class="tour-arc" d="M 17 -58 C 82 -48, 130 12, 162 58" marker-end="url(#arrow-tour)" />
+  <path class="tour-arc" d="M 17 -63 C 82 -53, 130 6, 162 52" marker-end="url(#arrow-tour)" />
   <text class="pos-tr-4">
     <tspan class="tr-step" x="0" dy="0">4. Baja a D</tspan>
     <tspan class="tr-sub"  x="0" dy="1.25em">(desde fase 1)</tspan>
   </text>
 
   <!-- 6. Sube por fuera de la arista derecha (D:2 ➔ R:2) -->
-  <path class="tour-arc" d="M 260 56 C 242 -10, 145 -72, 58 -88" marker-end="url(#arrow-tour)" />
+  <path class="tour-arc" d="M 260 50 C 242 -15, 145 -77, 58 -93" marker-end="url(#arrow-tour)" />
   <text class="pos-tr-6">
     <tspan class="tr-step" x="0" dy="0">6. Sube a R</tspan>
     <tspan class="tr-sub"  x="0" dy="1.25em">(a fase 2 · Post)</tspan>
@@ -255,8 +347,78 @@
     </text>
   </g>
 
-  <!-- Pie con traza completa -->
-  <text class="formula" x="0" y="252">
-    Traza: (50:Pre) ➔ (20:Pre) ➔ (20:In) ➔ (20:Post) ➔ (50:In) ➔ (80:Pre) ➔ (80:In) ➔ (80:Post) ➔ (50:Post) ➔ end
-  </text>
+  <!-- ===================================================================== -->
+  <!-- 4. LOS ÓRDENES COMO SUBSECUENCIAS DE LA TRAZA COMPLETA DE EULER       -->
+  <!-- ===================================================================== -->
+  <rect class="trace-panel" x="-434" y="218" width="868" height="174" />
+
+  <g class="trace-grid">
+    <!-- Guías verticales de alineación por columna -->
+    <g class="row-guides">
+      <use href="#col-guide" class="t-col-1" />
+      <use href="#col-guide" class="t-col-2" />
+      <use href="#col-guide" class="t-col-3" />
+      <use href="#col-guide" class="t-col-4" />
+      <use href="#col-guide" class="t-col-5" />
+      <use href="#col-guide" class="t-col-6" />
+      <use href="#col-guide" class="t-col-7" />
+      <use href="#col-guide" class="t-col-8" />
+      <use href="#col-guide" class="t-col-9" />
+      <use href="#col-guide" class="t-col-10" />
+    </g>
+
+    <!-- FILA 1: Traza completa de Euler (PreInPostOrder) -->
+    <g class="row-all">
+      <text class="pos-hdr">
+        <tspan class="seq-kind" x="0" dy="-4">Traza completa (Euler):</tspan>
+        <tspan class="seq-name" x="0" dy="1.25em">
+          <tspan class="txt-pre">Pre</tspan><tspan class="txt-in">In</tspan><tspan class="txt-post">Post</tspan>Order
+        </tspan>
+      </text>
+      <line class="seq-line" x1="-264" y1="0" x2="305" y2="0" marker-end="url(#arrow-seq)" />
+      <use href="#tok-1" />
+      <use href="#tok-2" />
+      <use href="#tok-3" />
+      <use href="#tok-4" />
+      <use href="#tok-5" />
+      <use href="#tok-6" />
+      <use href="#tok-7" />
+      <use href="#tok-8" />
+      <use href="#tok-9" />
+      <use href="#tok-end" />
+    </g>
+
+    <!-- FILA 2: Ejemplo de Recorrido Puro (InOrder = subsecuencia de fase In) -->
+    <g class="row-pure">
+      <text class="pos-hdr">
+        <tspan class="seq-kind" x="0" dy="-4">Recorrido puro:</tspan>
+        <tspan class="seq-name" x="0" dy="1.25em">
+          <tspan class="txt-in">In</tspan>Order
+        </tspan>
+      </text>
+      <line class="seq-line" x1="-132" y1="0" x2="305" y2="0" marker-end="url(#arrow-seq)" />
+      <use href="#tok-3" />
+      <use href="#tok-5" />
+      <use href="#tok-7" />
+      <use href="#tok-end" />
+    </g>
+
+    <!-- FILA 3: Ejemplo de Recorrido Híbrido (PrePostOrder = subsecuencia de Pre y Post) -->
+    <g class="row-hyb">
+      <text class="pos-hdr">
+        <tspan class="seq-kind" x="0" dy="-4">Recorrido híbrido:</tspan>
+        <tspan class="seq-name" x="0" dy="1.25em">
+          <tspan class="txt-pre">Pre</tspan><tspan class="txt-post">Post</tspan>Order
+        </tspan>
+      </text>
+      <line class="seq-line" x1="-264" y1="0" x2="305" y2="0" marker-end="url(#arrow-seq)" />
+      <use href="#tok-1" />
+      <use href="#tok-2" />
+      <use href="#tok-4" />
+      <use href="#tok-6" />
+      <use href="#tok-8" />
+      <use href="#tok-9" />
+      <use href="#tok-end" />
+    </g>
+  </g>
 </svg>
