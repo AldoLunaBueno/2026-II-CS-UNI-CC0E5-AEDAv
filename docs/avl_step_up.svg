@@ -1,0 +1,370 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-480 -65 960 465" width="100%" height="100%">
+  <defs>
+    <!-- Flechas hacia nodos circulares (r=18px, refX=26 para tocar el borde) -->
+    <marker id="arr-node" viewBox="0 0 10 10" refX="26" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 z" fill="#6e7681" />
+    </marker>
+    <marker id="arr-new-node" viewBox="0 0 10 10" refX="26" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 z" fill="#58a6ff" />
+    </marker>
+    <marker id="arr-del-node" viewBox="0 0 10 10" refX="26" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 z" fill="#f85149" />
+    </marker>
+
+    <!-- Flechas hacia cúspide de subárboles triangulares (refX=8 para tocar la punta) -->
+    <marker id="arr-sub" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 z" fill="#6e7681" />
+    </marker>
+    <marker id="arr-new-sub" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 z" fill="#58a6ff" />
+    </marker>
+    <marker id="arr-del-sub" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 z" fill="#f85149" />
+    </marker>
+  </defs>
+
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    .bg { fill: #0d1117; rx: 16px; }
+    .divider { stroke: #30363d; stroke-width: 1.5; stroke-dasharray: 6 6; }
+    .level-guide { stroke: #21262d; stroke-width: 1; stroke-dasharray: 4 4; }
+    .level-text { fill: #484f58; font-size: 11px; font-family: monospace; }
+
+    .title { fill: #e6edf3; font-size: 14px; font-weight: 700; text-anchor: middle; }
+    .subtitle { font-size: 12px; font-family: monospace; text-anchor: middle; }
+
+    /* Estilos de nodos */
+    .node circle { r: 18px; stroke-width: 2.5px; }
+    .node text {
+      font-size: 13px;
+      font-weight: 700;
+      text-anchor: middle;
+      dominant-baseline: central;
+    }
+
+    .z circle { stroke: #f85149; fill: #25171c; }
+    .z text { fill: #ff7b72; }
+
+    .y circle { stroke: #d29922; fill: #272115; }
+    .y text { fill: #e3b341; }
+
+    .x circle { stroke: #3fb950; fill: #13231b; }
+    .x text { fill: #56d364; }
+
+    /* Subárboles */
+    .subtree polygon { fill: #162235; stroke: #388bfd; stroke-width: 1.8px; }
+    .subtree text {
+      fill: #79c0ff;
+      font-size: 11px;
+      font-weight: 700;
+      text-anchor: middle;
+      dominant-baseline: central;
+      transform: translateY(3px);
+    }
+
+    /* Aristas / Punteros */
+    .edge {
+      stroke-width: 2px;
+      stroke-linecap: round;
+      fill: none;
+    }
+    .edge-std { stroke: #484f58; }
+    .edge-del { stroke: #f85149; stroke-dasharray: 4 3; }
+    .edge-new { stroke: #58a6ff; }
+
+    /* Tiempos de animación */
+    .smooth-ll {
+      animation-duration: 7s;
+      animation-timing-function: cubic-bezier(0.45, 0, 0.25, 1);
+      animation-iteration-count: infinite;
+    }
+    .smooth-lr {
+      animation-duration: 9.5s;
+      animation-timing-function: cubic-bezier(0.45, 0, 0.25, 1);
+      animation-iteration-count: infinite;
+    }
+
+    /* =========================================================================
+       CASO LL (rotate(Y)) - Duración 7s
+       ========================================================================= */
+    .ll-z  { animation-name: kf-ll-z; }
+    .ll-y  { animation-name: kf-ll-y; }
+    .ll-x  { animation-name: kf-ll-x; }
+    .ll-t1 { animation-name: kf-ll-sub-t1; }
+    .ll-t2 { animation-name: kf-ll-sub-t2; }
+    .ll-t3 { animation-name: kf-ll-sub-t3; }
+    .ll-t4 { animation-name: kf-ll-sub-t4; }
+
+    @keyframes kf-ll-z {
+      0%, 35%  { transform: translate(-230px, 50px); }
+      55%, 90% { transform: translate(-145px, 115px); }
+      100%     { transform: translate(-230px, 50px); }
+    }
+    @keyframes kf-ll-y {
+      0%, 35%  { transform: translate(-298px, 115px); }
+      55%, 90% { transform: translate(-230px, 50px); }
+      100%     { transform: translate(-298px, 115px); }
+    }
+    @keyframes kf-ll-x {
+      0%, 35%  { transform: translate(-360px, 180px); }
+      55%, 90% { transform: translate(-315px, 115px); }
+      100%     { transform: translate(-360px, 180px); }
+    }
+    @keyframes kf-ll-sub-t1 {
+      0%, 35%  { transform: translate(-395px, 245px); }
+      55%, 90% { transform: translate(-358px, 180px); }
+      100%     { transform: translate(-395px, 245px); }
+    }
+    @keyframes kf-ll-sub-t2 {
+      0%, 35%  { transform: translate(-325px, 245px); }
+      55%, 90% { transform: translate(-272px, 180px); }
+      100%     { transform: translate(-325px, 245px); }
+    }
+    @keyframes kf-ll-sub-t3 {
+      0%, 35%  { transform: translate(-248px, 180px); }
+      55%, 90% { transform: translate(-188px, 180px); }
+      100%     { transform: translate(-248px, 180px); }
+    }
+    @keyframes kf-ll-sub-t4 {
+      0%, 35%  { transform: translate(-170px, 115px); }
+      55%, 90% { transform: translate(-102px, 180px); }
+      100%     { transform: translate(-170px, 115px); }
+    }
+
+    .ll-edges-initial { animation: kf-ll-edges-init 7s infinite; }
+    .ll-edges-sever   { animation: kf-ll-edges-sev 7s infinite; }
+    .ll-edges-final   { animation: kf-ll-edges-fin 7s infinite; }
+    .ll-status-init   { animation: kf-ll-txt-init 7s infinite; }
+    .ll-status-fin    { animation: kf-ll-txt-fin 7s infinite; }
+
+    @keyframes kf-ll-edges-init {
+      0%, 30%  { opacity: 1; }
+      38%, 95% { opacity: 0; }
+      100%     { opacity: 1; }
+    }
+    @keyframes kf-ll-edges-sev {
+      0%, 25%  { opacity: 1; }
+      32%      { opacity: 1; }
+      38%, 95% { opacity: 0; }
+      100%     { opacity: 1; }
+    }
+    @keyframes kf-ll-edges-fin {
+      0%, 50%  { opacity: 0; }
+      56%, 90% { opacity: 1; }
+      96%, 100%{ opacity: 0; }
+    }
+    @keyframes kf-ll-txt-init {
+      0%, 35%  { opacity: 1; }
+      42%, 95% { opacity: 0; }
+      100%     { opacity: 1; }
+    }
+    @keyframes kf-ll-txt-fin {
+      0%, 48%  { opacity: 0; }
+      55%, 90% { opacity: 1; }
+      96%, 100%{ opacity: 0; }
+    }
+
+    /* =========================================================================
+       CASO LR (rotate(X) x 2) - Duración 9.5s
+       ========================================================================= */
+    .lr-z  { animation-name: kf-lr-z; }
+    .lr-y  { animation-name: kf-lr-y; }
+    .lr-x  { animation-name: kf-lr-x; }
+    .lr-t1 { animation-name: kf-lr-sub-t1; }
+    .lr-t2 { animation-name: kf-lr-sub-t2; }
+    .lr-t3 { animation-name: kf-lr-sub-t3; }
+    .lr-t4 { animation-name: kf-lr-sub-t4; }
+
+    @keyframes kf-lr-z {
+      0%, 25%  { transform: translate(230px, 50px); }
+      36%, 58% { transform: translate(230px, 50px); }
+      70%, 92% { transform: translate(315px, 115px); }
+      100%     { transform: translate(230px, 50px); }
+    }
+    @keyframes kf-lr-y {
+      0%, 25%  { transform: translate(145px, 115px); }
+      36%, 58% { transform: translate(100px, 180px); }
+      70%, 92% { transform: translate(145px, 115px); }
+      100%     { transform: translate(145px, 115px); }
+    }
+    @keyframes kf-lr-x {
+      0%, 25%  { transform: translate(188px, 180px); }
+      36%, 58% { transform: translate(162px, 115px); }
+      70%, 92% { transform: translate(230px, 50px); }
+      100%     { transform: translate(188px, 180px); }
+    }
+
+    /* Keyframes de posición de los subárboles (nombres únicos sin colisión) */
+    @keyframes kf-lr-sub-t1 {
+      0%, 25%  { transform: translate(102px, 180px); }
+      36%, 58% { transform: translate(65px, 245px); }
+      70%, 92% { transform: translate(102px, 180px); }
+      100%     { transform: translate(102px, 180px); }
+    }
+    @keyframes kf-lr-sub-t2 {
+      0%, 25%  { transform: translate(162px, 245px); }
+      36%, 58% { transform: translate(135px, 245px); }
+      70%, 92% { transform: translate(188px, 180px); }
+      100%     { transform: translate(162px, 245px); }
+    }
+    @keyframes kf-lr-sub-t3 {
+      0%, 25%  { transform: translate(214px, 245px); }
+      36%, 58% { transform: translate(212px, 180px); }
+      70%, 92% { transform: translate(272px, 180px); }
+      100%     { transform: translate(214px, 245px); }
+    }
+    @keyframes kf-lr-sub-t4 {
+      0%, 25%  { transform: translate(290px, 115px); }
+      36%, 58% { transform: translate(290px, 115px); }
+      70%, 92% { transform: translate(358px, 180px); }
+      100%     { transform: translate(290px, 115px); }
+    }
+
+    .lr-edges-p0 { animation: kf-lr-e0 9.5s infinite; }
+    .lr-edges-p1 { animation: kf-lr-e1 9.5s infinite; }
+    .lr-edges-p2 { animation: kf-lr-e2 9.5s infinite; }
+
+    @keyframes kf-lr-e0 {
+      0%, 22%  { opacity: 1; }
+      28%, 95% { opacity: 0; }
+      100%     { opacity: 1; }
+    }
+    @keyframes kf-lr-e1 {
+      0%, 32%  { opacity: 0; }
+      38%, 56% { opacity: 1; }
+      62%, 100%{ opacity: 0; }
+    }
+    @keyframes kf-lr-e2 {
+      0%, 65%  { opacity: 0; }
+      71%, 91% { opacity: 1; }
+      97%, 100%{ opacity: 0; }
+    }
+
+    /* Keyframes de opacidad del texto descriptivo */
+    .lr-txt-p0 { animation: kf-lr-text-p0 9.5s infinite; }
+    .lr-txt-p1 { animation: kf-lr-text-p1 9.5s infinite; }
+    .lr-txt-p2 { animation: kf-lr-text-p2 9.5s infinite; }
+
+    @keyframes kf-lr-text-p0 {
+      0%, 24%  { opacity: 1; }
+      29%, 95% { opacity: 0; }
+      100%     { opacity: 1; }
+    }
+    @keyframes kf-lr-text-p1 {
+      0%, 30%  { opacity: 0; }
+      36%, 58% { opacity: 1; }
+      63%, 100%{ opacity: 0; }
+    }
+    @keyframes kf-lr-text-p2 {
+      0%, 64%  { opacity: 0; }
+      70%, 92% { opacity: 1; }
+      97%, 100%{ opacity: 0; }
+    }
+  </style>
+
+  <rect class="bg" x="-470" y="-55" width="940" height="445" />
+  <line class="divider" x1="0" y1="-35" x2="0" y2="355" />
+
+  <!-- Guías de nivel horizontales -->
+  <line class="level-guide" x1="-450" y1="50" x2="450" y2="50" />
+  <text class="level-text" x="-460" y="54" text-anchor="end">N0</text>
+
+  <line class="level-guide" x1="-450" y1="115" x2="450" y2="115" />
+  <text class="level-text" x="-460" y="119" text-anchor="end">N1</text>
+
+  <line class="level-guide" x1="-450" y1="180" x2="450" y2="180" />
+  <text class="level-text" x="-460" y="184" text-anchor="end">N2</text>
+
+  <line class="level-guide" x1="-450" y1="245" x2="450" y2="245" />
+  <text class="level-text" x="-460" y="249" text-anchor="end">N3</text>
+
+  <!-- Títulos dinámicos LL -->
+  <text class="title" x="-230" y="-25">Caso en Línea (LL)</text>
+  <text class="subtitle ll-status-init" x="-230" y="-2" fill="#d29922">1. Desbalance en Z → rotate(Y)</text>
+  <text class="subtitle ll-status-fin" x="-230" y="-2" fill="#3fb950">2. Balanceado (Y es nueva raíz)</text>
+
+  <!-- Títulos dinámicos LR -->
+  <text class="title" x="230" y="-25">Caso en Zig-Zag (LR)</text>
+  <text class="subtitle lr-txt-p0" x="230" y="-2" fill="#f85149">Paso 0: Codo → 1er rotate(X)</text>
+  <text class="subtitle lr-txt-p1" x="230" y="-2" fill="#d29922">Paso 1: Línea LL → 2do rotate(X)</text>
+  <text class="subtitle lr-txt-p2" x="230" y="-2" fill="#3fb950">Paso 2: Balanceado (X es nueva raíz)</text>
+
+  <!-- ==================== ARISTAS LL ==================== -->
+  <g class="ll-edges-initial">
+    <line class="edge edge-std" x1="-230" y1="50" x2="-170" y2="103" marker-end="url(#arr-sub)" />
+    <line class="edge edge-std" x1="-298" y1="115" x2="-360" y2="180" marker-end="url(#arr-node)" />
+    <line class="edge edge-std" x1="-360" y1="180" x2="-395" y2="233" marker-end="url(#arr-sub)" />
+    <line class="edge edge-std" x1="-360" y1="180" x2="-325" y2="233" marker-end="url(#arr-sub)" />
+  </g>
+  <g class="ll-edges-sever">
+    <line class="edge edge-del" x1="-230" y1="50" x2="-298" y2="115" marker-end="url(#arr-del-node)" />
+    <line class="edge edge-del" x1="-298" y1="115" x2="-248" y2="168" marker-end="url(#arr-del-sub)" />
+  </g>
+  <g class="ll-edges-final">
+    <line class="edge edge-std" x1="-230" y1="50" x2="-315" y2="115" marker-end="url(#arr-node)" />
+    <line class="edge edge-new" x1="-230" y1="50" x2="-145" y2="115" marker-end="url(#arr-new-node)" />
+    <line class="edge edge-std" x1="-315" y1="115" x2="-358" y2="168" marker-end="url(#arr-sub)" />
+    <line class="edge edge-std" x1="-315" y1="115" x2="-272" y2="168" marker-end="url(#arr-sub)" />
+    <line class="edge edge-new" x1="-145" y1="115" x2="-188" y2="168" marker-end="url(#arr-new-sub)" />
+    <line class="edge edge-std" x1="-145" y1="115" x2="-102" y2="168" marker-end="url(#arr-sub)" />
+  </g>
+
+  <!-- ==================== ARISTAS LR ==================== -->
+  <g class="lr-edges-p0">
+    <line class="edge edge-std" x1="230" y1="50" x2="145" y2="115" marker-end="url(#arr-node)" />
+    <line class="edge edge-std" x1="230" y1="50" x2="290" y2="103" marker-end="url(#arr-sub)" />
+    <line class="edge edge-std" x1="145" y1="115" x2="102" y2="168" marker-end="url(#arr-sub)" />
+    <line class="edge edge-del" x1="145" y1="115" x2="188" y2="180" marker-end="url(#arr-del-node)" />
+    <line class="edge edge-del" x1="188" y1="180" x2="162" y2="233" marker-end="url(#arr-del-sub)" />
+    <line class="edge edge-std" x1="188" y1="180" x2="214" y2="233" marker-end="url(#arr-sub)" />
+  </g>
+  <g class="lr-edges-p1">
+    <line class="edge edge-del" x1="230" y1="50" x2="162" y2="115" marker-end="url(#arr-del-node)" />
+    <line class="edge edge-std" x1="230" y1="50" x2="290" y2="103" marker-end="url(#arr-sub)" />
+    <line class="edge edge-new" x1="162" y1="115" x2="100" y2="180" marker-end="url(#arr-new-node)" />
+    <line class="edge edge-del" x1="162" y1="115" x2="212" y2="168" marker-end="url(#arr-del-sub)" />
+    <line class="edge edge-std" x1="100" y1="180" x2="65" y2="233" marker-end="url(#arr-sub)" />
+    <line class="edge edge-new" x1="100" y1="180" x2="135" y2="233" marker-end="url(#arr-new-sub)" />
+  </g>
+  <g class="lr-edges-p2">
+    <line class="edge edge-new" x1="230" y1="50" x2="145" y2="115" marker-end="url(#arr-new-node)" />
+    <line class="edge edge-new" x1="230" y1="50" x2="315" y2="115" marker-end="url(#arr-new-node)" />
+    <line class="edge edge-std" x1="145" y1="115" x2="102" y2="168" marker-end="url(#arr-sub)" />
+    <line class="edge edge-std" x1="145" y1="115" x2="188" y2="168" marker-end="url(#arr-sub)" />
+    <line class="edge edge-new" x1="315" y1="115" x2="272" y2="168" marker-end="url(#arr-new-sub)" />
+    <line class="edge edge-std" x1="315" y1="115" x2="358" y2="168" marker-end="url(#arr-sub)" />
+  </g>
+
+  <!-- ==================== ELEMENTOS LL ==================== -->
+  <g class="node z smooth-ll ll-z"><circle /><text>Z</text></g>
+  <g class="node y smooth-ll ll-y"><circle /><text>Y</text></g>
+  <g class="node x smooth-ll ll-x"><circle /><text>X</text></g>
+
+  <g class="subtree smooth-ll ll-t1"><polygon points="0,-12 15,12 -15,12" /><text>T1</text></g>
+  <g class="subtree smooth-ll ll-t2"><polygon points="0,-12 15,12 -15,12" /><text>T2</text></g>
+  <g class="subtree smooth-ll ll-t3"><polygon points="0,-12 15,12 -15,12" /><text>T3</text></g>
+  <g class="subtree smooth-ll ll-t4"><polygon points="0,-12 15,12 -15,12" /><text>T4</text></g>
+
+  <!-- ==================== ELEMENTOS LR ==================== -->
+  <g class="node z smooth-lr lr-z"><circle /><text>Z</text></g>
+  <g class="node y smooth-lr lr-y"><circle /><text>Y</text></g>
+  <g class="node x smooth-lr lr-x"><circle /><text>X</text></g>
+
+  <g class="subtree smooth-lr lr-t1"><polygon points="0,-12 15,12 -15,12" /><text>T1</text></g>
+  <g class="subtree smooth-lr lr-t2"><polygon points="0,-12 15,12 -15,12" /><text>T2</text></g>
+  <g class="subtree smooth-lr lr-t3"><polygon points="0,-12 15,12 -15,12" /><text>T3</text></g>
+  <g class="subtree smooth-lr lr-t4"><polygon points="0,-12 15,12 -15,12" /><text>T4</text></g>
+
+  <!-- Leyenda inferior -->
+  <g transform="translate(0, 325)">
+    <text class="subtitle" x="0" y="0" fill="#c9d1d9">
+      Rojo punteado: Puntero roto | Azul brillante: Nuevo enlace asignado | Gris: Enlace intacto
+    </text>
+    <text class="subtitle" x="0" y="20" fill="#6e7681">
+      Invariante in-order inalterado: T1 &lt; (X o Y) &lt; T2 &lt; (Y o X) &lt; T3 &lt; Z &lt; T4
+    </text>
+  </g>
+</svg>

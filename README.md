@@ -1,4 +1,24 @@
+<!-- omit in toc -->
 # 2026-II-CS-UNI-CC0E5-AEDAv
+
+- [](#)
+- [🏛️ I. Arquitectura del Repositorio y Vistas de Subsistemas](#️-i-arquitectura-del-repositorio-y-vistas-de-subsistemas)
+  - [1. Vista General del Sistema](#1-vista-general-del-sistema)
+  - [2. Jerarquía de Contenedores, Vistas y Sistema de Mixins](#2-jerarquía-de-contenedores-vistas-y-sistema-de-mixins)
+  - [3. Sistema de Iteradores, Nodos y Recorridos](#3-sistema-de-iteradores-nodos-y-recorridos)
+  - [4. Sistema de Traits, Políticas de Orden y Desacoplamiento de Vistas](#4-sistema-de-traits-políticas-de-orden-y-desacoplamiento-de-vistas)
+  - [5. Patrón Template Method en Árboles (BinaryTree / AVLTree), Invariante Rebuild y Renderizado](#5-patrón-template-method-en-árboles-binarytree--avltree-invariante-rebuild-y-renderizado)
+- [⚙️ II. Detalle de Aspectos Específicos](#️-ii-detalle-de-aspectos-específicos)
+  - [1. Máquina de Estados del Recorrido de Euler por Fases](#1-máquina-de-estados-del-recorrido-de-euler-por-fases)
+  - [2. Desacoplamiento Estructural: Separación de Contenedor y Recorrido mediante Vistas (BaseView)](#2-desacoplamiento-estructural-separación-de-contenedor-y-recorrido-mediante-vistas-baseview)
+  - [3. Mecanismo de Rebalanceo AVL por Rotación Unificada (rotate_up)](#3-mecanismo-de-rebalanceo-avl-por-rotación-unificada-rotate_up)
+  - [4. Invariante de Reconstrucción de Contenedores (rebuild)](#4-invariante-de-reconstrucción-de-contenedores-rebuild)
+  - [5. Subsistema de Renderizado ASCII en Consola (sketch y ConsoleGraphRenderer)](#5-subsistema-de-renderizado-ascii-en-consola-sketch-y-consolegraphrenderer)
+  - [6. Guía de Uso y Demostración Práctica de la API](#6-guía-de-uso-y-demostración-práctica-de-la-api)
+
+
+
+---
 
 ## 🏛️ I. Arquitectura del Repositorio y Vistas de Subsistemas
 
@@ -34,8 +54,7 @@ flowchart LR
     class LIBRES c6
 ```
 
-<details>
-<summary><b>2. Jerarquía de Contenedores, Vistas y Sistema de Mixins</b></summary>
+### 2. Jerarquía de Contenedores, Vistas y Sistema de Mixins
 
 ```mermaid
 flowchart TB
@@ -135,10 +154,7 @@ flowchart TB
     style CONT_STRUCT fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
 ```
 
-</details>
-
-<details>
-<summary><b>3. Sistema de Iteradores, Nodos y Recorridos</b></summary>
+### 3. Sistema de Iteradores, Nodos y Recorridos
 
 ```mermaid
 flowchart TB
@@ -219,10 +235,7 @@ flowchart TB
     style NODOS fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
 ```
 
-</details>
-
-<details>
-<summary><b>4. Sistema de Traits, Políticas de Orden y Desacoplamiento de Vistas</b></summary>
+### 4. Sistema de Traits, Políticas de Orden y Desacoplamiento de Vistas
 
 ```mermaid
 flowchart TB
@@ -301,10 +314,7 @@ flowchart TB
     style USERS fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
 ```
 
-</details>
-
-<details>
-<summary><b>5. Patrón Template Method en Árboles (BinaryTree / AVLTree), Invariante Rebuild y Renderizado</b></summary>
+### 5. Patrón Template Method en Árboles (BinaryTree / AVLTree), Invariante Rebuild y Renderizado
 
 ```mermaid
 flowchart LR
@@ -372,14 +382,11 @@ flowchart LR
     style CORE_REBUILD fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
 ```
 
-</details>
-
 ---
 
 ## ⚙️ II. Detalle de Aspectos Específicos
 
-<details>
-<summary><b>1. Máquina de Estados del Recorrido de Euler por Fases</b></summary>
+### 1. Máquina de Estados del Recorrido de Euler por Fases
 
 #### A. ¿Cómo avanza el Recorrido de Euler por el contorno de un árbol?
 
@@ -467,10 +474,7 @@ Al combinar los 3 bits de `{Phase::Pre, Phase::In, Phase::Post}`, las $2^3 - 1 =
 
 ![Diagrama de Venn de los 14 Recorridos](docs/euler_venn.svg)
 
-</details>
-
-<details>
-<summary><b>2. Desacoplamiento Estructural: Separación de Contenedor y Recorrido mediante Vistas (BaseView)</b></summary>
+### 2. Desacoplamiento Estructural: Separación de Contenedor y Recorrido mediante Vistas (BaseView)
 
 #### A. Motivación y Principio de Responsabilidad Única
 
@@ -611,10 +615,54 @@ Cualquiera de los 14 recorridos de Euler es accesible de inmediato como un objet
 - Invocación genérica: `tree.traverse<Order::PreInOrder>().call(func, args...);`
 - Bucles basados en rango: `for (const auto& node : tree.traverse<Order::PreInPostOrder, Direction::Desc>())`
 
-</details>
+### 3. Mecanismo de Rebalanceo AVL por Rotación Unificada (rotate_up)
 
-<details>
-<summary><b>3. Invariante de Reconstrucción de Contenedores (rebuild)</b></summary>
+En [`containers/avltree.h`](containers/avltree.h), `BaseAVLTree` implementa el auto-balanceo extendiendo `BaseBinaryTree` mediante el patrón **Template Method**:
+1. Las operaciones de mutación (`insert` y `remove`) delegan la restauración del árbol al hook virtual `rebalance(node)`.
+2. Al insertar o eliminar, `BaseAVLTree::rebalance(node)` asciende por los ancestros actualizando `m_height = 1 + std::max(h_izq, h_der)`.
+3. Cuando detecta un nodo desbalanceado $Z$ con factor de balance $|bf(Z)| > 1$ (donde $bf = h_{\text{izq}} - h_{\text{der}}$):
+   - Identifica al hijo más alto $Y = Z\text{->m\_pChild}[bf_Z < 0]$.
+   - Identifica al nieto más alto $X = Y\text{->m\_pChild}[bf_Y < 0]$.
+
+#### A. Primitiva de Rotación Unificada `rotate_up(node)`
+
+En lugar de codificar 4 variantes manuales de rotación (`LL`, `RR`, `LR`, `RL`), la arquitectura unifica cualquier rotación en una única primitiva simétrica parametrizada por la posición relativa del nodo:
+
+```cpp
+void rotate_up(NodePtr node) {
+    NodePtr node_p = node->m_parent;
+    NodePtr node_g = node_p->m_parent;
+    TX dp = node_p && node == node_p->m_pChild[1];  // true (1) si node es hijo derecho
+    TX dg = node_g && node_p == node_g->m_pChild[1]; // true (1) si parent es hijo derecho
+    connect(node_p, node->m_pChild[1-dp], dp);      // Adopta el subárbol cruzado
+    connect(node, node_p, 1-dp);                    // node_p pasa a ser hijo de node
+    connect(node_g, node, dg);                      // node se enlaza al abuelo
+}
+```
+
+Cada invocación a `connect(parent, child, d)` enlaza los punteros bidireccionales y recalcula inmediatamente `parent->m_height`.
+
+#### B. Clasificación de Casos: Simple (1x) vs. Compuesta (2x)
+
+- **Caso en Línea (LL / RR)** ($bf_Z \cdot bf_Y > 0$ o $bf_Y = 0$):
+  Tanto $Y$ como $X$ se encuentran alineados en la misma dirección. Se resuelve con **1 rotación** ascendiendo al hijo $Y$:
+  ```cpp
+  rotate_up(node->m_parent); // Asciende Y al lugar de Z
+  ```
+- **Caso en Zig-Zag (LR / RL)** ($bf_Z \cdot bf_Y < 0$):
+  Existe un cambio de dirección en el camino $Z \to Y \to X$ ("codo"). Se resuelve con **2 rotaciones** sucesivas ascendiendo al nieto $X$:
+  ```cpp
+  rotate_up(node); // 1ra rotación: asciende X al lugar de Y (convierte LR en LL)
+  rotate_up(node); // 2da rotación: asciende X al lugar de Z (balancea el subárbol)
+  ```
+
+![Rotaciones para rebalancear AVL](docs/avl_step_up.svg)
+
+El diagrama animado superior ilustra cómo la transformación geométrica preserva de forma estricta la invariante del recorrido in-order:
+
+$T_1 < (X \text{ o } Y) < T_2 < (Y \text{ o } X) < T_3 < Z < T_4$
+
+### 4. Invariante de Reconstrucción de Contenedores (rebuild)
 
 Cuando se ejecutan operaciones masivas que transforman el valor de los nodos in-place (como `ApplyFunction`), las invariantes estructurales de ciertos contenedores pueden invalidarse.
 
@@ -642,16 +690,15 @@ Para solventar esto de manera limpia y polimórfica:
    ```
    Garantizando que tras un `ApplyFunction(AddOne)` o `ApplyFunction(AddX, 10)`, el árbol binario completo que respalda el montículo restablezca su propiedad de orden en $O(N)$ sin requerir intervención manual del cliente.
 
-</details>
-
-<details>
-<summary><b>4. Subsistema de Renderizado ASCII en Consola (sketch y ConsoleGraphRenderer)</b></summary>
+### 5. Subsistema de Renderizado ASCII en Consola (sketch y ConsoleGraphRenderer)
 
 El subsistema visual en [`utilities/render.h`](utilities/render.h) separa la representación lógica del grafo de su renderizado visual:
 
 1. **`VisualGraph sketch() const`**:
    `BaseBinaryTree::sketch()` calcula la geometría del árbol en anchura y altura:
-   $$\text{segment\_width} = 2 \cdot \text{cell\_width} \cdot 2^{h - k - 1}$$
+
+   $\text{segment}_{\text{width}} = 2 \cdot \text{cell}_{\text{width}} \cdot 2^{h - k - 1}$
+
    Asigna coordenadas $X, Y$ a cada nodo por niveles y genera aristas etiquetadas como `LeftChild` o `RightChild`.
 
 2. **`ConsoleGraphRenderer`**:
@@ -674,10 +721,7 @@ Ejemplo de salida en terminal:
    10    30    70    90
 ```
 
-</details>
-
-<details>
-<summary><b>5. Guía de Uso y Demostración Práctica de la API</b></summary>
+### 6. Guía de Uso y Demostración Práctica de la API
 
 #### A. Creación y Recorridos Dinámicos de Árboles
 
