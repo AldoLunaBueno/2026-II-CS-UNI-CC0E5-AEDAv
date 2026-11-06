@@ -90,8 +90,9 @@ void TestContainer(Container &container,
 // Prueba los recorridos del Container hacia adelante (begin/end) y hacia
 // atras (rbegin/rend) solamente, imprimiendo los elementos en cada sentido.
 template <typename Container>
-void TestTraversal(Container &container) {
-    using Node = typename Container::Node;
+void TestTraversal(Container &container, const typename Container::value_type &threshold) {
+    using Node      = typename Container::Node;
+    using ValueType = typename Container::value_type;
 
     cout << "Forward traversal:  [";
     container.call(PrintNode<Node>, cout);
@@ -101,35 +102,32 @@ void TestTraversal(Container &container) {
     container.rcall(PrintNode<Node>, cout);
     cout << "]" << endl;
 
-    // Prueba de call()/FirstThat() con valor de retorno: busca el primer
-    // nodo cuyo valor sea mayor que el del primer elemento del container.
-    if (!container.empty()) {
-        auto threshold = (*container.begin()).getValue();
-        Node &found = container.FirstThat(IsGreaterThan<Node, decltype(threshold)>, threshold);
-        cout << "FirstThat (primer valor > " << threshold << "): " << found << endl;
-    }
+    cout << "Vista invertida (operator<<): " << container.reversed() << endl;
+
+    Node &found = container.FirstThat(IsGreaterThan<Node, ValueType>, threshold);
+    cout << "FirstThat (primer valor > " << threshold << "): " << found << endl;
+
+    Node &rev_found = container.reversed().FirstThat(IsGreaterThan<Node, ValueType>, threshold);
+    cout << "reversed().FirstThat (ultimo valor > " << threshold << "): " << rev_found << endl;
 }
 
 // Prueba los recorridos hacia únicamente hacia adelante, especialmente para una LinkedList
 template <typename Container>
-void TestForwardTraversal(Container &container){
-    using Node = typename Container::Node;
+void TestForwardTraversal(Container &container, const typename Container::value_type &threshold) {
+    using Node      = typename Container::Node;
+    using ValueType = typename Container::value_type;
 
-    cout << "Prueba de función call con std::cout para LinkedList [";
+    cout << "Probar call con std::cout";
     container.call(PrintNode<Node>, cout);
-    cout << "]" << endl;
+    cout << endl;
 
-    cout << "Prueba de uso de iteradores para impresión: [";
+    cout << "Probar iterador crudo para impresión:";
     for (auto &&node : container)
         cout << node << " ";
-    cout << "]" << endl;
+    cout << endl;
 
-    // Prueba de FirstThat(): primer nodo cuyo valor sea mayor que el primero
-    if (container.begin() != container.end()) {
-        auto threshold = (*container.begin()).getValue();
-        Node &found = container.FirstThat(IsGreaterThan<Node, decltype(threshold)>, threshold);
-        cout << "FirstThat (primer valor > " << threshold << "): " << found << endl;
-    }
+    Node &found = container.FirstThat(IsGreaterThan<Node, ValueType>, threshold);
+    cout << "FirstThat (primer valor > " << threshold << "): " << found << endl;
 }
 
 void DemoVector() {
@@ -138,22 +136,65 @@ void DemoVector() {
     // el estado del container tras cada paso
     ofstream("vector.txt", ios::trunc).close();
 
-    // Cada elemento es una pareja (valor, ref) que se guarda en un Node;
+    // Cada elemento es una pareja (valor, ref) que e guarda en un Node;
     // el constructor initializer_list arma el Vector inicial de una vez
     Vector<VectorAscTraits<TX>> vec({{0, 10}, {1, 11}, {2, 12}, {3, 13}, {4, 14}});
     TestContainer(vec, {{5, 15}, {6, 16}, {7, 17}, {8, 18}, {9, 19}}, "vector.txt");
-    TestTraversal(vec);
+    TestTraversal(vec, 5);
 
     ofstream("vector_str.txt", ios::trunc).close();
     Vector<VectorAscTraits<string>> strVec;
     TestContainer(strVec, {{"Hello", 1}, {"World", 2}}, "vector_str.txt");
-    TestTraversal(strVec);
+    TestTraversal(strVec, "Hello");
 }
+
+
+// Callable
+template <typename V, typename PrinterType>
+concept IsCallableWith = requires(const V& v, PrinterType p) { v.call(p, std::cout); };
+// Searchable
+template <typename V, typename PredType, typename KeyType>
+concept IsSearchableWith = requires(const V& v, PredType pred, const KeyType& key) { v.FirstThat(pred, key); };
+// Applicable
+template <typename V, typename MapperFunc>
+concept IsApplicableWith = requires(V& v, MapperFunc f) { v.ApplyFunction(f); };
+// Printable
+template <typename V>
+concept IsPrintable = requires(std::ostream& os, const V& v) { os << v; };
 
 void TestCustomVector() {
-    BaseVector<VectorAscTraits<TX>, Callable, Applicable, Searchable, ReverseCallable> vec({{0, 10}, {1, 11}, {2, 12}, {3, 13}, {4, 14}});
+    BaseVector<VectorAscTraits<TX>, Callable, Applicable, Searchable, Reversible> 
+        vec({{0, 10}, {1, 11}, {2, 12}, {3, 13}, {4, 14}});
+    auto rev = vec.reversed();
+    using RevView = decltype(rev);
+    using Node    = typename RevView::Node;
 
+    cout << "Si a continuación no hay mensajes de error, "
+         << "el contenedor ajustó sus mixins a lo pedido por el cliente." << endl;
+
+    // Validamos Callable
+    static_assert(
+        IsCallableWith<RevView, decltype(&PrintNode<Node>)>,
+        "Test Fallido: RevView debería ser Callable."
+    );
+
+    // Validamos Searchable
+    static_assert(
+        IsSearchableWith<RevView, decltype(&IsGreaterThan<Node, TX>), TX>,
+        "Test Fallido: RevView debería ser Searchable con claves TX."
+    );
+
+    // Verificamos que Applicable y Printable fallan exitosamente
+    static_assert(
+        !IsApplicableWith<RevView, decltype(&AddOne)>,
+        "Test Fallido: RevView NO debería permitir ApplyFunction."
+    );
+    static_assert(
+        !IsPrintable<RevView>,
+        "Test Fallido: RevView NO debería conservar el comportamiento Printable."
+    );
 }
+
 
 void DemoCustomContainer() {
     TestCustomVector();
@@ -210,7 +251,7 @@ void TestLinkedList(Container &list, const string &filename) {
 
     // Pruebas de push_back
     TestContainer(list, {{5, 15}, {1, 11}, {8, 18}, {3, 13}}, filename);
-    TestForwardTraversal(list);
+    TestForwardTraversal(list, 5);
 
     InsertElements(list, {{0, 10}, {1, 11}, {2, 12}, {3, 13}, {4, 14}});
 
@@ -238,14 +279,14 @@ void TestLinkedList(Container &list, const string &filename) {
     in >> new_list;
     in.close();
     cout << "Lista leida desde archivo: " << new_list << endl;
-    TestForwardTraversal(new_list);
+    TestForwardTraversal(new_list, 5);
 
     list = new_list;
 }
 
 template <typename DoubleContainer>
 void TestDoubleLinkedListSpecifics(DoubleContainer &list) {
-    TestTraversal(list);
+    TestTraversal(list, 5);
 
     list.clear();
     list.insert(5, 50);
@@ -253,7 +294,7 @@ void TestDoubleLinkedListSpecifics(DoubleContainer &list) {
     list.insert(9, 90);
     list.insert(6, 60);
     cout << "Lista tras inserts en cabeza, cola y medio: " << list << endl;
-    TestTraversal(list);
+    TestTraversal(list, 5);
 }
 
 void DemoLinkedList()
@@ -351,7 +392,7 @@ void TestBinaryTreeGeneral(TreeContainer &tree, const string &filename) {
     std::cout << std::endl;
 
     // in-order
-    TestTraversal(tree);
+    TestTraversal(tree, 50);
 
     // Pruebas de eliminacion (hoja, 1 hijo, 2 hijos / raiz)
     using Node = typename TreeContainer::Node;
@@ -388,29 +429,19 @@ void TestBinaryTreeGeneral(TreeContainer &tree, const string &filename) {
     cout << "Arbol tras operator=: " << tree << endl;
 }
 
-template < template < typename > class BinaryTree, TraversalOrder Order >
-void TestOneOrderTour(const vector< pair< TX, Ref > > &values) {
-    using Tree = BinaryTree<BinaryTreeAscTraits<TX, Order>>;
-    using Node = typename Tree::Node;
-
-    Tree tree;
-    InsertElements(tree, values);
-    cout << "- Ascendente:  ";
-    cout << " [" ;
-    tree.call(PrintNode<Node>, cout);
-    cout << "]" << endl;
-    cout << "- Descendente: ";
-    cout << " [";
-    tree.rcall(PrintNode<Node>, cout);
-    cout << "]" << endl;
+template < Order Order, typename Tree >
+void TestOneOrderTour(const Tree &tree) {
+    cout << "- Ascendente:  " << tree.template traverse<Order, Direction::Asc>()  << endl;
+    cout << "- Descendente: " << tree.template traverse<Order, Direction::Desc>() << endl;
 }
 
 template < template < typename > class BinaryTree >
 void TestAllTours() {
     PrintColored(cout, "Probar los 14 recorridos posibles:", Color::Green);
     
-    // Instanciamos con InOrder para la presentación
-    using DefaultTree = BinaryTree< BinaryTreeAscTraits<TX, TraversalOrder::InOrder>>;
+    // Instanciamos un unico arbol y consultamos sus 14 vistas en O(1)
+    using DefaultTree = BinaryTree<BinaryTreeAscTraits<TX>>;
+    using Node        = typename DefaultTree::Node;
     DefaultTree tree;
 
     vector< pair< typename DefaultTree::value_type, Ref > > values = {
@@ -422,28 +453,37 @@ void TestAllTours() {
     tree.draw(ConsoleGraphRenderer(cout));
     cout << endl;
 
-    // Pasamos 'values' como argumento en cada llamada
     cout << "Recorrido in-order:" << endl;
-    TestOneOrderTour<BinaryTree, TraversalOrder::InOrder>(values);
+    TestOneOrderTour<Order::InOrder>(tree);
     
     cout << "Recorrido pre-order:" << endl;
-    TestOneOrderTour<BinaryTree, TraversalOrder::PreOrder>(values);
+    TestOneOrderTour< Order::PreOrder>(tree);
 
     cout << "Recorrido post-order:" << endl;
-    TestOneOrderTour<BinaryTree, TraversalOrder::PostOrder>(values);
+    TestOneOrderTour<Order::PostOrder>(tree);
 
-    // Pasamos 'values' como argumento en cada llamada
     cout << "Recorrido pre-in-order:" << endl;
-    TestOneOrderTour<BinaryTree, TraversalOrder::PreInOrder>(values);
+    TestOneOrderTour<Order::PreInOrder>(tree);
     
     cout << "Recorrido pre-post-order:" << endl;
-    TestOneOrderTour<BinaryTree, TraversalOrder::PrePostOrder>(values);
+    TestOneOrderTour<Order::PrePostOrder>(tree);
 
     cout << "Recorrido in-post-order:" << endl;
-    TestOneOrderTour<BinaryTree, TraversalOrder::InPostOrder>(values);
+    TestOneOrderTour<Order::InPostOrder>(tree);
 
     cout << "Recorrido pre-in-post-order:" << endl;
-    TestOneOrderTour<BinaryTree, TraversalOrder::PreInPostOrder>(values);
+    TestOneOrderTour<Order::PreInPostOrder>(tree);
+
+    cout << "\nPruebas adicionales de Mixins (call y FirstThat) sobre vistas .traverse<>():" << endl;
+    cout << "- PreOrder con .call(PrintNode): [";
+    tree.template traverse< Order::PreOrder >().call(PrintNode< Node >, cout);
+    cout << "]" << endl;
+
+    Node &post_first = tree.template traverse< Order::PostOrder >().FirstThat(IsGreaterThan< Node, TX >, TX(25));
+    cout << "- PostOrder .FirstThat(> 25): " << post_first << endl;
+
+    Node &euler_desc_first = tree.template traverse< Order::PreInPostOrder, Direction::Desc >().FirstThat(IsEqualTo< Node, TX >, TX(70));
+    cout << "- PreInPostOrder (Desc) .FirstThat(== 70): " << euler_desc_first << endl;
 }
 
 template < template < typename > class TreeContainer >

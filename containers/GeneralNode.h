@@ -10,6 +10,7 @@ protected:
     Ref m_ref;      // Reference to the value
 
 public:
+    using value_type = T;
     GeneralNode() = default; // requerido por resize(): new Node[new_cap]
     GeneralNode(const T& value, Ref ref) : m_value(value), m_ref(ref) {}
     T    getValue() const { return m_value; }

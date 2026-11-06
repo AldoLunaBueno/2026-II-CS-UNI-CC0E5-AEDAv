@@ -5,68 +5,82 @@
 #include <ostream>
 #include <istream>
 
-// template <typename Traits>
-// using Parent = ContainerCore<Traits>;
+// Mixins de consulta
 
 template <typename Traits>
-class Callable : virtual public ContainerCore<Traits>  {
+class Callable : virtual public IterableCore<Traits> {
 public:
     template<typename Func, typename... Args>
-    decltype(auto) call(Func func, Args&&... args) {
-        std::lock_guard lock(this->m_mutex);
+    decltype(auto) call(Func func, Args&&... args) const {
+        std::lock_guard lock(this->mutex());
         return ::call(this->begin(), this->end(), std::forward<Func>(func), std::forward<Args>(args)...);
     }
 };
 
 template <typename Traits>
-class Applicable : virtual public Callable<Traits> {
-public:
-    template <typename Func, typename... Args>
-    void ApplyFunction(Func func, Args&&... args) { this->call(func, std::forward<Args>(args)...); }
-};
-
-template <typename Traits>
-class Searchable : virtual public Callable<Traits>  {
+class Searchable : virtual public Callable<Traits> {
 public:
     using Parent    = Callable<Traits>;
     using Node      = typename Parent::Node;
 
     template <typename Func, typename... Args>
-    Node& FirstThat(Func func, Args&&... args) { return this->call(func, std::forward<Args>(args)...); }
+    Node& FirstThat(Func func, Args&&... args) const {
+        return this->call(std::forward<Func>(func), std::forward<Args>(args)...);
+    }
 };
 
 template <typename Traits>
-class ReverseCallable : virtual public ContainerCore<Traits>  {
+class Printable : virtual public IterableCore<Traits> {
+    friend std::ostream& operator<<(std::ostream& os, const Printable& iterable) {
+        std::lock_guard lock(iterable.mutex());
+        std::string sep = "";
+        os << "[";
+        for (const auto& e : iterable) { os << sep << e; sep = ","; };
+        return os << "]";
+    }
+};
+
+// Mixins de contenedor
+
+template <typename Traits>
+class Applicable : virtual public ContainerCore<Traits>,
+                   virtual public Callable<Traits> {
+public:
+    template <typename Func, typename... Args>
+    void ApplyFunction(Func func, Args&&... args) {
+        std::lock_guard lock(this->mutex());
+        this->call(std::forward<Func>(func), std::forward<Args>(args)...);
+        this->rebuild();
+    }
+};
+
+template <typename Traits>
+class Reversible : virtual public ContainerCore<Traits> {
 public:
     using BackwardIterator = typename Traits::BackwardIterator;
-public:
+    using Node             = typename Traits::Node;
+
+    virtual BackwardIterator rbegin() const = 0;
+    virtual BackwardIterator rend()   const = 0;
+
+    auto reversed() const {
+        std::lock_guard lock(this->mutex());
+        using ReverseView = typename Traits::template View<Node, BackwardIterator>;
+        return ReverseView(this->mutex(), rbegin(), rend());
+    }
+
     // Igual que call(), pero recorriendo el container en sentido inverso
     // (rbegin()/rend()) en vez de hacia adelante.
     template<typename Func, typename... Args>
-    decltype(auto) rcall(Func func, Args&&... args) {
-        std::lock_guard lock(this->m_mutex);
-        return ::call(rbegin(), rend(), std::forward<Func>(func), std::forward<Args>(args)...);
-    }
-
-    virtual BackwardIterator rbegin() const = 0;
-    virtual BackwardIterator rend() const = 0;
-};
-
-template <typename Traits>
-class Printable : virtual public ContainerCore<Traits> {
-    friend std::ostream& operator<<(std::ostream& os, const Printable& container) {
-        std::lock_guard lock(container.m_mutex);
-        std::string sep = "";
-        os << "[";
-        for (const auto& e : container) { os << sep << e; sep = ","; };
-        return os << "]";
+    decltype(auto) rcall(Func func, Args&&... args) const {
+        return reversed().call(std::forward<Func>(func), std::forward<Args>(args)...);
     }
 };
 
 template <typename Traits>
 class Readable : virtual public ContainerCore<Traits> {
     friend std::istream& operator>>(std::istream& is, Readable& container) {
-        std::lock_guard lock(container.m_mutex);
+        std::lock_guard lock(container.mutex());
         typename Traits::Node::Delim d;
         typename Traits::Node node;
         container.clear();

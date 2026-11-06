@@ -28,7 +28,7 @@ namespace detail {
         In   = 0b010,
         Post = 0b001
     };
-    enum TraversalOrder : TX {
+    enum Order : TX {
     // Puros
         PreOrder        = Phase::Pre,
         InOrder         =              Phase::In,
@@ -43,19 +43,19 @@ namespace detail {
 }
 
 using detail::Phase;
-using detail::TraversalOrder;
+using detail::Order;
 using detail::Direction;
 
-template <typename T, TraversalOrder Order, Direction Dir>
-class BinaryTreeIterator : public GeneralIterator<BinaryTreeIterator<T, Order, Dir>, BinaryTreeNode<T>> {
+template <typename T, Order Ord, Direction Dir>
+class BinaryTreeIterator : public GeneralIterator<BinaryTreeIterator<T, Ord, Dir>, BinaryTreeNode<T>> {
 public:
     using Node = BinaryTreeNode<T>;
-    using MySelf = BinaryTreeIterator<T, Order, Dir>;
+    using MySelf = BinaryTreeIterator<T, Ord, Dir>;
     using Parent = GeneralIterator<MySelf, Node>;
     using NodePtr = Node*;
     using Parent::m_ptr;
 protected:
-    static const TX order      = Order;
+    static const TX order      = Ord;
     static const TX FirstPhase = (Dir == Direction::Asc) ? Phase::Pre  : Phase::Post;
     static const TX LastPhase  = (Dir == Direction::Asc) ? Phase::Post : Phase::Pre;
     TX m_phase;
@@ -79,15 +79,16 @@ public:
     void step_until_phase();
 };
 
-template <typename T, TraversalOrder Order, Direction Dir>
-auto BinaryTreeIterator<T, Order, Dir>::operator++() -> MySelf& {
+template <typename T, Order Ord, Direction Dir>
+auto BinaryTreeIterator<T, Ord, Dir>::operator++() -> MySelf& {
     step_until_phase();
     return *this;
 }
 
 // Máquina de estados del recorrido de Euler por fases
-template <typename T, TraversalOrder Order, Direction Dir>
-void BinaryTreeIterator<T, Order, Dir>::step_until_phase() {
+template <typename T, Order Ord, Direction Dir>
+void BinaryTreeIterator<T, Ord, Dir>::step_until_phase() {
+    if (!m_ptr) return;
     do {
         switch (m_phase) {
         case FirstPhase:
@@ -107,28 +108,28 @@ void BinaryTreeIterator<T, Order, Dir>::step_until_phase() {
                 m_phase = Phase::In;
             m_ptr = parent;
         }
-    } while (m_ptr && !(m_phase & Order));
+    } while (m_ptr && !(m_phase & Ord));
     if (!m_ptr) m_phase = FirstPhase;
 }
 
-template <typename T, TraversalOrder Order>
+template <typename T>
 struct BinaryTreeTraits {
     using Node              = BinaryTreeNode<T>;
-    using ForwardIterator   = BinaryTreeIterator<T, Order, Direction::Asc>;
-    using BackwardIterator  = BinaryTreeIterator<T, Order, Direction::Desc>;
+    using ForwardIterator   = BinaryTreeIterator<T, Order::InOrder, Direction::Asc>;
+    using BackwardIterator  = BinaryTreeIterator<T, Order::InOrder, Direction::Desc>;
 };
 
-template <typename T, TraversalOrder Order = TraversalOrder::InOrder>
-struct BinaryTreeAscTraits : public AscendingTraits<T>, public BinaryTreeTraits<T, Order> {};
+template <typename T>
+struct BinaryTreeAscTraits : public AscendingTraits<T>, public BinaryTreeTraits<T> {};
 
-template <typename T, TraversalOrder Order = TraversalOrder::InOrder>
-struct BinaryTreeDescTraits : public DescendingTraits<T>, public BinaryTreeTraits<T, Order> {};
+template <typename T>
+struct BinaryTreeDescTraits : public DescendingTraits<T>, public BinaryTreeTraits<T> {};
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseBinaryTree;
 
 template <typename Traits>
-using BinaryTree = BaseBinaryTree<Traits, Callable, Applicable, Searchable, ReverseCallable, Printable, Readable, Drawable>;
+using BinaryTree = BaseBinaryTree<Traits, Callable, Applicable, Searchable, Reversible, Printable, Readable, Drawable>;
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseBinaryTree : public GeneralContainer<Traits, Mixins...> {
@@ -169,6 +170,14 @@ public:
 
     BackwardIterator rbegin() const { return BackwardIterator(m_pRoot); }
     BackwardIterator rend()   const { return BackwardIterator(nullptr); }
+
+    template <Order Ord, Direction Dir = Direction::Asc>
+    auto traverse() const {
+        std::lock_guard lock(this->mutex());
+        using Iter = BinaryTreeIterator<value_type, Ord, Dir>;
+        using EulerView = typename Parent::Traits::template View<Node, Iter>;
+        return EulerView(this->mutex(), Iter(m_pRoot), Iter(nullptr));
+    }
 
     BaseBinaryTree& operator=(const BaseBinaryTree&);
     BaseBinaryTree& operator=(BaseBinaryTree&&) noexcept;

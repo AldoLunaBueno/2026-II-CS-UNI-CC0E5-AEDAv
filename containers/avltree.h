@@ -8,7 +8,7 @@ template <typename Traits, template <typename> typename... Mixins>
 class BaseAVLTree;
 
 template <typename Traits>
-using AVLTree = BaseAVLTree<Traits, Callable, Applicable, Searchable, ReverseCallable, Printable, Readable, Drawable>;
+using AVLTree = BaseAVLTree<Traits, Callable, Applicable, Searchable, Reversible, Printable, Readable, Drawable>;
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseAVLTree : public BaseBinaryTree<Traits, Mixins...> {

@@ -49,7 +49,7 @@ template <typename Traits, template <typename> typename... Mixins>
 class BaseVector;
 
 template <typename Traits>
-using Vector = BaseVector<Traits, Callable, Applicable, Searchable, ReverseCallable, Printable, Readable>;
+using Vector = BaseVector<Traits, Callable, Applicable, Searchable, Reversible, Printable, Readable>;
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseVector : public GeneralContainer<Traits, Mixins...> {

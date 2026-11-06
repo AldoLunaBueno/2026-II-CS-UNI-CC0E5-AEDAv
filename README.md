@@ -46,7 +46,7 @@ flowchart TB
         CAL["Callable#lt;Traits#gt;<br/><i>.call(func, args...)</i>"]
         APP["Applicable#lt;Traits#gt;<br/><i>.ApplyFunction(...)</i>"]
         SEA["Searchable#lt;Traits#gt;<br/><i>.FirstThat(...)</i>"]
-        RCAL["ReverseCallable#lt;Traits#gt;<br/><i>.rcall(), rbegin(), rend()</i>"]
+        RCAL["Reversible#lt;Traits#gt;<br/><i>.rcall(), rbegin(), rend()</i>"]
         PRI["Printable#lt;Traits#gt;<br/><i>friend operator#lt;#lt;</i>"]
         REA["Readable#lt;Traits#gt;<br/><i>friend operator#gt;#gt;</i>"]
         DRW["Drawable#lt;Traits#gt;<br/><i>.sketch(), .draw(...)</i>"]

@@ -15,7 +15,7 @@ public:
 
     template <typename Renderer>
     decltype(auto) draw(Renderer&& renderer) const {
-        std::lock_guard lock(this->m_mutex);
+        std::lock_guard lock(this->mutex());
         return renderer.render(this->sketch());
     }
 };

@@ -35,7 +35,7 @@ template <typename Traits, template <typename> typename... Mixins>
 class BaseDoubleLinkedList;
 
 template <typename Traits>
-using DoubleLinkedList = BaseDoubleLinkedList<Traits, Callable, Searchable, Applicable, ReverseCallable, Printable, Readable>;
+using DoubleLinkedList = BaseDoubleLinkedList<Traits, Callable, Searchable, Applicable, Reversible, Printable, Readable>;
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseDoubleLinkedList :

@@ -7,7 +7,7 @@ template <typename Traits, template <typename> typename... Mixins>
 class BaseCircularDoubleLinkedList;
 
 template <typename Traits>
-using CircularDoubleLinkedList = BaseCircularDoubleLinkedList<Traits, Callable, Searchable, Applicable, ReverseCallable, Printable, Readable>;
+using CircularDoubleLinkedList = BaseCircularDoubleLinkedList<Traits, Callable, Searchable, Applicable, Reversible, Printable, Readable>;
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseCircularDoubleLinkedList : virtual public BaseCircularLinkedList<Traits, Mixins...>,

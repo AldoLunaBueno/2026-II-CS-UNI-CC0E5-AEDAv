@@ -67,8 +67,7 @@ public:
     Node pop();
     void HeapifyDown(size_t index);
 
-    template <typename Func, typename... Args>
-    void ApplyFunction(Func func, Args&&... args);
+    void rebuild() override;
 
     ForwardIterator begin() const override { return m_data.begin(); }
     ForwardIterator end()   const override { return m_data.end();   }
@@ -122,10 +121,8 @@ void BaseHeap<Traits, Mixins...>::HeapifyDown(size_t index) {
 }
 
 template <typename Traits, template <typename> typename... Mixins>
-template <typename Func, typename... Args>
-void BaseHeap<Traits, Mixins...>::ApplyFunction(Func func, Args&&... args) {
+void BaseHeap<Traits, Mixins...>::rebuild() {
     std::lock_guard lock(m_mutex);
-    Parent::ApplyFunction(func, std::forward<Args>(args)...);
     for (size_t i=1; i<size(); ++i) HeapifyUp(i);
 }
 
