@@ -1,7 +1,6 @@
 <!-- omit in toc -->
 # 2026-II-CS-UNI-CC0E5-AEDAv
 
-- [](#)
 - [🏛️ I. Arquitectura del Repositorio y Vistas de Subsistemas](#️-i-arquitectura-del-repositorio-y-vistas-de-subsistemas)
   - [1. Vista General del Sistema](#1-vista-general-del-sistema)
   - [2. Jerarquía de Contenedores, Vistas y Sistema de Mixins](#2-jerarquía-de-contenedores-vistas-y-sistema-de-mixins)
@@ -11,7 +10,7 @@
 - [⚙️ II. Detalle de Aspectos Específicos](#️-ii-detalle-de-aspectos-específicos)
   - [1. Máquina de Estados del Recorrido de Euler por Fases](#1-máquina-de-estados-del-recorrido-de-euler-por-fases)
   - [2. Desacoplamiento Estructural: Separación de Contenedor y Recorrido mediante Vistas (BaseView)](#2-desacoplamiento-estructural-separación-de-contenedor-y-recorrido-mediante-vistas-baseview)
-  - [3. Mecanismo de Rebalanceo AVL por Rotación Unificada (rotate_up)](#3-mecanismo-de-rebalanceo-avl-por-rotación-unificada-rotate_up)
+  - [3. Mecanismo de Rebalanceo AVL por Rotación Unificada (rotate\_up)](#3-mecanismo-de-rebalanceo-avl-por-rotación-unificada-rotate_up)
   - [4. Invariante de Reconstrucción de Contenedores (rebuild)](#4-invariante-de-reconstrucción-de-contenedores-rebuild)
   - [5. Subsistema de Renderizado ASCII en Consola (sketch y ConsoleGraphRenderer)](#5-subsistema-de-renderizado-ascii-en-consola-sketch-y-consolegraphrenderer)
   - [6. Guía de Uso y Demostración Práctica de la API](#6-guía-de-uso-y-demostración-práctica-de-la-api)
@@ -620,9 +619,9 @@ Cualquiera de los 14 recorridos de Euler es accesible de inmediato como un objet
 En [`containers/avltree.h`](containers/avltree.h), `BaseAVLTree` implementa el auto-balanceo extendiendo `BaseBinaryTree` mediante el patrón **Template Method**:
 1. Las operaciones de mutación (`insert` y `remove`) delegan la restauración del árbol al hook virtual `rebalance(node)`.
 2. Al insertar o eliminar, `BaseAVLTree::rebalance(node)` asciende por los ancestros actualizando `m_height = 1 + std::max(h_izq, h_der)`.
-3. Cuando detecta un nodo desbalanceado $Z$ con factor de balance $|bf(Z)| > 1$ (donde $bf = h_{\text{izq}} - h_{\text{der}}$):
-   - Identifica al hijo más alto $Y = Z\text{->m\_pChild}[bf_Z < 0]$.
-   - Identifica al nieto más alto $X = Y\text{->m\_pChild}[bf_Y < 0]$.
+3. Cuando detecta un nodo desbalanceado $Z$ con factor de balance $|bf(Z)| > 1$ (donde $bf = h \text{izq} - h \text{der}$):
+   - Identifica al hijo más alto $Y = Z\text{->m pChild}[bf Z < 0]$.
+   - Identifica al nieto más alto $X = Y\text{->m pChild}[bf Y < 0]$.
 
 #### A. Primitiva de Rotación Unificada `rotate_up(node)`
 
@@ -644,12 +643,12 @@ Cada invocación a `connect(parent, child, d)` enlaza los punteros bidireccional
 
 #### B. Clasificación de Casos: Simple (1x) vs. Compuesta (2x)
 
-- **Caso en Línea (LL / RR)** ($bf_Z \cdot bf_Y > 0$ o $bf_Y = 0$):
+- **Caso en Línea (LL / RR)** ($bf Z \cdot bf Y > 0$ o $bf Y = 0$):
   Tanto $Y$ como $X$ se encuentran alineados en la misma dirección. Se resuelve con **1 rotación** ascendiendo al hijo $Y$:
   ```cpp
   rotate_up(node->m_parent); // Asciende Y al lugar de Z
   ```
-- **Caso en Zig-Zag (LR / RL)** ($bf_Z \cdot bf_Y < 0$):
+- **Caso en Zig-Zag (LR / RL)** ($bf Z \cdot bf Y < 0$):
   Existe un cambio de dirección en el camino $Z \to Y \to X$ ("codo"). Se resuelve con **2 rotaciones** sucesivas ascendiendo al nieto $X$:
   ```cpp
   rotate_up(node); // 1ra rotación: asciende X al lugar de Y (convierte LR en LL)
@@ -660,7 +659,7 @@ Cada invocación a `connect(parent, child, d)` enlaza los punteros bidireccional
 
 El diagrama animado superior ilustra cómo la transformación geométrica preserva de forma estricta la invariante del recorrido in-order:
 
-$T_1 < (X \text{ o } Y) < T_2 < (Y \text{ o } X) < T_3 < Z < T_4$
+$T 1 < (X \text{ o } Y) < T 2 < (Y \text{ o } X) < T 3 < Z < T 4$
 
 ### 4. Invariante de Reconstrucción de Contenedores (rebuild)
 
@@ -697,7 +696,7 @@ El subsistema visual en [`utilities/render.h`](utilities/render.h) separa la rep
 1. **`VisualGraph sketch() const`**:
    `BaseBinaryTree::sketch()` calcula la geometría del árbol en anchura y altura:
 
-   $\text{segment}_{\text{width}} = 2 \cdot \text{cell}_{\text{width}} \cdot 2^{h - k - 1}$
+   $\text{segment} \text{width} = 2 \cdot \text{cell} \text{width} \cdot 2^{h - k - 1}$
 
    Asigna coordenadas $X, Y$ a cada nodo por niveles y genera aristas etiquetadas como `LeftChild` o `RightChild`.
 
@@ -780,5 +779,3 @@ auto& last_gt = vec.reversed().FirstThat(
 // Dibujo directo en consola utilizando el mixin Drawable:
 tree.draw(ConsoleGraphRenderer(std::cout));
 ```
-
-</details>
