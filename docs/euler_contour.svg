@@ -382,6 +382,29 @@
         99.0%, 100%  { fill: #37474F; font-weight: 700; }
       }
       .step-end-txt  { animation: kf-txt-end 16s infinite; }
+
+      /* ============================================================= */
+      /* ANIMACIÓN UNIFICADA DE LA HORMIGUITA (CSS MOTION PATH)        */
+      /* Comparte el mismo reloj de 16s de CSS Animations, garantizando*/
+      /* sincronización absoluta y permanente con las fases y trazas.  */
+      /* ============================================================= */
+      #tour-ant-mover {
+        offset-path: path("M -92 -170 C -68 -170, -54 -153, -48 -127 C -60 -122, -66 -104, -56 -93 C -145 -77, -242 -15, -260 50 C -278 54, -283 72, -265 83 C -263 118, -247 128, -231 120 C -226 134, -204 134, -199 120 C -183 128, -167 118, -165 83 C -151 80, -151 55, -165 52 C -130 6, -82 -53, -17 -63 C -12 -45, 12 -45, 17 -63 C 82 -53, 130 6, 162 52 C 151 55, 151 80, 165 83 C 167 118, 183 128, 199 120 C 204 134, 226 134, 231 120 C 247 128, 263 118, 265 83 C 283 72, 278 54, 260 50 C 242 -15, 145 -77, 58 -93 C 66 -104, 60 -122, 48 -127 C 54 -153, 68 -170, 92 -170");
+        -webkit-offset-path: path("M -92 -170 C -68 -170, -54 -153, -48 -127 C -60 -122, -66 -104, -56 -93 C -145 -77, -242 -15, -260 50 C -278 54, -283 72, -265 83 C -263 118, -247 128, -231 120 C -226 134, -204 134, -199 120 C -183 128, -167 118, -165 83 C -151 80, -151 55, -165 52 C -130 6, -82 -53, -17 -63 C -12 -45, 12 -45, 17 -63 C 82 -53, 130 6, 162 52 C 151 55, 151 80, 165 83 C 167 118, 183 128, 199 120 C 204 134, 226 134, 231 120 C 247 128, 263 118, 265 83 C 283 72, 278 54, 260 50 C 242 -15, 145 -77, 58 -93 C 66 -104, 60 -122, 48 -127 C 54 -153, 68 -170, 92 -170");
+        offset-distance: 0%;
+        -webkit-offset-distance: 0%;
+        offset-rotate: auto;
+        -webkit-offset-rotate: auto;
+        offset-anchor: 0 0;
+        animation: kf-ant-tour 16s infinite linear;
+      }
+      @keyframes kf-ant-tour {
+        0%    { offset-distance: 0%;    -webkit-offset-distance: 0%;    opacity: 1; }
+        96%   { offset-distance: 96%;   -webkit-offset-distance: 96%;   opacity: 1; }
+        98.5% { offset-distance: 98.5%; -webkit-offset-distance: 98.5%; opacity: 0; }
+        99.5% { offset-distance: 99.5%; -webkit-offset-distance: 99.5%; opacity: 0; }
+        100%  { offset-distance: 100%;  -webkit-offset-distance: 100%;  opacity: 1; }
+      }
     </style>
   </defs>
 
@@ -562,23 +585,7 @@
   <!-- ===================================================================== -->
   <g id="tour-ant-mover" cursor="pointer">
     <title>Hormiguita exploradora del Recorrido de Euler</title>
-    <!-- Movimiento continuo y suave a velocidad constante a lo largo de las flechas azules -->
-    <animateMotion
-      dur="16s"
-      repeatCount="indefinite"
-      rotate="auto"
-      calcMode="paced"
-    >
-      <mpath href="#euler-tour-path" xlink:href="#euler-tour-path" />
-    </animateMotion>
-    <!-- Desvanecimiento suave al completar el recorrido antes de reaparecer en begin() -->
-    <animate
-      attributeName="opacity"
-      values="1; 1; 0; 0; 1"
-      keyTimes="0; 0.96; 0.985; 0.995; 1"
-      dur="16s"
-      repeatCount="indefinite"
-    />
+    <!-- Animación unificada en CSS (kf-ant-tour): reloj idéntico e inquebrantable con las fases -->
 
     <!-- Hormiguita en vista cenital orientada hacia +X -->
     <g id="euler-ant">
