@@ -74,8 +74,9 @@ public:
         if (graph.nodes.empty()) return m_os;
 
         const CW RIGHT_B = '_';
+        const CW LEFT_B  = '_';
         const CW ANGLE_B = '\\';
-        const CW DOWN_B  = '|';
+        const CW ANGLE_L = '/';
         const CW SPACE   = ' ';
 
         TX cell_width = graph.cell_width > 0 ? graph.cell_width : cell_width;
@@ -85,7 +86,7 @@ public:
         // asegurar dimensiones válidas para el lienzo
         for (const auto& item : graph.nodes) {
             const auto& node = item.getValue();
-            TX node_right = node.x + node.label.size();
+            TX node_right = node.x + static_cast<TX>(node.label.size());
             if (node_right > width) width = node_right;
             if (node.y + 1 > height) height = node.y + 1;
         }
@@ -113,11 +114,26 @@ public:
             if (!found_from || !found_to) continue;
 
             if (edge.type == VisualEdgeType::LeftChild) {
-                // rama vertical hacia el hijo izquierdo
-                TX x = from_node.x;
-                for (TX row = from_node.y + 1; row < to_node.y; row++) {
-                    if (row < height && x < width) {
-                        canvas[row].value()[x] = DOWN_B;
+                // barra horizontal hacia la rama izquierda
+                TX y_parent = from_node.y;
+                TX x_parent = from_node.x;
+                TX x_child  = to_node.x;
+
+                TX bar_start = x_child + static_cast<TX>(to_node.label.size()) + cell_width - 1;
+                TX bar_end   = x_parent - 1;
+
+                for (TX col = bar_start; col <= bar_end; col++) {
+                    if (y_parent < height && col >= 0 && col < width) {
+                        canvas[y_parent].value()[col] = LEFT_B;
+                    }
+                }
+
+                // rama diagonal descendente hacia el hijo izquierdo
+                for (TX i = 0; i < cell_width - 1; i++) {
+                    TX row = y_parent + 1 + i;
+                    TX col = x_child + static_cast<TX>(to_node.label.size()) + cell_width - 2 - i;
+                    if (row < height && col >= 0 && col < width) {
+                        canvas[row].value()[col] = ANGLE_L;
                     }
                 }
             } else if (edge.type == VisualEdgeType::RightChild) {
@@ -126,11 +142,11 @@ public:
                 TX x_parent = from_node.x;
                 TX x_child  = to_node.x;
 
-                TX bar_start = x_parent + from_node.label.size();
+                TX bar_start = x_parent + static_cast<TX>(from_node.label.size());
                 TX bar_end   = x_child - cell_width;
 
                 for (TX col = bar_start; col <= bar_end; col++) {
-                    if (y_parent < height && col < width) {
+                    if (y_parent < height && col >= 0 && col < width) {
                         canvas[y_parent].value()[col] = RIGHT_B;
                     }
                 }
@@ -139,7 +155,7 @@ public:
                 for (TX i = 0; i < cell_width - 1; i++) {
                     TX row = y_parent + 1 + i;
                     TX col = x_child - cell_width + 1 + i;
-                    if (row < height && col < width) {
+                    if (row < height && col >= 0 && col < width) {
                         canvas[row].value()[col] = ANGLE_B;
                     }
                 }
@@ -158,7 +174,11 @@ public:
         for (auto& row_node : canvas) {
             auto& row_str = row_node.value();
             size_t end_pos = row_str.find_last_not_of(SPACE);
-            row_str.erase(end_pos + 1);
+            if (end_pos != std::string::npos) {
+                row_str.erase(end_pos + 1);
+            } else {
+                row_str.clear();
+            }
             m_os << row_str << std::endl;
         }
 

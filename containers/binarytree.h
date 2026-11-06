@@ -276,7 +276,7 @@ VisualGraph BaseBinaryTree<Traits, Mixins...>::sketch() const {
 
     TX cell_width = 3;
     TX h = height();
-    TX line_width = (1 << (h - 1)) * cell_width;
+    TX line_width = (1 << h) * cell_width;
     TX total_height = h > 0 ? (h - 1) * cell_width + 1 : 0;
 
     graph.width = line_width;
@@ -292,7 +292,7 @@ VisualGraph BaseBinaryTree<Traits, Mixins...>::sketch() const {
     TX num_level_nodes = 1;
 
     for (TX k = 0; k < h; k++) {
-        TX segment_width = cell_width * (1 << (h - k - 1));
+        TX segment_width = (2 * cell_width) * (1 << (h - k - 1));
         SimpleVector<NodePtr> next_level;
         SimpleVector<TX> next_ids;
         TX next_size = 1 << (k + 1);
@@ -305,7 +305,7 @@ VisualGraph BaseBinaryTree<Traits, Mixins...>::sketch() const {
             NodePtr node = curr_level[i].getValue();
             if (node) {
                 TX node_id = curr_ids[i].getValue();
-                TX x = i * segment_width;
+                TX x = i * segment_width + segment_width / 2;
                 TX y = k * cell_width;
 
                 graph.nodes.push_back(VisualNode{node_id, std::to_string(node->getValue()), x, y});
