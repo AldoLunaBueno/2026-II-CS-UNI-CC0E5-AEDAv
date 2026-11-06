@@ -1,0 +1,203 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-480 -250 960 500" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <!-- Marcadores de flecha -->
+    <marker id="m-indigo" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#1A237E" />
+    </marker>
+    <marker id="m-green" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#2E7D32" />
+    </marker>
+    <marker id="m-red" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#C62828" />
+    </marker>
+    <marker id="m-grey" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#546E7A" />
+    </marker>
+
+    <!-- Pastillas base para mixins -->
+    <g id="mixin-pill-q">
+      <rect x="-85" y="-16" width="170" height="32" rx="8" class="pill-q" />
+    </g>
+    <g id="mixin-pill-m">
+      <rect x="-85" y="-16" width="170" height="32" rx="8" class="pill-m" />
+    </g>
+
+    <style>
+      /* Estilos generales */
+      .bg         { fill: #FAFAFA; stroke: #CFD8DC; stroke-width: 2; rx: 16; }
+      .title      { font-size: 20px; font-weight: 700; fill: #1A237E; text-anchor: middle; }
+      .subtitle   { font-size: 13px; fill: #455A64; text-anchor: middle; }
+      .col-card   { fill: #FFFFFF; stroke-width: 2; rx: 14; }
+      .c-border-l { stroke: #3949AB; }
+      .c-border-m { stroke: #0288D1; fill: #F4FAFD; stroke-dasharray: 6 4; }
+      .c-border-r { stroke: #00897B; }
+
+      .col-hdr    { font-size: 15px; font-weight: 800; text-anchor: middle; }
+      .col-sub    { font-size: 11px; font-style: italic; text-anchor: middle; fill: #546E7A; }
+
+      /* Pastillas de mixins */
+      .pill-q     { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.8; }
+      .pill-m     { fill: #FFEBEE; stroke: #C62828; stroke-width: 1.8; }
+      .pill-ign   { fill: #ECEFF1; stroke: #90A4AE; stroke-width: 1.5; stroke-dasharray: 4 3; rx: 6; }
+
+      .txt-q      { font-size: 12px; font-weight: 800; font-family: 'JetBrains Mono', monospace; fill: #1B5E20; text-anchor: middle; dominant-baseline: central; }
+      .txt-m      { font-size: 12px; font-weight: 800; font-family: 'JetBrains Mono', monospace; fill: #B71C1C; text-anchor: middle; dominant-baseline: central; }
+      .txt-ign    { font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono', monospace; fill: #78909C; text-anchor: middle; dominant-baseline: central; }
+
+      /* Filtro central C++20 */
+      .funnel-box { fill: #FFFFFF; stroke: #0288D1; stroke-width: 2.2; rx: 12; filter: drop-shadow(0 4px 10px rgba(2,136,209,0.12)); }
+      .fn-title   { font-size: 14px; font-weight: 900; font-family: 'JetBrains Mono', monospace; fill: #01579B; text-anchor: middle; }
+      .fn-rule    { font-size: 11px; font-family: 'JetBrains Mono', monospace; text-anchor: middle; }
+      .fn-rule-ok { fill: #2E7D32; font-weight: 700; }
+      .fn-rule-no { fill: #C62828; font-weight: 700; }
+
+      /* Vista resultante BaseView */
+      .view-card  { fill: #E0F2F1; stroke: #00897B; stroke-width: 2; rx: 12; }
+      .view-hdr   { font-size: 13.5px; font-weight: 800; font-family: 'JetBrains Mono', monospace; fill: #004D40; text-anchor: middle; }
+      .view-foot  { font-size: 11px; font-weight: 700; fill: #00796B; text-anchor: middle; }
+
+      /* Conectores */
+      .conn-line  { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .cl-pass    { stroke: #2E7D32; stroke-width: 2.4; }
+      .cl-block   { stroke: #C62828; stroke-width: 2.2; stroke-dasharray: 5 4; }
+      .cl-view    { stroke: #00897B; stroke-width: 2.5; }
+
+      /* Pie informativo */
+      .foot-box   { fill: #EBF3FA; stroke: #3949AB; stroke-width: 1.5; rx: 10; }
+      .foot-txt   { font-size: 12px; font-weight: 700; font-family: 'JetBrains Mono', monospace; fill: #1A237E; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <!-- Lienzo -->
+  <rect class="bg" x="-470" y="-240" width="940" height="480" />
+
+  <!-- Encabezado -->
+  <text class="title" x="0" y="-208">Filtrado Estático de Mixins en Tiempo de Compilación (FilterViewMixin)</text>
+  <text class="subtitle" x="0" y="-186">
+    Metaprogramación C++20 que segrega mixins de consulta vs. mutación para ensamblar vistas no propietarias en O(1)
+  </text>
+
+  <!-- ===================================================================== -->
+  <!-- 1. COLUMNA IZQUIERDA: CONTENEDOR ORIGINAL CON TODOS LOS MIXINS        -->
+  <!-- ===================================================================== -->
+  <g transform="translate(-340, 2)">
+    <rect class="col-card c-border-l" x="-115" y="-160" width="230" height="340" />
+    <text class="col-hdr" x="0" y="-136" fill="#1A237E">GeneralContainer</text>
+    <text class="col-sub" x="0" y="-120">Propietario de memoria (m_mutex)</text>
+
+    <!-- Mixins de Consulta (Verde) -->
+    <g transform="translate(0, -85)">
+      <use href="#mixin-pill-q" />
+      <text class="txt-q">Callable&lt;Traits&gt;</text>
+    </g>
+    <g transform="translate(0, -45)">
+      <use href="#mixin-pill-q" />
+      <text class="txt-q">Searchable&lt;Traits&gt;</text>
+    </g>
+    <g transform="translate(0, -5)">
+      <use href="#mixin-pill-q" />
+      <text class="txt-q">Printable&lt;Traits&gt;</text>
+    </g>
+
+    <!-- Separador -->
+    <line x1="-90" y1="20" x2="90" y2="20" stroke="#CFD8DC" stroke-width="1.5" stroke-dasharray="4 3" />
+
+    <!-- Mixins Mutantes (Rojo) -->
+    <g transform="translate(0, 45)">
+      <use href="#mixin-pill-m" />
+      <text class="txt-m">Applicable&lt;Traits&gt;</text>
+    </g>
+    <g transform="translate(0, 85)">
+      <use href="#mixin-pill-m" />
+      <text class="txt-m">Reversible&lt;Traits&gt;</text>
+    </g>
+    <g transform="translate(0, 125)">
+      <use href="#mixin-pill-m" />
+      <text class="txt-m">Readable / Drawable</text>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 2. COLUMNA CENTRAL: EL EMBUDO C++20 (FilterViewMixin<M, Traits>)      -->
+  <!-- ===================================================================== -->
+  <g transform="translate(0, 2)">
+    <rect class="col-card c-border-m" x="-135" y="-160" width="270" height="340" />
+    <text class="col-hdr" x="0" y="-136" fill="#01579B">Filtro de Conceptos C++20</text>
+    <text class="col-sub" x="0" y="-120">template &lt;template &lt;typename&gt; class M&gt;</text>
+
+    <!-- CAJA 1: REGLA DE PASO (IsViewMixin) -->
+    <g transform="translate(0, -50)">
+      <rect class="funnel-box" x="-120" y="-45" width="240" height="90" />
+      <text class="fn-title" x="0" y="-23">concept IsViewMixin</text>
+      <text class="fn-rule" x="0" y="-2" fill="#37474F">std::derived_from&lt;M, IterableCore&gt;</text>
+      <text class="fn-rule" x="0" y="15" fill="#37474F">&amp;&amp; !derived_from&lt;M, ContainerCore&gt;</text>
+      <text class="fn-rule fn-rule-ok" x="0" y="32">➔ Pasa intacto: M&lt;Traits&gt;</text>
+    </g>
+
+    <!-- CAJA 2: REGLA DE DESCARTE (IgnoredMixin) -->
+    <g transform="translate(0, 85)">
+      <rect class="funnel-box" x="-120" y="-35" width="240" height="74" />
+      <text class="fn-title" x="0" y="-15" fill="#C62828">!IsViewMixin</text>
+      <text class="fn-rule" x="0" y="5" fill="#37474F">Mutante o ligado a ContainerCore</text>
+      <text class="fn-rule fn-rule-no" x="0" y="24">➔ struct IgnoredMixin {}</text>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 3. COLUMNA DERECHA: LA VISTA RESULTANTE (BaseView en O(1))            -->
+  <!-- ===================================================================== -->
+  <g transform="translate(340, 2)">
+    <rect class="col-card c-border-r" x="-115" y="-160" width="230" height="340" />
+    <text class="col-hdr" x="0" y="-136" fill="#00695C">BaseView&lt;Traits, ...&gt;</text>
+    <text class="col-sub" x="0" y="-120">Proyección efímera en O(1) tiempo y espacio</text>
+
+    <!-- Mixins Heredados (Consulta) -->
+    <g transform="translate(0, -85)">
+      <use href="#mixin-pill-q" />
+      <text class="txt-q">Callable&lt;Traits&gt;</text>
+    </g>
+    <g transform="translate(0, -45)">
+      <use href="#mixin-pill-q" />
+      <text class="txt-q">Searchable&lt;Traits&gt;</text>
+    </g>
+    <g transform="translate(0, -5)">
+      <use href="#mixin-pill-q" />
+      <text class="txt-q">Printable&lt;Traits&gt;</text>
+    </g>
+
+    <!-- Huella de memoria mínima en O(1) -->
+    <g transform="translate(0, 78)">
+      <rect class="view-card" x="-100" y="-38" width="200" height="76" />
+      <text class="view-hdr" x="0" y="-18">Huella mínima en RAM:</text>
+      <text class="fn-rule" x="0" y="3" fill="#004D40">std::recursive_mutex&amp; m_rMutex</text>
+      <text class="fn-rule" x="0" y="20" fill="#004D40">Iter m_begin, m_end</text>
+    </g>
+
+    <text class="view-foot" x="0" y="152">¡Sin mutabilidad ni copia!</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 4. LÍNEAS DE FLUJO CONECTORAS                                         -->
+  <!-- ===================================================================== -->
+
+  <!-- Conexión 1: Mixins de consulta pasan por el filtro hacia BaseView -->
+  <path class="conn-line cl-pass" d="M -255 -45 L -120 -45" marker-end="url(#m-green)" />
+  <path class="conn-line cl-pass" d="M 120 -45 L 255 -45" marker-end="url(#m-green)" />
+
+  <!-- Conexión 2: Mixins mutantes son absorbidos por IgnoredMixin -->
+  <path class="conn-line cl-block" d="M -255 85 L -120 85" marker-end="url(#m-red)" />
+  <!-- Salida hacia tacho / IgnoredMixin -->
+  <path class="conn-line cl-block" d="M 120 85 L 175 85 C 195 85, 205 105, 205 118" marker-end="url(#m-grey)" />
+  <rect class="pill-ign" x="155" y="122" width="100" height="26" />
+  <text class="txt-ign" x="205" y="135">IgnoredMixin</text>
+
+  <!-- ===================================================================== -->
+  <!-- 5. PIE DE PÁGINA EXPLICATIVO                                          -->
+  <!-- ===================================================================== -->
+  <g transform="translate(0, 205)">
+    <rect class="foot-box" x="-430" y="-18" width="860" height="36" />
+    <text class="foot-txt" y="0" dominant-baseline="central">
+      static_assert: IsCallableWith&lt;BaseView&gt; (✔) | IsSearchableWith&lt;BaseView&gt; (✔) | !IsApplicableWith&lt;BaseView&gt; (✔)
+    </text>
+  </g>
+</svg>

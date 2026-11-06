@@ -1,0 +1,221 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-480 -250 960 500" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <!-- Marcadores de flecha en distintos colores semánticos -->
+    <marker id="m-indigo" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#1A237E" />
+    </marker>
+    <marker id="m-green" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#2E7D32" />
+    </marker>
+    <marker id="m-amber" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#F9A825" />
+    </marker>
+    <marker id="m-red" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#C62828" />
+    </marker>
+    <marker id="m-grey" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#455A64" />
+    </marker>
+
+    <!-- Pastillas base para etiquetas de decisión y código -->
+    <rect id="cond-badge" x="-46" y="-12" width="92" height="24" rx="12" />
+
+    <style>
+      /* Lienzo y tipografías */
+      .bg         { fill: #FAFAFA; stroke: #CFD8DC; stroke-width: 2; rx: 16; }
+      .title      { font-size: 20px; font-weight: 700; fill: #1A237E; text-anchor: middle; }
+      .subtitle   { font-size: 13px; fill: #455A64; text-anchor: middle; }
+      .foot-box   { fill: #EBF3FA; stroke: #3949AB; stroke-width: 1.5; rx: 10; }
+      .foot-code  { font-size: 12.5px; font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #1A237E; text-anchor: middle; }
+
+      /* Tarjeta contenedora del Nodo Actual */
+      .card-node  { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; rx: 16; filter: drop-shadow(0 4px 12px rgba(26,35,126,0.08)); }
+      .node-hdr   { font-size: 15px; font-weight: 800; fill: #1A237E; text-anchor: middle; }
+
+      /* Círculos de fases dentro del nodo actual */
+      .c-p0       { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 2.8; }
+      .c-p1       { fill: #FFFDE7; stroke: #F9A825; stroke-width: 2.8; }
+      .c-p2       { fill: #FFEBEE; stroke: #C62828; stroke-width: 2.8; }
+      .p-num      { font-size: 18px; font-weight: 900; font-family: 'JetBrains Mono', monospace; text-anchor: middle; dominant-baseline: central; }
+      .txt-p0     { fill: #1B5E20; }
+      .txt-p1     { fill: #E65100; }
+      .txt-p2     { fill: #B71C1C; }
+      .p-lbl      { font-size: 12px; font-weight: 700; text-anchor: middle; }
+      .p-bit      { font-size: 11px; font-family: 'JetBrains Mono', monospace; font-weight: 600; text-anchor: middle; fill: #546E7A; }
+
+      /* Cajas de destino externo (hijos, padres, fin) */
+      .box-child  { fill: #FFFFFF; stroke: #2E7D32; stroke-width: 2; rx: 12; }
+      .box-parent { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2; rx: 12; }
+      .box-fin    { fill: #ECEFF1; stroke: #455A64; stroke-width: 2; rx: 12; }
+
+      .box-title  { font-size: 13.5px; font-weight: 800; text-anchor: middle; }
+      .box-sub    { font-size: 11px; font-family: 'JetBrains Mono', monospace; text-anchor: middle; fill: #455A64; }
+      .dest-dot   { stroke-width: 2; }
+
+      /* Flechas y conectores */
+      .arrow-flow { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .af-local   { stroke: #546E7A; stroke-width: 2.2; stroke-dasharray: 5 4; }
+      .af-child   { stroke: #2E7D32; stroke-width: 2.5; }
+      .af-parent  { stroke: #1A237E; stroke-width: 2.5; }
+      .af-fin     { stroke: #455A64; stroke-width: 2.2; stroke-dasharray: 4 3; }
+
+      /* Pastillas y texto de decisión sobre las flechas */
+      .bg-yes     { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.2; }
+      .bg-no      { fill: #ECEFF1; stroke: #78909C; stroke-width: 1.2; }
+      .bg-up      { fill: #EDE7F6; stroke: #5E35B1; stroke-width: 1.2; }
+      .txt-yes    { font-size: 10.5px; font-weight: 800; fill: #1B5E20; text-anchor: middle; dominant-baseline: central; font-family: 'JetBrains Mono', monospace; }
+      .txt-no     { font-size: 10.5px; font-weight: 700; fill: #455A64; text-anchor: middle; dominant-baseline: central; font-style: italic; }
+      .txt-up     { font-size: 10.5px; font-weight: 800; fill: #4527A0; text-anchor: middle; dominant-baseline: central; font-family: 'JetBrains Mono', monospace; }
+    </style>
+  </defs>
+
+  <!-- Lienzo general -->
+  <rect class="bg" x="-470" y="-240" width="940" height="480" />
+
+  <!-- Encabezado -->
+  <text class="title" x="0" y="-208">Máquina de Estados del Recorrido de Euler (step_until_phase)</text>
+  <text class="subtitle" x="0" y="-186">
+    Transiciones locales de fase y saltos de puntero (m_ptr) según la presencia de subárboles o retorno a ancestros
+  </text>
+
+  <!-- ===================================================================== -->
+  <!-- 1. CAJA CENTRAL: NODO ACTUAL (m_ptr) CON SUS 3 FASES INTERNAS         -->
+  <!-- ===================================================================== -->
+  <g id="current-node">
+    <rect class="card-node" x="-230" y="-120" width="460" height="155" />
+    <text class="node-hdr" x="0" y="-96">📍 NODO ACTUAL (m_ptr)</text>
+
+    <!-- FASE 0: FirstPhase (Pre = 0b100) -->
+    <g transform="translate(-145, -25)">
+      <circle class="c-p0" r="28" />
+      <text class="p-num txt-p0">0</text>
+      <text class="p-lbl txt-p0" y="44">FirstPhase</text>
+      <text class="p-bit" y="58">0b100 · Pre</text>
+    </g>
+
+    <!-- FASE 1: Phase::In (In = 0b010) -->
+    <g transform="translate(0, -25)">
+      <circle class="c-p1" r="28" />
+      <text class="p-num txt-p1">1</text>
+      <text class="p-lbl txt-p1" y="44">Phase::In</text>
+      <text class="p-bit" y="58">0b010 · In</text>
+    </g>
+
+    <!-- FASE 2: LastPhase (Post = 0b001) -->
+    <g transform="translate(145, -25)">
+      <circle class="c-p2" r="28" />
+      <text class="p-num txt-p2">2</text>
+      <text class="p-lbl txt-p2" y="44">LastPhase</text>
+      <text class="p-bit" y="58">0b001 · Post</text>
+    </g>
+
+    <!-- Transiciones internas cuando NO existe el hijo respectivo -->
+    <!-- De Fase 0 a Fase 1 -->
+    <path class="arrow-flow af-local" d="M -117 -25 L -28 -25" marker-end="url(#m-grey)" />
+    <use href="#cond-badge" class="bg-no" x="-72" y="-25" />
+    <text class="txt-no" x="-72" y="-25">sin hijo I</text>
+
+    <!-- De Fase 1 a Fase 2 -->
+    <path class="arrow-flow af-local" d="M 28 -25 L 117 -25" marker-end="url(#m-grey)" />
+    <use href="#cond-badge" class="bg-no" x="72" y="-25" />
+    <text class="txt-no" x="72" y="-25">sin hijo D</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 2. DESTINOS EXTERNOS: HIJOS (ABAJO), PADRE (ARRIBA) Y FIN (DERECHA)   -->
+  <!-- ===================================================================== -->
+
+  <!-- HIJO IZQUIERDO (I): Abajo Izquierda -->
+  <g transform="translate(-235, 110)">
+    <rect class="box-child" x="-105" y="-30" width="210" height="62" />
+    <text class="box-title txt-p0" x="12" y="-8">Hijo Izquierdo (I)</text>
+    <text class="box-sub" x="12" y="10">m_ptr = m_pChild[Dir]</text>
+    <!-- Distintivo de fase destino 0 -->
+    <circle class="dest-dot c-p0" cx="-76" cy="1" r="14" />
+    <text class="p-num txt-p0" x="-76" y="1" font-size="12px">0</text>
+  </g>
+
+  <!-- HIJO DERECHO (D): Abajo Derecha -->
+  <g transform="translate(65, 110)">
+    <rect class="box-child" x="-105" y="-30" width="210" height="62" />
+    <text class="box-title txt-p0" x="12" y="-8">Hijo Derecho (D)</text>
+    <text class="box-sub" x="12" y="10">m_ptr = m_pChild[1-Dir]</text>
+    <!-- Distintivo de fase destino 0 -->
+    <circle class="dest-dot c-p0" cx="-76" cy="1" r="14" />
+    <text class="p-num txt-p0" x="-76" y="1" font-size="12px">0</text>
+  </g>
+
+  <!-- RETORNO A PADRE DESDE RAMA IZQUIERDA (P -> 1) -->
+  <g transform="translate(-360, -95)">
+    <rect class="box-parent" x="-95" y="-32" width="190" height="64" />
+    <text class="box-title txt-p1" x="-16" y="-8">Padre (P · Fase In)</text>
+    <text class="box-sub" x="-16" y="10">retorna de subárbol I</text>
+    <circle class="dest-dot c-p1" cx="64" cy="1" r="14" />
+    <text class="p-num txt-p1" x="64" y="1" font-size="12px">1</text>
+  </g>
+
+  <!-- RETORNO A PADRE DESDE RAMA DERECHA (P -> 2) -->
+  <g transform="translate(360, -95)">
+    <rect class="box-parent" x="-95" y="-32" width="190" height="64" />
+    <text class="box-title txt-p2" x="16" y="-8">Padre (P · Fase Post)</text>
+    <text class="box-sub" x="16" y="10">retorna de subárbol D</text>
+    <circle class="dest-dot c-p2" cx="-64" cy="1" r="14" />
+    <text class="p-num txt-p2" x="-64" y="1" font-size="12px">2</text>
+  </g>
+
+  <!-- FIN DEL RECORRIDO (m_ptr == nullptr): Abajo extrema derecha -->
+  <g transform="translate(360, 110)">
+    <rect class="box-fin" x="-95" y="-30" width="190" height="62" />
+    <text class="box-title" x="0" y="-8" fill="#37474F">🏁 Fin del Tour</text>
+    <text class="box-sub" x="0" y="10">m_ptr = nullptr; f = 0;</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 3. FLECHAS CONECTORAS DE DECISIÓN                                     -->
+  <!-- ===================================================================== -->
+
+  <!-- 1. De Fase 0 a Hijo I -->
+  <path class="arrow-flow af-child" d="M -165 3 C -195 40, -225 60, -235 80" marker-end="url(#m-green)" />
+  <g transform="translate(-215, 45)">
+    <use href="#cond-badge" class="bg-yes" />
+    <text class="txt-yes">sí: baja I</text>
+  </g>
+
+  <!-- 2. De Fase 1 a Hijo D -->
+  <path class="arrow-flow af-child" d="M 0 3 C 0 45, 45 60, 65 80" marker-end="url(#m-green)" />
+  <g transform="translate(35, 45)">
+    <use href="#cond-badge" class="bg-yes" />
+    <text class="txt-yes">sí: baja D</text>
+  </g>
+
+  <!-- 3. De Fase 2 a Padre (si sube por izquierda) -->
+  <path class="arrow-flow af-parent" d="M 145 -53 C 145 -155, -240 -170, -320 -127" marker-end="url(#m-indigo)" />
+  <g transform="translate(-75, -165)">
+    <use href="#cond-badge" class="bg-up" />
+    <text class="txt-up">sube por izq</text>
+  </g>
+
+  <!-- 4. De Fase 2 a Padre (si sube por derecha) -->
+  <path class="arrow-flow af-parent" d="M 173 -25 C 230 -25, 250 -75, 265 -90" marker-end="url(#m-indigo)" />
+  <g transform="translate(230, -50)">
+    <use href="#cond-badge" class="bg-up" />
+    <text class="txt-up">sube por der</text>
+  </g>
+
+  <!-- 5. De Fase 2 a Fin (si no tiene padre: era la raíz) -->
+  <path class="arrow-flow af-fin" d="M 173 -15 C 260 0, 310 40, 360 80" marker-end="url(#m-grey)" />
+  <g transform="translate(305, 30)">
+    <use href="#cond-badge" class="bg-no" />
+    <text class="txt-no">raíz (sin P)</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 4. PIE DE PÁGINA: CONDICIÓN DE PARADA DE LA MÁQUINA                    -->
+  <!-- ===================================================================== -->
+  <g transform="translate(0, 205)">
+    <rect class="foot-box" x="-390" y="-18" width="780" height="36" />
+    <text class="foot-code" y="0" dominant-baseline="central">
+      Filtro de parada: while (m_ptr &amp;&amp; !(m_phase &amp; Ord)) ➔ avanza en O(1) hasta caer en una fase deseada
+    </text>
+  </g>
+</svg>

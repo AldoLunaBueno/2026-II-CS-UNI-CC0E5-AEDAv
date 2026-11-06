@@ -1,0 +1,243 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-480 -250 960 500" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <!-- Marcadores de flecha -->
+    <marker id="m-indigo" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#1A237E" />
+    </marker>
+    <marker id="m-green" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#2E7D32" />
+    </marker>
+    <marker id="m-red" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#C62828" />
+    </marker>
+
+    <!-- Nodos del montículo (círculos reutilizables) -->
+    <circle id="node-circle" r="16" />
+
+    <style>
+      .bg         { fill: #FAFAFA; stroke: #CFD8DC; stroke-width: 2; rx: 16; }
+      .title      { font-size: 20px; font-weight: 700; fill: #1A237E; text-anchor: middle; }
+      .subtitle   { font-size: 13px; fill: #455A64; text-anchor: middle; }
+
+      /* Tarjetas de cada uno de los 3 pasos */
+      .card-step  { fill: #FFFFFF; stroke-width: 2; rx: 14; }
+      .c-s1       { stroke: #2E7D32; }
+      .c-s2       { stroke: #C62828; }
+      .c-s3       { stroke: #0288D1; }
+
+      .step-hdr   { font-size: 14px; font-weight: 800; text-anchor: middle; }
+      .step-sub   { font-size: 11px; font-family: 'JetBrains Mono', monospace; text-anchor: middle; fill: #546E7A; }
+
+      /* Nodos del montículo */
+      .n-ok       { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 2.2; }
+      .n-violated { fill: #FFEBEE; stroke: #C62828; stroke-width: 2.5; stroke-dasharray: 4 2; }
+      .n-fixed    { fill: #E1F5FE; stroke: #0288D1; stroke-width: 2.2; }
+
+      .n-val      { font-size: 13px; font-weight: 800; font-family: 'JetBrains Mono', monospace; text-anchor: middle; dominant-baseline: central; }
+      .val-ok     { fill: #1B5E20; }
+      .val-bad    { fill: #B71C1C; }
+      .val-fixed  { fill: #01579B; }
+
+      /* Aristas de los árboles */
+      .tree-edge  { stroke: #78909C; stroke-width: 2; stroke-linecap: round; }
+      .edge-bad   { stroke: #E53935; stroke-width: 2.5; stroke-dasharray: 4 3; }
+
+      /* Etiquetas de estado inferior */
+      .tag-box    { stroke-width: 1.5; rx: 8; }
+      .tag-ok     { fill: #E8F5E9; stroke: #2E7D32; }
+      .tag-bad    { fill: #FFEBEE; stroke: #C62828; }
+      .tag-fixed  { fill: #E1F5FE; stroke: #0288D1; }
+
+      .tag-txt    { font-size: 11px; font-weight: 800; font-family: 'JetBrains Mono', monospace; text-anchor: middle; dominant-baseline: central; }
+      .tt-ok      { fill: #1B5E20; }
+      .tt-bad     { fill: #B71C1C; }
+      .tt-fixed   { fill: #01579B; }
+
+      /* Flechas de transición entre pasos */
+      .trans-arrow{ fill: none; stroke-width: 2.8; stroke-linecap: round; }
+      .ta-mutate  { stroke: #C62828; }
+      .ta-rebuild { stroke: #0288D1; }
+
+      .trans-badge{ fill: #FFFFFF; stroke-width: 1.5; rx: 10; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.06)); }
+      .tb-mut     { stroke: #C62828; }
+      .tb-reb     { stroke: #0288D1; }
+
+      .trans-title{ font-size: 11px; font-weight: 800; font-family: 'JetBrains Mono', monospace; text-anchor: middle; dominant-baseline: central; }
+      .trans-sub  { font-size: 9.5px; font-style: italic; text-anchor: middle; dominant-baseline: central; fill: #455A64; }
+
+      /* Pie de página */
+      .foot-box   { fill: #EBF3FA; stroke: #3949AB; stroke-width: 1.5; rx: 10; }
+      .foot-txt   { font-size: 12px; font-weight: 700; font-family: 'JetBrains Mono', monospace; fill: #1A237E; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <!-- Lienzo -->
+  <rect class="bg" x="-470" y="-240" width="940" height="480" />
+
+  <!-- Encabezado -->
+  <text class="title" x="0" y="-208">Ciclo de Invariante de Reconstrucción (Template Method rebuild)</text>
+  <text class="subtitle" x="0" y="-186">
+    Cómo Applicable::ApplyFunction muta nodos in-place y dispara automáticamente BaseHeap::rebuild en O(N)
+  </text>
+
+  <!-- ===================================================================== -->
+  <!-- 1. PASO 1: ESTADO INICIAL (Min-Heap Válido)                            -->
+  <!-- ===================================================================== -->
+  <g transform="translate(-320, 2)">
+    <rect class="card-step c-s1" x="-120" y="-160" width="240" height="340" />
+    <text class="step-hdr" x="0" y="-136" fill="#1B5E20">1. Estado Inicial</text>
+    <text class="step-sub" x="0" y="-120">Min-Heap Válido: P ≤ Hijos</text>
+
+    <!-- Árbol Min-Heap: Raíz 10, Hijos 25 y 40, Nieto 50 -->
+    <!-- Aristas -->
+    <line class="tree-edge" x1="0" y1="-75" x2="-50" y2="-20" />
+    <line class="tree-edge" x1="0" y1="-75" x2="50" y2="-20" />
+    <line class="tree-edge" x1="-50" y1="-20" x2="-75" y2="35" />
+
+    <!-- Nodos -->
+    <!-- Raíz: 10 -->
+    <g transform="translate(0, -75)">
+      <use href="#node-circle" class="n-ok" />
+      <text class="n-val val-ok">10</text>
+    </g>
+    <!-- Hijo Izq: 25 -->
+    <g transform="translate(-50, -20)">
+      <use href="#node-circle" class="n-ok" />
+      <text class="n-val val-ok">25</text>
+    </g>
+    <!-- Hijo Der: 40 -->
+    <g transform="translate(50, -20)">
+      <use href="#node-circle" class="n-ok" />
+      <text class="n-val val-ok">40</text>
+    </g>
+    <!-- Nieto Izq: 50 -->
+    <g transform="translate(-75, 35)">
+      <use href="#node-circle" class="n-ok" />
+      <text class="n-val val-ok">50</text>
+    </g>
+
+    <!-- Estado de Invariante -->
+    <g transform="translate(0, 95)">
+      <rect class="tag-box tag-ok" x="-95" y="-16" width="190" height="32" />
+      <text class="tag-txt tt-ok">✔ Invariante Íntegro</text>
+    </g>
+    <text class="step-sub" x="0" y="142">10 ≤ 25 ≤ 50 | 10 ≤ 40</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 2. PASO 2: MUTACIÓN IN-PLACE (Invariante Temporalmente Rota)           -->
+  <!-- ===================================================================== -->
+  <g transform="translate(0, 2)">
+    <rect class="card-step c-s2" x="-120" y="-160" width="240" height="340" />
+    <text class="step-hdr" x="0" y="-136" fill="#B71C1C">2. Mutación In-Place</text>
+    <text class="step-sub" x="0" y="-120">this-&gt;call(func): 50 pasa a 5</text>
+
+    <!-- Árbol con el nieto mutado a 5 (rompe propiedad respecto a 25 y 10) -->
+    <!-- Aristas -->
+    <line class="tree-edge" x1="0" y1="-75" x2="-50" y2="-20" />
+    <line class="tree-edge" x1="0" y1="-75" x2="50" y2="-20" />
+    <line class="tree-edge edge-bad" x1="-50" y1="-20" x2="-75" y2="35" />
+
+    <!-- Nodos -->
+    <!-- Raíz: 10 -->
+    <g transform="translate(0, -75)">
+      <use href="#node-circle" class="n-ok" />
+      <text class="n-val val-ok">10</text>
+    </g>
+    <!-- Hijo Izq: 25 -->
+    <g transform="translate(-50, -20)">
+      <use href="#node-circle" class="n-ok" />
+      <text class="n-val val-ok">25</text>
+    </g>
+    <!-- Hijo Der: 40 -->
+    <g transform="translate(50, -20)">
+      <use href="#node-circle" class="n-ok" />
+      <text class="n-val val-ok">40</text>
+    </g>
+    <!-- Nieto mutado: 5 (VIOLACIÓN) -->
+    <g transform="translate(-75, 35)">
+      <use href="#node-circle" class="n-violated" />
+      <text class="n-val val-bad">5</text>
+    </g>
+
+    <!-- Estado de Invariante -->
+    <g transform="translate(0, 95)">
+      <rect class="tag-box tag-bad" x="-95" y="-16" width="190" height="32" />
+      <text class="tag-txt tt-bad">✖ Invariante Roto: 5 &lt; 25</text>
+    </g>
+    <text class="step-sub" x="0" y="142">¡El montículo quedó desordenado!</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 3. PASO 3: RESTAURACIÓN AUTOMÁTICA (BaseHeap::rebuild)                -->
+  <!-- ===================================================================== -->
+  <g transform="translate(320, 2)">
+    <rect class="card-step c-s3" x="-120" y="-160" width="240" height="340" />
+    <text class="step-hdr" x="0" y="-136" fill="#01579B">3. Hook rebuild()</text>
+    <text class="step-sub" x="0" y="-120">HeapifyUp asciende 5 a la raíz</text>
+
+    <!-- Árbol restaurado con 5 en la raíz -->
+    <!-- Aristas -->
+    <line class="tree-edge" x1="0" y1="-75" x2="-50" y2="-20" />
+    <line class="tree-edge" x1="0" y1="-75" x2="50" y2="-20" />
+    <line class="tree-edge" x1="-50" y1="-20" x2="-75" y2="35" />
+
+    <!-- Nodos -->
+    <!-- Nueva Raíz: 5 (ascendido) -->
+    <g transform="translate(0, -75)">
+      <use href="#node-circle" class="n-fixed" />
+      <text class="n-val val-fixed">5</text>
+    </g>
+    <!-- Hijo Izq: 10 -->
+    <g transform="translate(-50, -20)">
+      <use href="#node-circle" class="n-fixed" />
+      <text class="n-val val-fixed">10</text>
+    </g>
+    <!-- Hijo Der: 40 -->
+    <g transform="translate(50, -20)">
+      <use href="#node-circle" class="n-ok" />
+      <text class="n-val val-ok">40</text>
+    </g>
+    <!-- Nieto: 25 -->
+    <g transform="translate(-75, 35)">
+      <use href="#node-circle" class="n-ok" />
+      <text class="n-val val-ok">25</text>
+    </g>
+
+    <!-- Estado de Invariante -->
+    <g transform="translate(0, 95)">
+      <rect class="tag-box tag-fixed" x="-95" y="-16" width="190" height="32" />
+      <text class="tag-txt tt-fixed">✔ Invariante Restaurado</text>
+    </g>
+    <text class="step-sub" x="0" y="142">Auto-reparado en O(N) sin cliente</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 4. FLECHAS DE TRANSICIÓN ENTRE PASOS                                  -->
+  <!-- ===================================================================== -->
+  <!-- Transición 1 -> 2: ApplyFunction -->
+  <path class="trans-arrow ta-mutate" d="M -195 -15 L -125 -15" marker-end="url(#m-red)" />
+  <g transform="translate(-160, -15)">
+    <rect class="trans-badge tb-mut" x="-45" y="-18" width="90" height="36" />
+    <text class="trans-title" x="0" y="-4" fill="#B71C1C">ApplyFunc</text>
+    <text class="trans-sub" x="0" y="9">f(node.val)</text>
+  </g>
+
+  <!-- Transición 2 -> 3: rebuild() -->
+  <path class="trans-arrow ta-rebuild" d="M 125 -15 L 195 -15" marker-end="url(#m-indigo)" />
+  <g transform="translate(160, -15)">
+    <rect class="trans-badge tb-reb" x="-45" y="-18" width="90" height="36" />
+    <text class="trans-title" x="0" y="-4" fill="#01579B">rebuild()</text>
+    <text class="trans-sub" x="0" y="9">HeapifyUp(i)</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 5. PIE DE PÁGINA EXPLICATIVO                                          -->
+  <!-- ===================================================================== -->
+  <g transform="translate(0, 205)">
+    <rect class="foot-box" x="-420" y="-18" width="840" height="36" />
+    <text class="foot-txt" y="0" dominant-baseline="central">
+      Patrón Template Method: Applicable::ApplyFunction() invoca el hook virtual rebuild() automáticamente
+    </text>
+  </g>
+</svg>

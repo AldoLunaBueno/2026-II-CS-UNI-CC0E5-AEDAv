@@ -404,6 +404,11 @@ La caminata completa genera la traza maestra del recorrido de Euler (`PreInPostO
 
 En cada paso del bucle `do-while` de `step_until_phase()`, el nodo actual (`m_ptr`) evalúa su fase `(0)`, `(1)` o `(2)` y decide si **salta a un nodo vecino** (`I`, `D`, `P ➔ I`, `P ➔ D`, o `fin`) o si **avanza de fase dentro del mismo nodo**:
 
+![Máquina de Estados del Recorrido de Euler](docs/euler_state_machine.svg)
+
+<details>
+<summary>🔍 Ver especificación algorítmica y diagrama de flujo interno</summary>
+
 ```mermaid
 flowchart TB
     FIN(["🏁 <b>fin (m_ptr = nullptr)</b><br/><i>Termina el recorrido y resetea a fase 0</i>"])
@@ -456,6 +461,8 @@ flowchart TB
     style PI fill:#8080800F,stroke:#9E9E9E,stroke-dasharray:5 4
     style PD fill:#8080800F,stroke:#9E9E9E,stroke-dasharray:5 4
 ```
+
+</details>
 
 ---
 
@@ -521,6 +528,11 @@ Para permitir que tanto contenedores propietarios como vistas no propietarias co
 
 Un contenedor concreto puede incorporar mixins mutantes como `Applicable` (que modifica nodos) o `Readable` (que llama a `clear()` y `push_back()`). Sin embargo, una **Vista (`BaseView`) no es dueña del contenedor ni debe modificar su topología**.
 
+![Filtrado Estático de Mixins](docs/mixin_filter.svg)
+
+<details>
+<summary>🔍 Ver implementación de conceptos C++20 y ensamblado de BaseView</summary>
+
 Mediante metaprogramación de conceptos C++20 en [`containers/GeneralContainer.h`](containers/GeneralContainer.h), el sistema clasifica y filtra los mixins en tiempo de compilación:
 
 ```cpp
@@ -565,6 +577,8 @@ class BaseView :
    static_assert(IsSearchableWith<RevView, ...>);  // ✔️ Searchable permitido en vista
    static_assert(!IsApplicableWith<RevView, ...>); // ❌ Applicable descartado en vista
    ```
+
+</details>
 
 ---
 
@@ -665,6 +679,11 @@ $T 1 < (X \text{ o } Y) < T 2 < (Y \text{ o } X) < T 3 < Z < T 4$
 
 Cuando se ejecutan operaciones masivas que transforman el valor de los nodos in-place (como `ApplyFunction`), las invariantes estructurales de ciertos contenedores pueden invalidarse.
 
+![Ciclo de Invariante de Reconstrucción](docs/heap_rebuild.svg)
+
+<details>
+<summary>🔍 Ver implementación del patrón Template Method y hook virtual</summary>
+
 Para solventar esto de manera limpia y polimórfica:
 1. `ContainerCore` introduce el método virtual no-op:
    ```cpp
@@ -689,9 +708,16 @@ Para solventar esto de manera limpia y polimórfica:
    ```
    Garantizando que tras un `ApplyFunction(AddOne)` o `ApplyFunction(AddX, 10)`, el árbol binario completo que respalda el montículo restablezca su propiedad de orden en $O(N)$ sin requerir intervención manual del cliente.
 
+</details>
+
 ### 5. Subsistema de Renderizado ASCII en Consola (sketch y ConsoleGraphRenderer)
 
 El subsistema visual en [`utilities/render.h`](utilities/render.h) separa la representación lógica del grafo de su renderizado visual:
+
+![Pipeline de Renderizado ASCII](docs/render_pipeline.svg)
+
+<details>
+<summary>🔍 Ver detalles del cálculo espacial de niveles y salida en consola</summary>
 
 1. **`VisualGraph sketch() const`**:
    `BaseBinaryTree::sketch()` calcula la geometría del árbol en anchura y altura:
@@ -719,6 +745,8 @@ Ejemplo de salida en terminal:
      /  \        /  \
    10    30    70    90
 ```
+
+</details>
 
 ### 6. Guía de Uso y Demostración Práctica de la API
 

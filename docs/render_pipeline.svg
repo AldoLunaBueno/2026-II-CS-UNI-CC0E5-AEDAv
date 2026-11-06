@@ -1,0 +1,232 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-480 -250 960 500" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <!-- Marcadores de flecha -->
+    <marker id="m-indigo" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#1A237E" />
+    </marker>
+    <marker id="m-blue" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#0288D1" />
+    </marker>
+    <marker id="m-teal" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#00897B" />
+    </marker>
+
+    <!-- Nodos del árbol lógico -->
+    <circle id="tree-node" r="16" class="tn-circle" />
+
+    <style>
+      .bg         { fill: #FAFAFA; stroke: #CFD8DC; stroke-width: 2; rx: 16; }
+      .title      { font-size: 20px; font-weight: 700; fill: #1A237E; text-anchor: middle; }
+      .subtitle   { font-size: 13px; fill: #455A64; text-anchor: middle; }
+
+      /* Tarjetas de las 3 etapas */
+      .card-stage { fill: #FFFFFF; stroke-width: 2; rx: 14; }
+      .c-st1      { stroke: #283593; }
+      .c-st2      { stroke: #0288D1; }
+      .c-st3      { stroke: #263238; }
+
+      .st-hdr     { font-size: 14.5px; font-weight: 800; text-anchor: middle; }
+      .st-sub     { font-size: 11px; font-family: 'JetBrains Mono', monospace; text-anchor: middle; fill: #546E7A; }
+
+      /* 1. Nodos lógicos */
+      .tn-circle  { fill: #E8EAF6; stroke: #1A237E; stroke-width: 2.2; }
+      .tn-val     { font-size: 13px; font-weight: 800; font-family: 'JetBrains Mono', monospace; fill: #1A237E; text-anchor: middle; dominant-baseline: central; }
+      .tn-edge    { stroke: #3949AB; stroke-width: 2.5; stroke-linecap: round; }
+
+      /* 2. Cálculo espacial */
+      .coord-badge{ fill: #F1F8E9; stroke: #558B2F; stroke-width: 1.2; rx: 6; }
+      .cb-txt     { font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 700; fill: #33691E; text-anchor: middle; dominant-baseline: central; }
+      .formula-box{ fill: #E1F5FE; stroke: #0288D1; stroke-width: 1.5; rx: 8; }
+      .form-txt   { font-size: 10.5px; font-family: 'JetBrains Mono', monospace; font-weight: 700; fill: #01579B; text-anchor: middle; dominant-baseline: central; }
+
+      /* 3. Terminal ASCII */
+      .term-bg    { fill: #1E272C; stroke: #37474F; stroke-width: 1.5; rx: 10; }
+      .term-dot-r { fill: #EF5350; }
+      .term-dot-y { fill: #FFEE58; }
+      .term-dot-g { fill: #66BB6A; }
+      .term-txt   { font-size: 11.5px; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #80CBC4; font-weight: 600; white-space: pre; }
+      .term-emp   { fill: #FFCA28; font-weight: 800; }
+      .term-branch{ fill: #90A4AE; }
+
+      /* Flechas entre etapas */
+      .conn-arrow { fill: none; stroke-width: 2.8; stroke-linecap: round; }
+      .ca-sketch  { stroke: #0288D1; }
+      .ca-render  { stroke: #00897B; }
+
+      .trans-badge{ fill: #FFFFFF; stroke-width: 1.5; rx: 10; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.06)); }
+      .tb-sketch  { stroke: #0288D1; }
+      .tb-render  { stroke: #00897B; }
+
+      .tb-title   { font-size: 11px; font-weight: 800; font-family: 'JetBrains Mono', monospace; text-anchor: middle; dominant-baseline: central; }
+      .tb-sub     { font-size: 9.5px; font-style: italic; text-anchor: middle; dominant-baseline: central; fill: #455A64; }
+
+      /* Pie de página */
+      .foot-box   { fill: #EBF3FA; stroke: #3949AB; stroke-width: 1.5; rx: 10; }
+      .foot-txt   { font-size: 12px; font-weight: 700; font-family: 'JetBrains Mono', monospace; fill: #1A237E; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <!-- Lienzo -->
+  <rect class="bg" x="-470" y="-240" width="940" height="480" />
+
+  <!-- Encabezado -->
+  <text class="title" x="0" y="-208">Pipeline del Subsistema de Renderizado ASCII (utilities/render.h)</text>
+  <text class="subtitle" x="0" y="-186">
+    Desacoplamiento entre la estructura enlazada, la proyección espacial VisualGraph y el lienzo de caracteres en consola
+  </text>
+
+  <!-- ===================================================================== -->
+  <!-- 1. ETAPA 1: ESTRUCTURA LÓGICA (BinaryTree en RAM)                      -->
+  <!-- ===================================================================== -->
+  <g transform="translate(-320, 2)">
+    <rect class="card-stage c-st1" x="-120" y="-160" width="240" height="340" />
+    <text class="st-hdr" x="0" y="-136" fill="#1A237E">1. BinaryTree&lt;Traits&gt;</text>
+    <text class="st-sub" x="0" y="-120">Nodos en memoria con punteros</text>
+
+    <!-- Árbol binario en memoria -->
+    <!-- Aristas -->
+    <line class="tn-edge" x1="0" y1="-70" x2="-55" y2="-10" />
+    <line class="tn-edge" x1="0" y1="-70" x2="55" y2="-10" />
+    <line class="tn-edge" x1="-55" y1="-10" x2="-80" y2="50" />
+    <line class="tn-edge" x1="-55" y1="-10" x2="-30" y2="50" />
+    <line class="tn-edge" x1="55" y1="-10" x2="30" y2="50" />
+    <line class="tn-edge" x1="55" y1="-10" x2="80" y2="50" />
+
+    <!-- Nivel 0 -->
+    <g transform="translate(0, -70)">
+      <use href="#tree-node" />
+      <text class="tn-val">50</text>
+    </g>
+    <!-- Nivel 1 -->
+    <g transform="translate(-55, -10)">
+      <use href="#tree-node" />
+      <text class="tn-val">20</text>
+    </g>
+    <g transform="translate(55, -10)">
+      <use href="#tree-node" />
+      <text class="tn-val">80</text>
+    </g>
+    <!-- Nivel 2 -->
+    <g transform="translate(-80, 50)">
+      <use href="#tree-node" />
+      <text class="tn-val">10</text>
+    </g>
+    <g transform="translate(-30, 50)">
+      <use href="#tree-node" />
+      <text class="tn-val">30</text>
+    </g>
+    <g transform="translate(30, 50)">
+      <use href="#tree-node" />
+      <text class="tn-val">70</text>
+    </g>
+    <g transform="translate(80, 50)">
+      <use href="#tree-node" />
+      <text class="tn-val">90</text>
+    </g>
+
+    <text class="st-sub" x="0" y="105">m_pChild[0], m_pChild[1]</text>
+    <text class="st-sub" x="0" y="125">m_parent, m_height</text>
+    <text class="st-sub" x="0" y="152" fill="#1A237E" font-weight="700">Topología pura</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 2. ETAPA 2: DISEÑO ESPACIAL (VisualGraph sketch())                    -->
+  <!-- ===================================================================== -->
+  <g transform="translate(0, 2)">
+    <rect class="card-stage c-st2" x="-120" y="-160" width="240" height="340" />
+    <text class="st-hdr" x="0" y="-136" fill="#01579B">2. VisualGraph</text>
+    <text class="st-sub" x="0" y="-120">Distribución geométrica por nivel</text>
+
+    <!-- Fórmula de ancho de segmento -->
+    <g transform="translate(0, -92)">
+      <rect class="formula-box" x="-105" y="-15" width="210" height="30" />
+      <text class="form-txt">W_seg = 2 · W_cel · 2^(h - k - 1)</text>
+    </g>
+
+    <!-- Matriz de Coordenadas (X, Y) calculadas -->
+    <g transform="translate(0, -45)">
+      <rect class="coord-badge" x="-95" y="-12" width="190" height="24" />
+      <text class="cb-txt">Nodo 50: (X=10, Y=0)</text>
+    </g>
+    <g transform="translate(0, -15)">
+      <rect class="coord-badge" x="-95" y="-12" width="190" height="24" />
+      <text class="cb-txt">Nodo 20: (X=4,  Y=2)</text>
+    </g>
+    <g transform="translate(0, 15)">
+      <rect class="coord-badge" x="-95" y="-12" width="190" height="24" />
+      <text class="cb-txt">Nodo 80: (X=16, Y=2)</text>
+    </g>
+    <g transform="translate(0, 45)">
+      <rect class="coord-badge" x="-95" y="-12" width="190" height="24" />
+      <text class="cb-txt">Hojas: Y=4 (X=1, 7, 13, 19)</text>
+    </g>
+
+    <!-- Aristas lógicas con tipo Left/Right -->
+    <g transform="translate(0, 92)">
+      <rect class="formula-box" x="-105" y="-20" width="210" height="40" />
+      <text class="form-txt" y="-4">Aristas etiquetadas:</text>
+      <text class="cb-txt" y="10">EdgeType::Left / RightChild</text>
+    </g>
+
+    <text class="st-sub" x="0" y="152" fill="#0288D1" font-weight="700">Geometría independiente</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 3. ETAPA 3: RENDERIZADO EN TERMINAL (ConsoleGraphRenderer)            -->
+  <!-- ===================================================================== -->
+  <g transform="translate(320, 2)">
+    <rect class="card-stage c-st3" x="-120" y="-160" width="240" height="340" />
+    <text class="st-hdr" x="0" y="-136" fill="#263238">3. Terminal ASCII</text>
+    <text class="st-sub" x="0" y="-120">Matriz de caracteres en pantalla</text>
+
+    <!-- Simulación de consola de terminal oscura -->
+    <g transform="translate(0, 10)">
+      <rect class="term-bg" x="-105" y="-115" width="210" height="210" />
+      <!-- Botones de ventana terminal -->
+      <circle class="term-dot-r" cx="-88" cy="-100" r="4" />
+      <circle class="term-dot-y" cx="-76" cy="-100" r="4" />
+      <circle class="term-dot-g" cx="-64" cy="-100" r="4" />
+
+      <!-- Arte ASCII del árbol -->
+      <text class="term-txt" x="-90" y="-76">Altura: 3</text>
+      <text class="term-txt" x="-90" y="-52">      <tspan class="term-branch">__</tspan><tspan class="term-emp">50</tspan><tspan class="term-branch">__</tspan></text>
+      <text class="term-txt" x="-90" y="-34">     <tspan class="term-branch">/</tspan>      <tspan class="term-branch">\</tspan></text>
+      <text class="term-txt" x="-90" y="-16">    <tspan class="term-branch">/</tspan>        <tspan class="term-branch">\</tspan></text>
+      <text class="term-txt" x="-90" y="4">  <tspan class="term-emp">20</tspan>          <tspan class="term-emp">80</tspan></text>
+      <text class="term-txt" x="-90" y="22">  <tspan class="term-branch">/\</tspan>          <tspan class="term-branch">/\</tspan></text>
+      <text class="term-txt" x="-90" y="40"> <tspan class="term-branch">/</tspan>  <tspan class="term-branch">\</tspan>        <tspan class="term-branch">/</tspan>  <tspan class="term-branch">\</tspan></text>
+      <text class="term-txt" x="-90" y="58"><tspan class="term-emp">10</tspan>  <tspan class="term-emp">30</tspan>    <tspan class="term-emp">70</tspan>  <tspan class="term-emp">90</tspan></text>
+    </g>
+
+    <text class="st-sub" x="0" y="152" fill="#263238" font-weight="700">Lienzo matricial formateado</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 4. FLECHAS DE FLUJO ENTRE ETAPAS                                      -->
+  <!-- ===================================================================== -->
+  <!-- Transición 1 -> 2: sketch() -->
+  <path class="conn-arrow ca-sketch" d="M -195 -15 L -125 -15" marker-end="url(#m-blue)" />
+  <g transform="translate(-160, -15)">
+    <rect class="trans-badge tb-sketch" x="-45" y="-18" width="90" height="36" />
+    <text class="tb-title" x="0" y="-4" fill="#0288D1">.sketch()</text>
+    <text class="tb-sub" x="0" y="9">calcula (X, Y)</text>
+  </g>
+
+  <!-- Transición 2 -> 3: draw(renderer) -->
+  <path class="conn-arrow ca-render" d="M 125 -15 L 195 -15" marker-end="url(#m-teal)" />
+  <g transform="translate(160, -15)">
+    <rect class="trans-badge tb-render" x="-45" y="-18" width="90" height="36" />
+    <text class="tb-title" x="0" y="-4" fill="#00897B">.draw()</text>
+    <text class="tb-sub" x="0" y="9">trazas ASCII</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 5. PIE DE PÁGINA EXPLICATIVO                                          -->
+  <!-- ===================================================================== -->
+  <g transform="translate(0, 205)">
+    <rect class="foot-box" x="-420" y="-18" width="840" height="36" />
+    <text class="foot-txt" y="0" dominant-baseline="central">
+      Patrón Bridge / Renderer: tree.draw(ConsoleGraphRenderer(std::cout)) desacopla grafo lógico de salida gráfica
+    </text>
+  </g>
+</svg>
