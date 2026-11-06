@@ -1,14 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-460 -230 920 470" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-470 -230 940 470" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
   <defs>
-    <!-- Marcadores de flecha (encendida / apagada) -->
+    <!-- Marcadores de flecha (encendidas por fase vs apagada) -->
     <marker id="arr-on-pre" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
       <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#2E7D32" />
     </marker>
-    <marker id="arr-off-in" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
-      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#90A4AE" />
+    <marker id="arr-on-in" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#F9A825" />
     </marker>
     <marker id="arr-on-post" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
       <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#C62828" />
+    </marker>
+    <marker id="arr-off" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#90A4AE" />
     </marker>
 
     <!-- Cajita base de fase (definida una sola vez en el origen local) -->
@@ -25,8 +28,8 @@
 
     <style>
       :root {
-        /* 1. Desplazamiento general de las 3 columnas de bits para dejar espacio al prefijo */
-        --grid-x:       112px;
+        /* 1. Desplazamiento general de las columnas para centrado equilibrado */
+        --grid-x:       130px;
 
         /* 2. Espaciado horizontal generoso entre las 3 columnas (Pre, In, Post) */
         --col-dx:       192px;
@@ -38,79 +41,190 @@
         --row-plat-y:   110px;
         --row-note-y:   140px;
 
-        /* 4. Posiciones de la etiqueta izquierda (PrePostOrder =) y prefijo (0b) */
-        --lhs-x:       -330px;
-        --prefix-x:    -275px;
+        /* 4. Posiciones de la etiqueta izquierda y prefijo (0b) */
+        --lhs-x:       -315px;
+        --prefix-x:    -260px;
       }
 
-      /* Grupo contenedor de las 3 columnas desplazado a la derecha */
-      .bit-grid    { transform: translate(var(--grid-x), 0px); }
+      /* Grupo contenedor de las columnas */
+      .bit-grid      { transform: translate(var(--grid-x), 0px); }
 
       /* Columnas simétricas respecto a la fase central (In) */
-      .col-pre     { transform: translate(calc(-1 * var(--col-dx)), 0px); }
-      .col-in      { transform: translate(0px,                      0px); }
-      .col-post    { transform: translate(var(--col-dx),            0px); }
+      .col-pre       { transform: translate(calc(-1 * var(--col-dx)), 0px); }
+      .col-in        { transform: translate(0px,                      0px); }
+      .col-post      { transform: translate(var(--col-dx),            0px); }
 
       /* Filas verticales dentro de cada columna */
-      .row-box     { transform: translate(0px, var(--row-box-y)); }
-      .row-arr     { transform: translate(0px, var(--row-arr-y)); }
-      .row-dig     { transform: translate(0px, var(--row-dig-y)); }
-      .row-plat    { transform: translate(0px, var(--row-plat-y)); }
-      .row-note    { transform: translate(0px, var(--row-note-y)); }
+      .row-box       { transform: translate(0px, var(--row-box-y)); }
+      .row-arr       { transform: translate(0px, var(--row-arr-y)); }
+      .row-dig       { transform: translate(0px, var(--row-dig-y)); }
+      .row-plat      { transform: translate(0px, var(--row-plat-y)); }
+      .row-note      { transform: translate(0px, var(--row-note-y)); }
 
-      /* Posicionamiento del nombre del orden y prefijo 0b sobre la plataforma */
-      .pos-lhs     { transform: translate(var(--lhs-x),    var(--row-dig-y)); }
-      .pos-lhs-sub { transform: translate(var(--lhs-x),    var(--row-note-y)); }
-      .pos-prefix  { transform: translate(var(--prefix-x), var(--row-dig-y)); }
+      /* Posicionamiento del nombre del orden, badge y prefijo 0b */
+      .pos-lhs-badge { transform: translate(var(--lhs-x),    calc(var(--row-dig-y) - 34px)); }
+      .pos-lhs       { transform: translate(var(--lhs-x),    var(--row-dig-y)); }
+      .pos-lhs-sub   { transform: translate(var(--lhs-x),    var(--row-note-y)); }
+      .pos-prefix    { transform: translate(var(--prefix-x), var(--row-dig-y)); }
 
       /* Estilos generales del lienzo */
-      .bg          { fill: #FAFAFA; stroke: #CFD8DC; stroke-width: 2; rx: 16; }
-      .title       { font-size: 20px; font-weight: 700; fill: #1A237E; text-anchor: middle; }
-      .subtitle    { font-size: 13px; fill: #455A64; text-anchor: middle; }
-      .formula     { font-size: 13px; font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #283593; text-anchor: middle; }
+      .bg            { fill: #FAFAFA; stroke: #CFD8DC; stroke-width: 2; rx: 16; }
+      .title         { font-size: 20px; font-weight: 700; fill: #1A237E; text-anchor: middle; }
+      .subtitle      { font-size: 13px; fill: #455A64; text-anchor: middle; }
+      .formula       { font-size: 13px; font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #283593; text-anchor: middle; }
 
-      /* Cajitas de fase (encendidas vs apagada) */
-      .box-on-pre  { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 2.5; }
-      .box-off-in  { fill: #F5F7F8; stroke: #B0BEC5; stroke-width: 2; stroke-dasharray: 6 4; }
-      .box-on-post { fill: #FFEBEE; stroke: #C62828; stroke-width: 2.5; }
+      /* Cajitas de fase (encendidas por color vs apagada) */
+      .box-on-pre    { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 2.5; }
+      .box-on-in     { fill: #FFFDE7; stroke: #F9A825; stroke-width: 2.5; }
+      .box-on-post   { fill: #FFEBEE; stroke: #C62828; stroke-width: 2.5; }
+      .box-off       { fill: #F5F7F8; stroke: #B0BEC5; stroke-width: 2; stroke-dasharray: 6 4; }
 
-      .box-phase   { font-size: 16px; font-weight: 800; text-anchor: middle; }
-      .box-label   { font-size: 11.5px; font-style: italic; text-anchor: middle; }
-      .box-code    { font-size: 13px; font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', monospace; text-anchor: middle; }
+      .box-phase     { font-size: 16px; font-weight: 800; text-anchor: middle; }
+      .box-label     { font-size: 11.5px; font-style: italic; text-anchor: middle; }
+      .box-code      { font-size: 13px; font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', monospace; text-anchor: middle; }
 
-      .txt-pre     { fill: #1B5E20; }
-      .txt-in-off  { fill: #78909C; }
-      .txt-post    { fill: #B71C1C; }
-      .txt-ord     { fill: #1A237E; }
+      /* Colores de texto temáticos */
+      .txt-pre       { fill: #1B5E20; }
+      .txt-in        { fill: #E65100; }
+      .txt-post      { fill: #B71C1C; }
+      .txt-off       { fill: #78909C; }
+      .txt-ord       { fill: #1A237E; }
 
       /* Flechas conectoras */
-      .arr-pre     { stroke: #2E7D32; stroke-width: 3; }
-      .arr-in      { stroke: #90A4AE; stroke-width: 2.2; stroke-dasharray: 5 4; }
-      .arr-post    { stroke: #C62828; stroke-width: 3; }
+      .arr-pre       { stroke: #2E7D32; stroke-width: 3; }
+      .arr-on-in     { stroke: #F9A825; stroke-width: 3; }
+      .arr-post      { stroke: #C62828; stroke-width: 3; }
+      .arr-off       { stroke: #90A4AE; stroke-width: 2.2; stroke-dasharray: 5 4; }
 
-      /* Cifras binarias gigantes y prefijos */
-      .ord-lhs     { font-size: 22px; font-weight: 800; font-family: 'JetBrains Mono', 'Fira Code', monospace; text-anchor: end; }
-      .ord-sum     { font-size: 11.5px; font-weight: 600; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #546E7A; text-anchor: end; }
-      .bin-prefix  { font-size: 38px; font-weight: 800; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #546E7A; text-anchor: middle; }
+      /* Cifras binarias gigantes, prefijos y badges */
+      .ord-badge-txt { font-size: 11.5px; font-weight: 700; fill: #5C6BC0; text-anchor: end; }
+      .ord-lhs       { font-size: 22px; font-weight: 800; font-family: 'JetBrains Mono', 'Fira Code', monospace; text-anchor: end; }
+      .ord-sum       { font-size: 11.5px; font-weight: 600; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #546E7A; text-anchor: end; }
+      .bin-prefix    { font-size: 38px; font-weight: 800; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #546E7A; text-anchor: middle; }
 
-      .bit-digit   { font-size: 64px; font-weight: 800; font-family: 'JetBrains Mono', 'Fira Code', monospace; text-anchor: middle; }
-      .dig-on-pre  { fill: #2E7D32; }
-      .dig-off-in  { fill: #B0BEC5; }
-      .dig-on-post { fill: #C62828; }
+      .bit-digit     { font-size: 64px; font-weight: 800; font-family: 'JetBrains Mono', 'Fira Code', monospace; text-anchor: middle; }
+      .dig-on-pre    { fill: #2E7D32; }
+      .dig-on-in     { fill: #F57F17; }
+      .dig-on-post   { fill: #C62828; }
+      .dig-off       { fill: #B0BEC5; }
 
       /* Plataformas debajo de las cifras */
-      .plat-rail   { stroke: #CFD8DC; stroke-width: 2; stroke-dasharray: 5 4; }
-      .plat-pre    { stroke: #2E7D32; fill: #A5D6A7; }
-      .plat-in     { stroke: #B0BEC5; fill: #ECEFF1; }
-      .plat-post   { stroke: #C62828; fill: #EF9A9A; }
-      .plat-line   { stroke-width: 4.5; stroke-linecap: round; }
+      .plat-rail     { stroke: #CFD8DC; stroke-width: 2; stroke-dasharray: 5 4; }
+      .plat-pre      { stroke: #2E7D32; fill: #A5D6A7; }
+      .plat-on-in    { stroke: #F9A825; fill: #FFE082; }
+      .plat-post     { stroke: #C62828; fill: #EF9A9A; }
+      .plat-off      { stroke: #B0BEC5; fill: #ECEFF1; }
+      .plat-line     { stroke-width: 4.5; stroke-linecap: round; }
 
-      .bit-note    { font-size: 11.5px; font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', monospace; text-anchor: middle; }
+      .bit-note      { font-size: 11.5px; font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', monospace; text-anchor: middle; }
+
+      /* =============================================================== */
+      /* ANIMACIÓN CÍCLICA DE 14 SEGUNDOS (7 ÓRDENES x 2 SEGUNDOS C/U)   */
+      /* =============================================================== */
+      .ord-step-1 { animation: kf-ord-1 14s infinite; opacity: 1; }
+      .ord-step-2 { animation: kf-ord-2 14s infinite; opacity: 0; }
+      .ord-step-3 { animation: kf-ord-3 14s infinite; opacity: 0; }
+      .ord-step-4 { animation: kf-ord-4 14s infinite; opacity: 0; }
+      .ord-step-5 { animation: kf-ord-5 14s infinite; opacity: 0; }
+      .ord-step-6 { animation: kf-ord-6 14s infinite; opacity: 0; }
+      .ord-step-7 { animation: kf-ord-7 14s infinite; opacity: 0; }
+
+      .p0-on      { animation: kf-p0-on  14s infinite; opacity: 1; }
+      .p0-off     { animation: kf-p0-off 14s infinite; opacity: 0; }
+      .p1-on      { animation: kf-p1-on  14s infinite; opacity: 0; }
+      .p1-off     { animation: kf-p1-off 14s infinite; opacity: 1; }
+      .p2-on      { animation: kf-p2-on  14s infinite; opacity: 0; }
+      .p2-off     { animation: kf-p2-off 14s infinite; opacity: 1; }
+
+      /* Keyframes para los 7 títulos a la izquierda */
+      @keyframes kf-ord-1 {
+        0%, 13.3%   { opacity: 1; }
+        14.3%, 99%  { opacity: 0; }
+        100%        { opacity: 1; }
+      }
+      @keyframes kf-ord-2 {
+        0%, 13.3%   { opacity: 0; }
+        14.3%, 27.6%{ opacity: 1; }
+        28.6%, 100% { opacity: 0; }
+      }
+      @keyframes kf-ord-3 {
+        0%, 27.6%   { opacity: 0; }
+        28.6%, 41.9%{ opacity: 1; }
+        42.9%, 100% { opacity: 0; }
+      }
+      @keyframes kf-ord-4 {
+        0%, 41.9%   { opacity: 0; }
+        42.9%, 56.1%{ opacity: 1; }
+        57.1%, 100% { opacity: 0; }
+      }
+      @keyframes kf-ord-5 {
+        0%, 56.1%   { opacity: 0; }
+        57.1%, 70.4%{ opacity: 1; }
+        71.4%, 100% { opacity: 0; }
+      }
+      @keyframes kf-ord-6 {
+        0%, 70.4%   { opacity: 0; }
+        71.4%, 84.7%{ opacity: 1; }
+        85.7%, 100% { opacity: 0; }
+      }
+      @keyframes kf-ord-7 {
+        0%, 84.7%   { opacity: 0; }
+        85.7%, 99%  { opacity: 1; }
+        100%        { opacity: 0; }
+      }
+
+      /* Keyframes para Fase 0 (activa en órdenes 1, 4, 5, 7) */
+      @keyframes kf-p0-on {
+        0%, 13.3%   { opacity: 1; }
+        14.3%, 41.9%{ opacity: 0; }
+        42.9%, 70.4%{ opacity: 1; }
+        71.4%, 84.7%{ opacity: 0; }
+        85.7%, 100% { opacity: 1; }
+      }
+      @keyframes kf-p0-off {
+        0%, 13.3%   { opacity: 0; }
+        14.3%, 41.9%{ opacity: 1; }
+        42.9%, 70.4%{ opacity: 0; }
+        71.4%, 84.7%{ opacity: 1; }
+        85.7%, 100% { opacity: 0; }
+      }
+
+      /* Keyframes para Fase 1 (activa en órdenes 2, 4, 6, 7) */
+      @keyframes kf-p1-on {
+        0%, 13.3%   { opacity: 0; }
+        14.3%, 27.6%{ opacity: 1; }
+        28.6%, 41.9%{ opacity: 0; }
+        42.9%, 56.1%{ opacity: 1; }
+        57.1%, 70.4%{ opacity: 0; }
+        71.4%, 100% { opacity: 1; }
+      }
+      @keyframes kf-p1-off {
+        0%, 13.3%   { opacity: 1; }
+        14.3%, 27.6%{ opacity: 0; }
+        28.6%, 41.9%{ opacity: 1; }
+        42.9%, 56.1%{ opacity: 0; }
+        57.1%, 70.4%{ opacity: 1; }
+        71.4%, 100% { opacity: 0; }
+      }
+
+      /* Keyframes para Fase 2 (activa en órdenes 3, 5, 6, 7) */
+      @keyframes kf-p2-on {
+        0%, 27.6%   { opacity: 0; }
+        28.6%, 41.9%{ opacity: 1; }
+        42.9%, 56.1%{ opacity: 0; }
+        57.1%, 100% { opacity: 1; }
+      }
+      @keyframes kf-p2-off {
+        0%, 27.6%   { opacity: 1; }
+        28.6%, 41.9%{ opacity: 0; }
+        42.9%, 56.1%{ opacity: 1; }
+        57.1%, 100% { opacity: 0; }
+      }
     </style>
   </defs>
 
   <!-- Fondo general centrado en (0, 0) -->
-  <rect class="bg" x="-450" y="-220" width="900" height="450" />
+  <rect class="bg" x="-460" y="-220" width="920" height="450" />
 
   <!-- Encabezado -->
   <text class="title" x="0" y="-184">Puente entre Fases (0, 1, 2) y Máscara Binaria (TraversalOrder)</text>
@@ -119,75 +233,201 @@
   </text>
 
   <!-- Riel continuo de referencia bajo toda la plataforma binaria -->
-  <line class="plat-rail" x1="-420" y1="110" x2="415" y2="110" />
+  <line class="plat-rail" x1="-440" y1="110" x2="435" y2="110" />
 
   <g class="bit-grid">
     <!-- =================================================================== -->
-    <!-- ETIQUETA IZQUIERDA DEL ORDEN Y PREFIJO BINARIO (0b)                 -->
+    <!-- ETIQUETAS IZQUIERDAS DINÁMICAS (7 ÓRDENES)                          -->
     <!-- =================================================================== -->
-    <text class="pos-lhs ord-lhs" dy="-8">
-      <tspan class="dig-on-pre">Pre</tspan><tspan class="dig-on-post">Post</tspan><tspan class="txt-ord">Order =</tspan>
-    </text>
-    <text class="pos-lhs-sub ord-sum">
-      <tspan class="txt-pre">Phase::Pre</tspan> + <tspan class="txt-post">Phase::Post</tspan>
-    </text>
+    <!-- ORDEN 1: PreOrder (1 0 0) -->
+    <g class="ord-step-1">
+      <text class="pos-lhs-badge ord-badge-txt">Orden 1/7: Puro</text>
+      <text class="pos-lhs ord-lhs" dy="-8">
+        <tspan class="txt-pre">Pre</tspan><tspan class="txt-ord">Order =</tspan>
+      </text>
+      <text class="pos-lhs-sub ord-sum">
+        <tspan class="txt-pre">Phase::Pre</tspan>
+      </text>
+    </g>
+
+    <!-- ORDEN 2: InOrder (0 1 0) -->
+    <g class="ord-step-2">
+      <text class="pos-lhs-badge ord-badge-txt">Orden 2/7: Puro</text>
+      <text class="pos-lhs ord-lhs" dy="-8">
+        <tspan class="txt-in">In</tspan><tspan class="txt-ord">Order =</tspan>
+      </text>
+      <text class="pos-lhs-sub ord-sum">
+        <tspan class="txt-in">Phase::In</tspan>
+      </text>
+    </g>
+
+    <!-- ORDEN 3: PostOrder (0 0 1) -->
+    <g class="ord-step-3">
+      <text class="pos-lhs-badge ord-badge-txt">Orden 3/7: Puro</text>
+      <text class="pos-lhs ord-lhs" dy="-8">
+        <tspan class="txt-post">Post</tspan><tspan class="txt-ord">Order =</tspan>
+      </text>
+      <text class="pos-lhs-sub ord-sum">
+        <tspan class="txt-post">Phase::Post</tspan>
+      </text>
+    </g>
+
+    <!-- ORDEN 4: PreInOrder (1 1 0) -->
+    <g class="ord-step-4">
+      <text class="pos-lhs-badge ord-badge-txt">Orden 4/7: Híbrido</text>
+      <text class="pos-lhs ord-lhs" dy="-8">
+        <tspan class="txt-pre">Pre</tspan><tspan class="txt-in">In</tspan><tspan class="txt-ord">Order =</tspan>
+      </text>
+      <text class="pos-lhs-sub ord-sum">
+        <tspan class="txt-pre">Phase::Pre</tspan> + <tspan class="txt-in">Phase::In</tspan>
+      </text>
+    </g>
+
+    <!-- ORDEN 5: PrePostOrder (1 0 1) -->
+    <g class="ord-step-5">
+      <text class="pos-lhs-badge ord-badge-txt">Orden 5/7: Híbrido</text>
+      <text class="pos-lhs ord-lhs" dy="-8">
+        <tspan class="txt-pre">Pre</tspan><tspan class="txt-post">Post</tspan><tspan class="txt-ord">Order =</tspan>
+      </text>
+      <text class="pos-lhs-sub ord-sum">
+        <tspan class="txt-pre">Phase::Pre</tspan> + <tspan class="txt-post">Phase::Post</tspan>
+      </text>
+    </g>
+
+    <!-- ORDEN 6: InPostOrder (0 1 1) -->
+    <g class="ord-step-6">
+      <text class="pos-lhs-badge ord-badge-txt">Orden 6/7: Híbrido</text>
+      <text class="pos-lhs ord-lhs" dy="-8">
+        <tspan class="txt-in">In</tspan><tspan class="txt-post">Post</tspan><tspan class="txt-ord">Order =</tspan>
+      </text>
+      <text class="pos-lhs-sub ord-sum">
+        <tspan class="txt-in">Phase::In</tspan> + <tspan class="txt-post">Phase::Post</tspan>
+      </text>
+    </g>
+
+    <!-- ORDEN 7: PreInPostOrder (1 1 1) -->
+    <g class="ord-step-7">
+      <text class="pos-lhs-badge ord-badge-txt">Orden 7/7: ★ Euler Completo ★</text>
+      <text class="pos-lhs ord-lhs" dy="-8">
+        <tspan class="txt-pre">Pre</tspan><tspan class="txt-in">In</tspan><tspan class="txt-post">Post</tspan><tspan class="txt-ord">Order =</tspan>
+      </text>
+      <text class="pos-lhs-sub ord-sum">
+        <tspan class="txt-pre">Phase::Pre</tspan> + <tspan class="txt-in">Phase::In</tspan> + <tspan class="txt-post">Phase::Post</tspan>
+      </text>
+    </g>
+
+    <!-- Prefijo binario común (0b) -->
     <text class="pos-prefix bin-prefix" dy="-4">0b</text>
 
     <!-- =================================================================== -->
-    <!-- COLUMNA 0: FASE 0 (Phase::Pre = 0b100) ➔ BIT ENCENDIDO (1)          -->
+    <!-- COLUMNA 0: FASE 0 (Phase::Pre) ➔ VERDE                              -->
     <!-- =================================================================== -->
     <g class="col-pre">
-      <g class="row-box">
-        <use href="#phase-box" class="box-on-pre" />
-        <text>
-          <tspan class="box-phase txt-pre" x="0" dy="-16">Fase 0</tspan>
-          <tspan class="box-label txt-pre" x="0" dy="1.5em">En código:</tspan>
-          <tspan class="box-code txt-pre"  x="0" dy="1.35em">Phase::Pre = 0b100</tspan>
-        </text>
+      <!-- Estado ACTIVO (1) -->
+      <g class="p0-on">
+        <g class="row-box">
+          <use href="#phase-box" class="box-on-pre" />
+          <text>
+            <tspan class="box-phase txt-pre" x="0" dy="-16">Fase 0</tspan>
+            <tspan class="box-label txt-pre" x="0" dy="1.5em">En código:</tspan>
+            <tspan class="box-code txt-pre"  x="0" dy="1.35em">Phase::Pre = 0b100</tspan>
+          </text>
+        </g>
+        <use href="#bit-arrow" class="row-arr arr-pre" marker-end="url(#arr-on-pre)" />
+        <text class="row-dig bit-digit dig-on-pre">1</text>
+        <use href="#digit-platform" class="row-plat plat-pre" />
+        <text class="row-note bit-note txt-pre">Se detiene en Pre</text>
       </g>
 
-      <use href="#bit-arrow" class="row-arr arr-pre" marker-end="url(#arr-on-pre)" />
-      <text class="row-dig bit-digit dig-on-pre">1</text>
-      <use href="#digit-platform" class="row-plat plat-pre" />
-      <text class="row-note bit-note txt-pre">Se detiene en Pre</text>
+      <!-- Estado INACTIVO (0) -->
+      <g class="p0-off">
+        <g class="row-box">
+          <use href="#phase-box" class="box-off" />
+          <text>
+            <tspan class="box-phase txt-off" x="0" dy="-16">Fase 0</tspan>
+            <tspan class="box-label txt-off" x="0" dy="1.5em">En código:</tspan>
+            <tspan class="box-code txt-off"  x="0" dy="1.35em">Phase::Pre = 0b100</tspan>
+          </text>
+        </g>
+        <use href="#bit-arrow" class="row-arr arr-off" marker-end="url(#arr-off)" />
+        <text class="row-dig bit-digit dig-off">0</text>
+        <use href="#digit-platform" class="row-plat plat-off" />
+        <text class="row-note bit-note txt-off">Ignora fase Pre</text>
+      </g>
     </g>
 
     <!-- =================================================================== -->
-    <!-- COLUMNA 1: FASE 1 (Phase::In = 0b010) ➔ BIT APAGADO (0)             -->
+    <!-- COLUMNA 1: FASE 1 (Phase::In) ➔ AMARILLO                            -->
     <!-- =================================================================== -->
     <g class="col-in">
-      <g class="row-box">
-        <use href="#phase-box" class="box-off-in" />
-        <text>
-          <tspan class="box-phase txt-in-off" x="0" dy="-16">Fase 1</tspan>
-          <tspan class="box-label txt-in-off" x="0" dy="1.5em">En código:</tspan>
-          <tspan class="box-code txt-in-off"  x="0" dy="1.35em">Phase::In = 0b010</tspan>
-        </text>
+      <!-- Estado ACTIVO (1) -->
+      <g class="p1-on">
+        <g class="row-box">
+          <use href="#phase-box" class="box-on-in" />
+          <text>
+            <tspan class="box-phase txt-in" x="0" dy="-16">Fase 1</tspan>
+            <tspan class="box-label txt-in" x="0" dy="1.5em">En código:</tspan>
+            <tspan class="box-code txt-in"  x="0" dy="1.35em">Phase::In = 0b010</tspan>
+          </text>
+        </g>
+        <use href="#bit-arrow" class="row-arr arr-on-in" marker-end="url(#arr-on-in)" />
+        <text class="row-dig bit-digit dig-on-in">1</text>
+        <use href="#digit-platform" class="row-plat plat-on-in" />
+        <text class="row-note bit-note txt-in">Se detiene en In</text>
       </g>
 
-      <use href="#bit-arrow" class="row-arr arr-in" marker-end="url(#arr-off-in)" />
-      <text class="row-dig bit-digit dig-off-in">0</text>
-      <use href="#digit-platform" class="row-plat plat-in" />
-      <text class="row-note bit-note txt-in-off">Ignora fase In</text>
+      <!-- Estado INACTIVO (0) -->
+      <g class="p1-off">
+        <g class="row-box">
+          <use href="#phase-box" class="box-off" />
+          <text>
+            <tspan class="box-phase txt-off" x="0" dy="-16">Fase 1</tspan>
+            <tspan class="box-label txt-off" x="0" dy="1.5em">En código:</tspan>
+            <tspan class="box-code txt-off"  x="0" dy="1.35em">Phase::In = 0b010</tspan>
+          </text>
+        </g>
+        <use href="#bit-arrow" class="row-arr arr-off" marker-end="url(#arr-off)" />
+        <text class="row-dig bit-digit dig-off">0</text>
+        <use href="#digit-platform" class="row-plat plat-off" />
+        <text class="row-note bit-note txt-off">Ignora fase In</text>
+      </g>
     </g>
 
     <!-- =================================================================== -->
-    <!-- COLUMNA 2: FASE 2 (Phase::Post = 0b001) ➔ BIT ENCENDIDO (1)         -->
+    <!-- COLUMNA 2: FASE 2 (Phase::Post) ➔ ROJO                              -->
     <!-- =================================================================== -->
     <g class="col-post">
-      <g class="row-box">
-        <use href="#phase-box" class="box-on-post" />
-        <text>
-          <tspan class="box-phase txt-post" x="0" dy="-16">Fase 2</tspan>
-          <tspan class="box-label txt-post" x="0" dy="1.5em">En código:</tspan>
-          <tspan class="box-code txt-post"  x="0" dy="1.35em">Phase::Post = 0b001</tspan>
-        </text>
+      <!-- Estado ACTIVO (1) -->
+      <g class="p2-on">
+        <g class="row-box">
+          <use href="#phase-box" class="box-on-post" />
+          <text>
+            <tspan class="box-phase txt-post" x="0" dy="-16">Fase 2</tspan>
+            <tspan class="box-label txt-post" x="0" dy="1.5em">En código:</tspan>
+            <tspan class="box-code txt-post"  x="0" dy="1.35em">Phase::Post = 0b001</tspan>
+          </text>
+        </g>
+        <use href="#bit-arrow" class="row-arr arr-post" marker-end="url(#arr-on-post)" />
+        <text class="row-dig bit-digit dig-on-post">1</text>
+        <use href="#digit-platform" class="row-plat plat-post" />
+        <text class="row-note bit-note txt-post">Se detiene en Post</text>
       </g>
 
-      <use href="#bit-arrow" class="row-arr arr-post" marker-end="url(#arr-on-post)" />
-      <text class="row-dig bit-digit dig-on-post">1</text>
-      <use href="#digit-platform" class="row-plat plat-post" />
-      <text class="row-note bit-note txt-post">Se detiene en Post</text>
+      <!-- Estado INACTIVO (0) -->
+      <g class="p2-off">
+        <g class="row-box">
+          <use href="#phase-box" class="box-off" />
+          <text>
+            <tspan class="box-phase txt-off" x="0" dy="-16">Fase 2</tspan>
+            <tspan class="box-label txt-off" x="0" dy="1.5em">En código:</tspan>
+            <tspan class="box-code txt-off"  x="0" dy="1.35em">Phase::Post = 0b001</tspan>
+          </text>
+        </g>
+        <use href="#bit-arrow" class="row-arr arr-off" marker-end="url(#arr-off)" />
+        <text class="row-dig bit-digit dig-off">0</text>
+        <use href="#digit-platform" class="row-plat plat-off" />
+        <text class="row-note bit-note txt-off">Ignora fase Post</text>
+      </g>
     </g>
   </g>
 

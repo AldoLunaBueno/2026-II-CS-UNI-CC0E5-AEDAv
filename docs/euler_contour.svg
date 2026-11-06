@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-460 -270 920 685" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-460 -270 920 685" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
   <defs>
     <!-- Marcadores de flecha -->
     <marker id="arrow-tour" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
@@ -27,64 +27,53 @@
       <path class="tour-arc" d="M  16 52 C  32 60,  48 50,  50 15" marker-end="url(#arrow-tour)" />
     </g>
 
-    <!-- Nodo base del árbol con sus 3 puntos de contacto de fase (0, 1, 2) -->
-    <g id="node-base">
-      <circle class="node-body" r="46" />
-      <g class="pos-p0">
-        <circle class="phase-dot p0-color" r="13" />
-        <text class="phase-num" dy="0.35em">0</text>
-      </g>
-      <g class="pos-p1">
-        <circle class="phase-dot p1-color" r="13" />
-        <text class="phase-num" dy="0.35em">1</text>
-      </g>
-      <g class="pos-p2">
-        <circle class="phase-dot p2-color" r="13" />
-        <text class="phase-num" dy="0.35em">2</text>
-      </g>
-    </g>
+    <!-- Base circular para los 3 nodos grandes del árbol -->
+    <circle id="node-base-circle" class="node-body" r="46" />
 
-    <!-- 10 tokens de la traza definidos una sola vez en su columna respectiva -->
+    <!-- 10 tokens de la traza definidos una sola vez en su columna respectiva (con resalte sincronizado) -->
     <g id="tok-1" class="t-col-1">
-      <use href="#tok-pill" class="pill-0" />
-      <text class="tok-txt txt-pre" dy="0.35em">(50:Pre)</text>
+      <use href="#tok-pill" class="pill-0 step-1-pill" />
+      <text class="tok-txt txt-pre step-1-txt" dy="0.35em">(50:Pre)</text>
     </g>
     <g id="tok-2" class="t-col-2">
-      <use href="#tok-pill" class="pill-0" />
-      <text class="tok-txt txt-pre" dy="0.35em">(20:Pre)</text>
+      <use href="#tok-pill" class="pill-0 step-2-pill" />
+      <text class="tok-txt txt-pre step-2-txt" dy="0.35em">(20:Pre)</text>
     </g>
     <g id="tok-3" class="t-col-3">
-      <use href="#tok-pill" class="pill-1" />
-      <text class="tok-txt txt-in" dy="0.35em">(20:In)</text>
+      <use href="#tok-pill" class="pill-1 step-3-pill" />
+      <text class="tok-txt txt-in step-3-txt" dy="0.35em">(20:In)</text>
     </g>
     <g id="tok-4" class="t-col-4">
-      <use href="#tok-pill" class="pill-2" />
-      <text class="tok-txt txt-post" dy="0.35em">(20:Post)</text>
+      <use href="#tok-pill" class="pill-2 step-4-pill" />
+      <text class="tok-txt txt-post step-4-txt" dy="0.35em">(20:Post)</text>
     </g>
     <g id="tok-5" class="t-col-5">
-      <use href="#tok-pill" class="pill-1" />
-      <text class="tok-txt txt-in" dy="0.35em">(50:In)</text>
+      <use href="#tok-pill" class="pill-1 step-5-pill" />
+      <text class="tok-txt txt-in step-5-txt" dy="0.35em">(50:In)</text>
     </g>
     <g id="tok-6" class="t-col-6">
-      <use href="#tok-pill" class="pill-0" />
-      <text class="tok-txt txt-pre" dy="0.35em">(80:Pre)</text>
+      <use href="#tok-pill" class="pill-0 step-6-pill" />
+      <text class="tok-txt txt-pre step-6-txt" dy="0.35em">(80:Pre)</text>
     </g>
     <g id="tok-7" class="t-col-7">
-      <use href="#tok-pill" class="pill-1" />
-      <text class="tok-txt txt-in" dy="0.35em">(80:In)</text>
+      <use href="#tok-pill" class="pill-1 step-7-pill" />
+      <text class="tok-txt txt-in step-7-txt" dy="0.35em">(80:In)</text>
     </g>
     <g id="tok-8" class="t-col-8">
-      <use href="#tok-pill" class="pill-2" />
-      <text class="tok-txt txt-post" dy="0.35em">(80:Post)</text>
+      <use href="#tok-pill" class="pill-2 step-8-pill" />
+      <text class="tok-txt txt-post step-8-txt" dy="0.35em">(80:Post)</text>
     </g>
     <g id="tok-9" class="t-col-9">
-      <use href="#tok-pill" class="pill-2" />
-      <text class="tok-txt txt-post" dy="0.35em">(50:Post)</text>
+      <use href="#tok-pill" class="pill-2 step-9-pill" />
+      <text class="tok-txt txt-post step-9-txt" dy="0.35em">(50:Post)</text>
     </g>
     <g id="tok-end" class="t-col-10">
-      <use href="#end-pill" class="pill-end" />
-      <text class="tok-txt txt-end" dy="0.35em">end</text>
+      <use href="#end-pill" class="pill-end step-end-pill" />
+      <text class="tok-txt txt-end step-end-txt" dy="0.35em">end</text>
     </g>
+
+    <!-- Trayectoria continua del recorrido de Euler para la animación de la hormiga -->
+    <path id="euler-tour-path" fill="none" d="M -92 -170 C -68 -170, -54 -153, -48 -127 C -60 -122, -66 -104, -56 -93 C -145 -77, -242 -15, -260 50 C -278 54, -283 72, -265 83 C -263 118, -247 128, -231 120 C -226 134, -204 134, -199 120 C -183 128, -167 118, -165 83 C -151 80, -151 55, -165 52 C -130 6, -82 -53, -17 -63 C -12 -45, 12 -45, 17 -63 C 82 -53, 130 6, 162 52 C 151 55, 151 80, 165 83 C 167 118, 183 128, 199 120 C 204 134, 226 134, 231 120 C 247 128, 263 118, 265 83 C 283 72, 278 54, 260 50 C 242 -15, 145 -77, 58 -93 C 66 -104, 60 -122, 48 -127 C 54 -153, 68 -170, 92 -170" />
 
     <style>
       :root {
@@ -175,14 +164,14 @@
       .subtitle    { font-size: 13px; fill: #455A64; text-anchor: middle; }
 
       /* Aristas del árbol y arcos del contorno */
-      .tree-edge   { stroke: #2E7D32; stroke-width: 4; stroke-linecap: round; }
-      .edge-lbl    { font-size: 11.5px; font-weight: 700; fill: #2E7D32; text-anchor: middle; }
+      .tree-edge   { stroke: #1A237E; stroke-width: 4; stroke-linecap: round; }
+      .edge-lbl    { font-size: 11.5px; font-weight: 700; fill: #1A237E; text-anchor: middle; }
       .tour-arc    { fill: none; stroke: #3949AB; stroke-width: 2.2; stroke-dasharray: 6 4; }
 
-      /* Nodos y puntos de fase */
-      .node-body   { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 2.5; }
-      .node-title  { font-size: 14px; font-weight: 700; fill: #1B5E20; text-anchor: middle; }
-      .node-val    { font-size: 16px; font-weight: 800; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #111111; text-anchor: middle; }
+      /* Nodos y puntos de fase: cuerpo en azul suave neutro, bordes y títulos en azul #1A237E */
+      .node-body   { fill: #EBF3FA; stroke: #1A237E; stroke-width: 2.5; }
+      .node-title  { font-size: 14px; font-weight: 700; fill: #1A237E; text-anchor: middle; }
+      .node-val    { font-size: 16px; font-weight: 800; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #1A237E; text-anchor: middle; }
 
       .phase-dot   { stroke-width: 2; }
       .phase-num   { font-size: 12px; font-weight: 800; fill: #111111; text-anchor: middle; }
@@ -209,8 +198,190 @@
       .txt-post    { fill: #B71C1C; }
       .txt-end     { fill: #37474F; }
 
+      /* Estilos de la hormiguita exploradora */
+      .ant-leg     { stroke: #263238; stroke-width: 0.95; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+      .ant-feeler  { stroke: #263238; stroke-width: 0.75; stroke-linecap: round; fill: none; }
+
       .seq-kind    { font-size: 11px; font-weight: 700; fill: #546E7A; text-anchor: end; }
       .seq-name    { font-size: 13px; font-weight: 800; font-family: 'JetBrains Mono', 'Fira Code', monospace; fill: #1A237E; text-anchor: end; }
+
+      /* ============================================================= */
+      /* ANIMACIÓN SINCRONIZADA DE RESALTE DE FASES Y TRAZAS           */
+      /* ============================================================= */
+      @keyframes kf-pill-1 {
+        0%, 3.84%   { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.5; filter: none; }
+        4.14%, 6.38% { fill: #A7F3D0; stroke: #00701A; stroke-width: 2.8; filter: drop-shadow(0 0 6px #00E676); }
+        6.68%, 100%  { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.5; filter: none; }
+      }
+      .step-1-pill { animation: kf-pill-1 16s infinite; }
+      @keyframes kf-txt-1 {
+        0%, 3.84%   { fill: #1B5E20; font-weight: 700; }
+        4.14%, 6.38% { fill: #004D40; font-weight: 900; }
+        6.68%, 100%  { fill: #1B5E20; font-weight: 700; }
+      }
+      .step-1-txt  { animation: kf-txt-1 16s infinite; }
+      @keyframes kf-dot-1 {
+        0%, 3.84%   { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 2; filter: none; }
+        4.14%, 6.38% { fill: #00E676; stroke: #00701A; stroke-width: 3.5; filter: drop-shadow(0 0 6px #00E676); }
+        6.68%, 100%  { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 2; filter: none; }
+      }
+      .step-1-dot  { animation: kf-dot-1 16s infinite; }
+      @keyframes kf-pill-2 {
+        0%, 21.92%   { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.5; filter: none; }
+        22.22%, 24.79% { fill: #A7F3D0; stroke: #00701A; stroke-width: 2.8; filter: drop-shadow(0 0 6px #00E676); }
+        25.09%, 100%  { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.5; filter: none; }
+      }
+      .step-2-pill { animation: kf-pill-2 16s infinite; }
+      @keyframes kf-txt-2 {
+        0%, 21.92%   { fill: #1B5E20; font-weight: 700; }
+        22.22%, 24.79% { fill: #004D40; font-weight: 900; }
+        25.09%, 100%  { fill: #1B5E20; font-weight: 700; }
+      }
+      .step-2-txt  { animation: kf-txt-2 16s infinite; }
+      @keyframes kf-dot-2 {
+        0%, 21.92%   { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 2; filter: none; }
+        22.22%, 24.79% { fill: #00E676; stroke: #00701A; stroke-width: 3.5; filter: drop-shadow(0 0 6px #00E676); }
+        25.09%, 100%  { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 2; filter: none; }
+      }
+      .step-2-dot  { animation: kf-dot-2 16s infinite; }
+      @keyframes kf-pill-3 {
+        0%, 28.39%   { fill: #FFFDE7; stroke: #F9A825; stroke-width: 1.5; filter: none; }
+        28.69%, 30.95% { fill: #FFE082; stroke: #E65100; stroke-width: 2.8; filter: drop-shadow(0 0 6px #FFD600); }
+        31.25%, 100%  { fill: #FFFDE7; stroke: #F9A825; stroke-width: 1.5; filter: none; }
+      }
+      .step-3-pill { animation: kf-pill-3 16s infinite; }
+      @keyframes kf-txt-3 {
+        0%, 28.39%   { fill: #E65100; font-weight: 700; }
+        28.69%, 30.95% { fill: #BF360C; font-weight: 900; }
+        31.25%, 100%  { fill: #E65100; font-weight: 700; }
+      }
+      .step-3-txt  { animation: kf-txt-3 16s infinite; }
+      @keyframes kf-dot-3 {
+        0%, 28.39%   { fill: #FFF9C4; stroke: #F9A825; stroke-width: 2; filter: none; }
+        28.69%, 30.95% { fill: #FFD600; stroke: #E65100; stroke-width: 3.5; filter: drop-shadow(0 0 6px #FFD600); }
+        31.25%, 100%  { fill: #FFF9C4; stroke: #F9A825; stroke-width: 2; filter: none; }
+      }
+      .step-3-dot  { animation: kf-dot-3 16s infinite; }
+      @keyframes kf-pill-4 {
+        0%, 34.54%   { fill: #FFEBEE; stroke: #C62828; stroke-width: 1.5; filter: none; }
+        34.84%, 37.08% { fill: #FFCDD2; stroke: #B71C1C; stroke-width: 2.8; filter: drop-shadow(0 0 6px #FF1744); }
+        37.38%, 100%  { fill: #FFEBEE; stroke: #C62828; stroke-width: 1.5; filter: none; }
+      }
+      .step-4-pill { animation: kf-pill-4 16s infinite; }
+      @keyframes kf-txt-4 {
+        0%, 34.54%   { fill: #B71C1C; font-weight: 700; }
+        34.84%, 37.08% { fill: #880E4F; font-weight: 900; }
+        37.38%, 100%  { fill: #B71C1C; font-weight: 700; }
+      }
+      .step-4-txt  { animation: kf-txt-4 16s infinite; }
+      @keyframes kf-dot-4 {
+        0%, 34.54%   { fill: #FFCDD2; stroke: #C62828; stroke-width: 2; filter: none; }
+        34.84%, 37.08% { fill: #FF1744; stroke: #880E4F; stroke-width: 3.5; filter: drop-shadow(0 0 6px #FF1744); }
+        37.38%, 100%  { fill: #FFCDD2; stroke: #C62828; stroke-width: 2; filter: none; }
+      }
+      .step-4-dot  { animation: kf-dot-4 16s infinite; }
+      @keyframes kf-pill-5 {
+        0%, 48.56%   { fill: #FFFDE7; stroke: #F9A825; stroke-width: 1.5; filter: none; }
+        48.86%, 51.48% { fill: #FFE082; stroke: #E65100; stroke-width: 2.8; filter: drop-shadow(0 0 6px #FFD600); }
+        51.78%, 100%  { fill: #FFFDE7; stroke: #F9A825; stroke-width: 1.5; filter: none; }
+      }
+      .step-5-pill { animation: kf-pill-5 16s infinite; }
+      @keyframes kf-txt-5 {
+        0%, 48.56%   { fill: #E65100; font-weight: 700; }
+        48.86%, 51.48% { fill: #BF360C; font-weight: 900; }
+        51.78%, 100%  { fill: #E65100; font-weight: 700; }
+      }
+      .step-5-txt  { animation: kf-txt-5 16s infinite; }
+      @keyframes kf-dot-5 {
+        0%, 48.56%   { fill: #FFF9C4; stroke: #F9A825; stroke-width: 2; filter: none; }
+        48.86%, 51.48% { fill: #FFD600; stroke: #E65100; stroke-width: 3.5; filter: drop-shadow(0 0 6px #FFD600); }
+        51.78%, 100%  { fill: #FFF9C4; stroke: #F9A825; stroke-width: 2; filter: none; }
+      }
+      .step-5-dot  { animation: kf-dot-5 16s infinite; }
+      @keyframes kf-pill-6 {
+        0%, 62.84%   { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.5; filter: none; }
+        63.14%, 65.29% { fill: #A7F3D0; stroke: #00701A; stroke-width: 2.8; filter: drop-shadow(0 0 6px #00E676); }
+        65.59%, 100%  { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.5; filter: none; }
+      }
+      .step-6-pill { animation: kf-pill-6 16s infinite; }
+      @keyframes kf-txt-6 {
+        0%, 62.84%   { fill: #1B5E20; font-weight: 700; }
+        63.14%, 65.29% { fill: #004D40; font-weight: 900; }
+        65.59%, 100%  { fill: #1B5E20; font-weight: 700; }
+      }
+      .step-6-txt  { animation: kf-txt-6 16s infinite; }
+      @keyframes kf-dot-6 {
+        0%, 62.84%   { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 2; filter: none; }
+        63.14%, 65.29% { fill: #00E676; stroke: #00701A; stroke-width: 3.5; filter: drop-shadow(0 0 6px #00E676); }
+        65.59%, 100%  { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 2; filter: none; }
+      }
+      .step-6-dot  { animation: kf-dot-6 16s infinite; }
+      @keyframes kf-pill-7 {
+        0%, 68.88%   { fill: #FFFDE7; stroke: #F9A825; stroke-width: 1.5; filter: none; }
+        69.18%, 71.45% { fill: #FFE082; stroke: #E65100; stroke-width: 2.8; filter: drop-shadow(0 0 6px #FFD600); }
+        71.75%, 100%  { fill: #FFFDE7; stroke: #F9A825; stroke-width: 1.5; filter: none; }
+      }
+      .step-7-pill { animation: kf-pill-7 16s infinite; }
+      @keyframes kf-txt-7 {
+        0%, 68.88%   { fill: #E65100; font-weight: 700; }
+        69.18%, 71.45% { fill: #BF360C; font-weight: 900; }
+        71.75%, 100%  { fill: #E65100; font-weight: 700; }
+      }
+      .step-7-txt  { animation: kf-txt-7 16s infinite; }
+      @keyframes kf-dot-7 {
+        0%, 68.88%   { fill: #FFF9C4; stroke: #F9A825; stroke-width: 2; filter: none; }
+        69.18%, 71.45% { fill: #FFD600; stroke: #E65100; stroke-width: 3.5; filter: drop-shadow(0 0 6px #FFD600); }
+        71.75%, 100%  { fill: #FFF9C4; stroke: #F9A825; stroke-width: 2; filter: none; }
+      }
+      .step-7-dot  { animation: kf-dot-7 16s infinite; }
+      @keyframes kf-pill-8 {
+        0%, 75.04%   { fill: #FFEBEE; stroke: #C62828; stroke-width: 1.5; filter: none; }
+        75.34%, 77.91% { fill: #FFCDD2; stroke: #B71C1C; stroke-width: 2.8; filter: drop-shadow(0 0 6px #FF1744); }
+        78.21%, 100%  { fill: #FFEBEE; stroke: #C62828; stroke-width: 1.5; filter: none; }
+      }
+      .step-8-pill { animation: kf-pill-8 16s infinite; }
+      @keyframes kf-txt-8 {
+        0%, 75.04%   { fill: #B71C1C; font-weight: 700; }
+        75.34%, 77.91% { fill: #880E4F; font-weight: 900; }
+        78.21%, 100%  { fill: #B71C1C; font-weight: 700; }
+      }
+      .step-8-txt  { animation: kf-txt-8 16s infinite; }
+      @keyframes kf-dot-8 {
+        0%, 75.04%   { fill: #FFCDD2; stroke: #C62828; stroke-width: 2; filter: none; }
+        75.34%, 77.91% { fill: #FF1744; stroke: #880E4F; stroke-width: 3.5; filter: drop-shadow(0 0 6px #FF1744); }
+        78.21%, 100%  { fill: #FFCDD2; stroke: #C62828; stroke-width: 2; filter: none; }
+      }
+      .step-8-dot  { animation: kf-dot-8 16s infinite; }
+      @keyframes kf-pill-9 {
+        0%, 93.34%   { fill: #FFEBEE; stroke: #C62828; stroke-width: 1.5; filter: none; }
+        93.64%, 95.86% { fill: #FFCDD2; stroke: #B71C1C; stroke-width: 2.8; filter: drop-shadow(0 0 6px #FF1744); }
+        96.16%, 100%  { fill: #FFEBEE; stroke: #C62828; stroke-width: 1.5; filter: none; }
+      }
+      .step-9-pill { animation: kf-pill-9 16s infinite; }
+      @keyframes kf-txt-9 {
+        0%, 93.34%   { fill: #B71C1C; font-weight: 700; }
+        93.64%, 95.86% { fill: #880E4F; font-weight: 900; }
+        96.16%, 100%  { fill: #B71C1C; font-weight: 700; }
+      }
+      .step-9-txt  { animation: kf-txt-9 16s infinite; }
+      @keyframes kf-dot-9 {
+        0%, 93.34%   { fill: #FFCDD2; stroke: #C62828; stroke-width: 2; filter: none; }
+        93.64%, 95.86% { fill: #FF1744; stroke: #880E4F; stroke-width: 3.5; filter: drop-shadow(0 0 6px #FF1744); }
+        96.16%, 100%  { fill: #FFCDD2; stroke: #C62828; stroke-width: 2; filter: none; }
+      }
+      .step-9-dot  { animation: kf-dot-9 16s infinite; }
+      @keyframes kf-pill-end {
+        0%, 96.3%   { fill: #ECEFF1; stroke: #546E7A; stroke-width: 1.5; filter: none; }
+        96.8%, 98.6% { fill: #CFD8DC; stroke: #1A237E; stroke-width: 2.8; filter: drop-shadow(0 0 6px #1A237E); }
+        99.0%, 100%  { fill: #ECEFF1; stroke: #546E7A; stroke-width: 1.5; filter: none; }
+      }
+      .step-end-pill { animation: kf-pill-end 16s infinite; }
+      @keyframes kf-txt-end {
+        0%, 96.3%   { fill: #37474F; font-weight: 700; }
+        96.8%, 98.6% { fill: #1A237E; font-weight: 900; }
+        99.0%, 100%  { fill: #37474F; font-weight: 700; }
+      }
+      .step-end-txt  { animation: kf-txt-end 16s infinite; }
     </style>
   </defs>
 
@@ -270,51 +441,77 @@
   </text>
 
   <!-- ===================================================================== -->
-  <!-- 3. NODOS DEL ÁRBOL (reutilizan #node-base y posiciones locales)       -->
+  <!-- 3. NODOS DEL ÁRBOL (cuerpo neutro azul suave, bordes y fases sincron.) -->
   <!-- ===================================================================== -->
 
   <!-- NODO RAÍZ R (50) -->
   <g class="pos-node-r">
-    <use href="#node-base" />
+    <use href="#node-base-circle" />
+    <!-- 3 Puntos de fase perimetrales (0: Paso 1, 1: Paso 5, 2: Paso 9) -->
+    <g class="pos-p0">
+      <circle class="phase-dot p0-color step-1-dot" r="13" />
+      <text class="phase-num" dy="0.35em">0</text>
+    </g>
+    <g class="pos-p1">
+      <circle class="phase-dot p1-color step-5-dot" r="13" />
+      <text class="phase-num" dy="0.35em">1</text>
+    </g>
+    <g class="pos-p2">
+      <circle class="phase-dot p2-color step-9-dot" r="13" />
+      <text class="phase-num" dy="0.35em">2</text>
+    </g>
     <text>
       <tspan class="node-title" x="0" dy="-6">Raíz R</tspan>
       <tspan class="node-val"   x="0" dy="1.25em">50</tspan>
     </text>
 
     <g class="pos-badge-0">
-      <use href="#step-pill" class="pill-0" />
-      <text class="pill-txt" dy="0.35em">Paso 1 · Pre</text>
+      <use href="#step-pill" class="pill-0 step-1-pill" />
+      <text class="pill-txt step-1-txt" dy="0.35em">Paso 1 · Pre</text>
     </g>
     <g class="pos-badge-1">
-      <use href="#step-pill" class="pill-1" />
-      <text class="pill-txt" dy="0.35em">Paso 5 · In</text>
+      <use href="#step-pill" class="pill-1 step-5-pill" />
+      <text class="pill-txt step-5-txt" dy="0.35em">Paso 5 · In</text>
     </g>
     <g class="pos-badge-2">
-      <use href="#step-pill" class="pill-2" />
-      <text class="pill-txt" dy="0.35em">Paso 9 · Post</text>
+      <use href="#step-pill" class="pill-2 step-9-pill" />
+      <text class="pill-txt step-9-txt" dy="0.35em">Paso 9 · Post</text>
     </g>
   </g>
 
   <!-- NODO HIJO IZQUIERDO I (20) -->
   <g class="pos-node-i">
     <use href="#leaf-contour" />
-    <use href="#node-base" />
+    <use href="#node-base-circle" />
+    <!-- 3 Puntos de fase perimetrales (0: Paso 2, 1: Paso 3, 2: Paso 4) -->
+    <g class="pos-p0">
+      <circle class="phase-dot p0-color step-2-dot" r="13" />
+      <text class="phase-num" dy="0.35em">0</text>
+    </g>
+    <g class="pos-p1">
+      <circle class="phase-dot p1-color step-3-dot" r="13" />
+      <text class="phase-num" dy="0.35em">1</text>
+    </g>
+    <g class="pos-p2">
+      <circle class="phase-dot p2-color step-4-dot" r="13" />
+      <text class="phase-num" dy="0.35em">2</text>
+    </g>
     <text>
       <tspan class="node-title" x="0" dy="-6">Hijo Izq I</tspan>
       <tspan class="node-val"   x="0" dy="1.25em">20</tspan>
     </text>
 
     <g class="pos-badge-0">
-      <use href="#step-pill" class="pill-0" />
-      <text class="pill-txt" dy="0.35em">Paso 2 · Pre</text>
+      <use href="#step-pill" class="pill-0 step-2-pill" />
+      <text class="pill-txt step-2-txt" dy="0.35em">Paso 2 · Pre</text>
     </g>
     <g class="pos-badge-1">
-      <use href="#step-pill" class="pill-1" />
-      <text class="pill-txt" dy="0.35em">Paso 3 · In</text>
+      <use href="#step-pill" class="pill-1 step-3-pill" />
+      <text class="pill-txt step-3-txt" dy="0.35em">Paso 3 · In</text>
     </g>
     <g class="pos-badge-2">
-      <use href="#step-pill" class="pill-2" />
-      <text class="pill-txt" dy="0.35em">Paso 4 · Post</text>
+      <use href="#step-pill" class="pill-2 step-4-pill" />
+      <text class="pill-txt step-4-txt" dy="0.35em">Paso 4 · Post</text>
     </g>
     <text class="pos-tr-leaf">
       <tspan class="tr-step" x="0" dy="0">2. Sin hijos: 0 ➔ 1 ➔ 2</tspan>
@@ -324,27 +521,129 @@
   <!-- NODO HIJO DERECHO D (80) -->
   <g class="pos-node-d">
     <use href="#leaf-contour" />
-    <use href="#node-base" />
+    <use href="#node-base-circle" />
+    <!-- 3 Puntos de fase perimetrales (0: Paso 6, 1: Paso 7, 2: Paso 8) -->
+    <g class="pos-p0">
+      <circle class="phase-dot p0-color step-6-dot" r="13" />
+      <text class="phase-num" dy="0.35em">0</text>
+    </g>
+    <g class="pos-p1">
+      <circle class="phase-dot p1-color step-7-dot" r="13" />
+      <text class="phase-num" dy="0.35em">1</text>
+    </g>
+    <g class="pos-p2">
+      <circle class="phase-dot p2-color step-8-dot" r="13" />
+      <text class="phase-num" dy="0.35em">2</text>
+    </g>
     <text>
       <tspan class="node-title" x="0" dy="-6">Hijo Der D</tspan>
       <tspan class="node-val"   x="0" dy="1.25em">80</tspan>
     </text>
 
     <g class="pos-badge-0">
-      <use href="#step-pill" class="pill-0" />
-      <text class="pill-txt" dy="0.35em">Paso 6 · Pre</text>
+      <use href="#step-pill" class="pill-0 step-6-pill" />
+      <text class="pill-txt step-6-txt" dy="0.35em">Paso 6 · Pre</text>
     </g>
     <g class="pos-badge-1">
-      <use href="#step-pill" class="pill-1" />
-      <text class="pill-txt" dy="0.35em">Paso 7 · In</text>
+      <use href="#step-pill" class="pill-1 step-7-pill" />
+      <text class="pill-txt step-7-txt" dy="0.35em">Paso 7 · In</text>
     </g>
     <g class="pos-badge-2">
-      <use href="#step-pill" class="pill-2" />
-      <text class="pill-txt" dy="0.35em">Paso 8 · Post</text>
+      <use href="#step-pill" class="pill-2 step-8-pill" />
+      <text class="pill-txt step-8-txt" dy="0.35em">Paso 8 · Post</text>
     </g>
     <text class="pos-tr-leaf">
       <tspan class="tr-step" x="0" dy="0">5. Sin hijos: 0 ➔ 1 ➔ 2</tspan>
     </text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 3.5 HORMIGA ANIMADA RECORRIENDO EL CONTORNO DE EULER                 -->
+  <!-- ===================================================================== -->
+  <g id="tour-ant-mover" cursor="pointer">
+    <title>Hormiguita exploradora del Recorrido de Euler</title>
+    <!-- Movimiento continuo y suave a velocidad constante a lo largo de las flechas azules -->
+    <animateMotion
+      dur="16s"
+      repeatCount="indefinite"
+      rotate="auto"
+      calcMode="paced"
+    >
+      <mpath href="#euler-tour-path" xlink:href="#euler-tour-path" />
+    </animateMotion>
+    <!-- Desvanecimiento suave al completar el recorrido antes de reaparecer en begin() -->
+    <animate
+      attributeName="opacity"
+      values="1; 1; 0; 0; 1"
+      keyTimes="0; 0.96; 0.985; 0.995; 1"
+      dur="16s"
+      repeatCount="indefinite"
+    />
+
+    <!-- Hormiguita en vista cenital orientada hacia +X -->
+    <g id="euler-ant">
+      <!-- Sombra suave proyectada debajo de la hormiga -->
+      <ellipse cx="-1" cy="1" rx="9" ry="4.5" fill="#263238" opacity="0.18" />
+
+      <!-- Patas Trípode 1 (Delantera Izq, Media Der, Trasera Izq) en marcha alterna -->
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="-7 1 0; 7 1 0; -7 1 0" dur="0.24s" repeatCount="indefinite" additive="sum" />
+        <path d="M 2.2 -1.2 L 4.5 -4.5 L 7.5 -5.8" class="ant-leg" />
+        <path d="M 0.8 1.4 L 0.5 5.0 L -1.2 7.0" class="ant-leg" />
+        <path d="M -0.6 -1.2 L -3.5 -5.0 L -7.2 -6.8" class="ant-leg" />
+      </g>
+
+      <!-- Patas Trípode 2 (Delantera Der, Media Izq, Trasera Der) en marcha alterna -->
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="7 1 0; -7 1 0; 7 1 0" dur="0.24s" repeatCount="indefinite" additive="sum" />
+        <path d="M 2.2 1.2 L 4.5 4.5 L 7.5 5.8" class="ant-leg" />
+        <path d="M 0.8 -1.4 L 0.5 -5.0 L -1.2 -7.0" class="ant-leg" />
+        <path d="M -0.6 1.2 L -3.5 5.0 L -7.2 6.8" class="ant-leg" />
+      </g>
+
+      <!-- Abdomen (Gáster) con brillo de quitina -->
+      <g>
+        <ellipse cx="-7.5" cy="0" rx="5.4" ry="3.7" fill="#1E272C" />
+        <ellipse cx="-8.6" cy="-1.2" rx="3.2" ry="1.6" fill="#455A64" opacity="0.4" />
+        <ellipse cx="-6.5" cy="-0.5" rx="1.2" ry="2.8" fill="#263238" opacity="0.6" />
+      </g>
+
+      <!-- Cintura / Pecíolo -->
+      <ellipse cx="-1.8" cy="0" rx="1.2" ry="1.1" fill="#263238" />
+
+      <!-- Tórax (Mesosoma) -->
+      <g>
+        <ellipse cx="1.0" cy="0" rx="2.8" ry="2.1" fill="#263238" />
+        <ellipse cx="0.8" cy="-0.7" rx="1.7" ry="1.0" fill="#455A64" opacity="0.45" />
+      </g>
+
+      <!-- Cabeza con ojos -->
+      <g>
+        <circle cx="5.6" cy="0" r="2.3" fill="#1E272C" />
+        <!-- Ojo izquierdo -->
+        <circle cx="6.2" cy="-1.1" r="0.7" fill="#FFFFFF" />
+        <circle cx="6.5" cy="-1.1" r="0.38" fill="#111111" />
+        <circle cx="6.65" cy="-1.25" r="0.15" fill="#FFFFFF" />
+        <!-- Ojo derecho -->
+        <circle cx="6.2" cy="1.1" r="0.7" fill="#FFFFFF" />
+        <circle cx="6.5" cy="1.1" r="0.38" fill="#111111" />
+        <circle cx="6.65" cy="0.95" r="0.15" fill="#FFFFFF" />
+      </g>
+
+      <!-- Antena Izquierda -->
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="0 6.8 -0.8; 8 6.8 -0.8; 0 6.8 -0.8" dur="0.45s" repeatCount="indefinite" additive="sum" />
+        <path d="M 6.8 -0.8 Q 9.2 -2.5 11.2 -1.8" class="ant-feeler" />
+        <circle cx="11.2" cy="-1.8" r="0.45" fill="#FF6F00" />
+      </g>
+
+      <!-- Antena Derecha -->
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="0 6.8 0.8; -8 6.8 0.8; 0 6.8 0.8" dur="0.45s" repeatCount="indefinite" additive="sum" />
+        <path d="M 6.8 0.8 Q 9.2 2.5 11.2 1.8" class="ant-feeler" />
+        <circle cx="11.2" cy="1.8" r="0.45" fill="#FF6F00" />
+      </g>
+    </g>
   </g>
 
   <!-- ===================================================================== -->
