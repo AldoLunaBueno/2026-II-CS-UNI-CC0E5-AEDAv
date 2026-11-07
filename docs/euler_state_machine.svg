@@ -19,6 +19,7 @@
 
     <!-- Pastillas base para etiquetas de decisión y código -->
     <rect id="cond-badge" x="-46" y="-12" width="92" height="24" rx="12" />
+    <rect id="cond-pill-sm" x="-38" y="-11" width="76" height="22" rx="11" />
 
     <style>
       /* Lienzo y tipografías */
@@ -109,16 +110,16 @@
       <text class="p-bit" y="58">0b001 · Post</text>
     </g>
 
-    <!-- Transiciones internas cuando NO existe el hijo respectivo -->
+    <!-- Transiciones internas cuando NO existe el hijo respectivo (flecha visible con etiqueta encima) -->
     <!-- De Fase 0 a Fase 1 -->
-    <path class="arrow-flow af-local" d="M -117 -25 L -28 -25" marker-end="url(#m-grey)" />
-    <use href="#cond-badge" class="bg-no" x="-72" y="-25" />
-    <text class="txt-no" x="-72" y="-25">sin hijo I</text>
+    <path class="arrow-flow af-local" d="M -114 -25 L -32 -25" marker-end="url(#m-grey)" />
+    <use href="#cond-pill-sm" class="bg-no" x="-72.5" y="-50" />
+    <text class="txt-no" x="-72.5" y="-50">sin hijo I</text>
 
     <!-- De Fase 1 a Fase 2 -->
-    <path class="arrow-flow af-local" d="M 28 -25 L 117 -25" marker-end="url(#m-grey)" />
-    <use href="#cond-badge" class="bg-no" x="72" y="-25" />
-    <text class="txt-no" x="72" y="-25">sin hijo D</text>
+    <path class="arrow-flow af-local" d="M 32 -25 L 114 -25" marker-end="url(#m-grey)" />
+    <use href="#cond-pill-sm" class="bg-no" x="72.5" y="-50" />
+    <text class="txt-no" x="72.5" y="-50">sin hijo D</text>
   </g>
 
   <!-- ===================================================================== -->
