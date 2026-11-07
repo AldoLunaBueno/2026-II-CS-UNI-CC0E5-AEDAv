@@ -163,6 +163,20 @@ public:
 
     void push_back(const value_type& value, Ref ref) override { insert(value, ref); }
 
+    value_type& find(const value_type& value) {
+        NodePtr node = m_pRoot;
+        NodePtr parent;
+        while (node) {
+            auto branch = Compare()(node->getValue(), value);
+            if (!branch && !Compare()(value, node->getValue())) {
+                return node->value();
+            }
+            parent = node;
+            node = node->m_pChild[1-branch];
+        }
+        return parent->value();
+    }
+
     void clear_recursive(NodePtr);
 
     ForwardIterator begin() const override { return ForwardIterator(m_pRoot); }
@@ -178,6 +192,8 @@ public:
         using EulerView = typename Parent::Traits::template View<Node, Iter>;
         return EulerView(this->mutex(), Iter(m_pRoot), Iter(nullptr));
     }
+
+
 
     BaseBinaryTree& operator=(const BaseBinaryTree&);
     BaseBinaryTree& operator=(BaseBinaryTree&&) noexcept;
@@ -196,7 +212,7 @@ auto BaseBinaryTree<Traits, Mixins...>::internalInsert(NodePtr& node, const valu
         return parent;
     }
     auto branch = Compare()(node->getValue(), value);
-    return internalInsert(node->m_pChild[branch], value, ref, node); // Tail recursion to insert in the correct branch
+    return internalInsert(node->m_pChild[1-branch], value, ref, node); // Tail recursion to insert in the correct branch
 }
 
 template <typename Traits, template <typename> typename... Mixins>
