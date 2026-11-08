@@ -12,6 +12,7 @@
 #include "containers/Heap.h"
 #include "containers/binarytree.h"
 #include "containers/avltree.h"
+#include "containers/hashtable.h"
 #include "utilities/printcolored.h"
 #include "utilities/render.h"
 #include "Demos.h"
@@ -506,4 +507,16 @@ void DemoBinaryTree() {
     PrintColored(cout, "Pruebas para AVLTree", Color::Yellow);
     cout << endl;
     TestBinaryTree<AVLTree>("avltree_test.txt");
+}
+
+void DemoHashTable() {
+    HashTable<HashTableTraits<std::string, int>> htable;
+    htable["a"] = 42;
+    htable["b"] = 7;
+    htable["uy"] = 18;
+    htable["la hermenéutica telúrica incáica"] = 0;
+    PrintColored(cout, "Prueba HashTable", Color::Red);
+    cout << "Clave 'a' es: " << htable["a"] << endl;
+
+    //cout << htable;
 }

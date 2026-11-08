@@ -120,7 +120,9 @@ struct BinaryTreeTraits {
 };
 
 template <typename T>
-struct BinaryTreeAscTraits : public AscendingTraits<T>, public BinaryTreeTraits<T> {};
+struct BinaryTreeAscTraits : public AscendingTraits<T>, public BinaryTreeTraits<T> {
+    using value_type = T;
+};
 
 template <typename T>
 struct BinaryTreeDescTraits : public DescendingTraits<T>, public BinaryTreeTraits<T> {};
@@ -163,18 +165,16 @@ public:
 
     void push_back(const value_type& value, Ref ref) override { insert(value, ref); }
 
-    value_type& find(const value_type& value) {
+    value_type* find(const value_type& value) {
         NodePtr node = m_pRoot;
-        NodePtr parent;
         while (node) {
             auto branch = Compare()(node->getValue(), value);
             if (!branch && !Compare()(value, node->getValue())) {
-                return node->value();
+                return &(node->value());
             }
-            parent = node;
             node = node->m_pChild[1-branch];
         }
-        return parent->value();
+        return nullptr;
     }
 
     void clear_recursive(NodePtr);
