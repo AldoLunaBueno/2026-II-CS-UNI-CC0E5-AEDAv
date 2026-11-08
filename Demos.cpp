@@ -510,13 +510,40 @@ void DemoBinaryTree() {
 }
 
 void DemoHashTable() {
+    PrintColored(cout, "Pruebas para HashTable", Color::Yellow);
+    cout << endl;
+
     HashTable<HashTableTraits<std::string, int>> htable;
     htable["a"] = 42;
     htable["b"] = 7;
-    htable["uy"] = 18;
-    htable["la hermenéutica telúrica incáica"] = 0;
-    PrintColored(cout, "Prueba HashTable", Color::Red);
-    cout << "Clave 'a' es: " << htable["a"] << endl;
+    htable["c"] = 18;
+    htable["la hermenéutica telúrica incáica"] = 9;
 
-    //cout << htable;
+    cout << "HashTable usando operator<< (Printable):" << endl;
+    cout << htable << endl << endl;
+
+    cout << "Acceso con operator[]:" << endl;
+    for (const auto& pair : htable) {
+        auto key = pair.getValue().getKey();
+        cout << "- Clave " << quoted(key) << ": " << htable[key] << endl;
+    }
+    cout << "Consultar si existe:" << endl;
+    cout << "- contains('b'): " << (htable.contains("b") ? "true" : "false") << endl;
+    cout << "- contains('z'): " << (htable.contains("z") ? "true" : "false") << endl << endl;
+
+    // Prueba de persistencia (escritura en archivo y lectura con Readable)
+    const string filename = "hashtable_test.txt";
+    ofstream of(filename, ios::trunc);
+    of << htable << endl;
+    of.close();
+
+    HashTable<HashTableTraits<std::string, int>> htable_restored;
+    ifstream in(filename);
+    in >> htable_restored;
+    in.close();
+
+    PrintColored(cout, "HashTable leido desde archivo (Readable):", Color::Green);
+    cout << htable_restored << endl;
+    cout << "- Clave 'la hermenéutica telúrica incáica' restaurada: " 
+         << htable_restored["la hermenéutica telúrica incáica"] << endl;
 }

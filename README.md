@@ -13,7 +13,12 @@
   - [3. Mecanismo de Rebalanceo AVL por Rotación Unificada (rotate\_up)](#3-mecanismo-de-rebalanceo-avl-por-rotación-unificada-rotate_up)
   - [4. Invariante de Reconstrucción de Contenedores (rebuild)](#4-invariante-de-reconstrucción-de-contenedores-rebuild)
   - [5. Subsistema de Renderizado ASCII en Consola (sketch y ConsoleGraphRenderer)](#5-subsistema-de-renderizado-ascii-en-consola-sketch-y-consolegraphrenderer)
-  - [6. Guía de Uso y Demostración Práctica de la API](#6-guía-de-uso-y-demostración-práctica-de-la-api)
+  - [6. Contenedor Asociativo HashTable y Protocolo de Serialización en Capas](#6-contenedor-asociativo-hashtable-y-protocolo-de-serialización-en-capas)
+- [🚀 III. Guía de Uso y Demostración Práctica de la API](#-iii-guía-de-uso-y-demostración-práctica-de-la-api)
+  - [1. Árboles Binarios y Recorridos Dinámicos en O(1)](#1-árboles-binarios-y-recorridos-dinámicos-en-o1)
+  - [2. Contenedores Reversibles (Vistas Invertidas)](#2-contenedores-reversibles-vistas-invertidas)
+  - [3. Renderizado Gráfico en Consola](#3-renderizado-gráfico-en-consola)
+  - [4. Diccionario Asociativo (HashTable) y Persistencia](#4-diccionario-asociativo-hashtable-y-persistencia)
 
 
 
@@ -27,7 +32,7 @@
 flowchart LR
     TRAITS["<b>1. TRAITS</b><br/>Orden (Asc/Desc) +<br/>Estructura (Node, Iter) +<br/>Vistas (ViewTraits)"]
     MIXINS["<b>2. MIXINS & VISTAS</b><br/>Consulta (Callable, Printable,...)<br/>Contenedor (Applicable, Reversible,...)<br/>BaseView + FilterViewMixin"]
-    CONT["<b>3. CONTENEDORES</b><br/>IterableCore y ContainerCore<br/>Vector, Heap, BinaryTree, AVL y Listas"]
+    CONT["<b>3. CONTENEDORES</b><br/>IterableCore y ContainerCore<br/>Vector, Heap, BinaryTree, AVL, Listas<br/>y HashTable (Asociativo)"]
     ITER["<b>4. ITERADORES</b><br/>CRTP GeneralIterator<br/>(Forward / Backward / Euler)"]
     NODOS["<b>5. NODOS</b><br/>GeneralNode, LinkedListNode,<br/>BinaryTreeNode (m_height)"]
     LIBRES["<b>6. LIBRES & UTILS</b><br/>::call, operator&lt;&lt;,&gt;&gt;,<br/>ConsoleGraphRenderer"]
@@ -111,11 +116,13 @@ flowchart TB
         
         BT["<b>BinaryTree#lt;Traits#gt;</b><br/><i>BaseBinaryTree<br/>.traverse#lt;Order, Dir#gt;() ➔ EulerView<br/>(insert, remove, connect, virtual rebalance)</i>"]
         AVL["<b>AVLTree#lt;Traits#gt;</b><br/><i>BaseAVLTree<br/>(override rebalance, rotate_up, connect)</i>"]
+        HT["<b>HashTable#lt;Traits#gt;</b><br/><i>BaseHashTable (Asociativo)<br/>m_data: BaseAVLTree<br/>Mixins: Callable, Printable, Readable</i>"]
 
         GC --> V
         GC --> H
         GC --> LL
         GC --> BT
+        GC --> HT
 
         H --> MH
         H -. "m_data" .-> V
@@ -126,6 +133,7 @@ flowchart TB
         LDE --> LDEC
 
         BT --> AVL
+        HT -. "m_data (composición)" .-> AVL
     end
 
     REV -. ".reversed()" .-> BV
@@ -138,6 +146,7 @@ flowchart TB
     classDef vec fill:#E0F2F1,stroke:#00897B,color:#1A1A1A,stroke-width:1.5px,font-size:15px;
     classDef lista fill:#FFF8E1,stroke:#FF8F00,color:#1A1A1A,stroke-width:1.5px,font-size:15px;
     classDef arbol fill:#E8F5E9,stroke:#2E7D32,color:#1A1A1A,stroke-width:1.5px,font-size:15px;
+    classDef hash fill:#EDE7F6,stroke:#512DA8,color:#1A1A1A,stroke-width:1.5px,font-size:15px;
 
     class IC,CC,GC core
     class CAL,SEA,PRI mix_q
@@ -146,6 +155,7 @@ flowchart TB
     class V,H,MH vec
     class LL,LC,LDE,LDEC lista
     class BT,AVL arbol
+    class HT hash
 
     style MIX_Q fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
     style MIX_C fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
@@ -266,6 +276,7 @@ flowchart TB
         LL_TR["LinkedListAscTraits / LinkedListDescTraits"]
         DLL_TR["DoubleLinkedListAscTraits / DoubleLinkedListDescTraits"]
         BT_TR["BinaryTreeAscTraits#lt;T#gt;<br/>BinaryTreeDescTraits#lt;T#gt;"]
+        HT_TR["<b>HashTableTraits#lt;Key, Value#gt;</b><br/>value_type = HashEntry#lt;Key, Value#gt;"]
         CTR["<b>ContainerTraits#lt;BaseTraits, Mixins...#gt;</b><br/>template View = BaseView#lt;ViewTraits, Mixins...#gt;"]
     end
 
@@ -277,6 +288,7 @@ flowchart TB
         U_DLL["DoubleLinkedList / CircularDoubleLinkedList"]
         U_BT["BinaryTree#lt;BinaryTreeAscTraits#lt;T#gt;#gt;"]
         U_AVL["AVLTree#lt;BinaryTreeAscTraits#lt;T#gt;#gt;"]
+        U_HT["HashTable#lt;HashTableTraits#lt;Key, Value#gt;#gt;"]
         U_VIEW["EulerView / ReverseView<br/><i>BaseView en O(1)</i>"]
     end
 
@@ -287,6 +299,7 @@ flowchart TB
     LLT --> LL_TR
     DLLT --> DLL_TR
     BTT --> BT_TR
+    BTT --> HT_TR
 
     V_TR ==> U_V
     H_TR ==> U_H
@@ -294,6 +307,7 @@ flowchart TB
     DLL_TR ==> U_DLL
     BT_TR ==> U_BT
     BT_TR ==> U_AVL
+    HT_TR ==> U_HT
     CTR -. "genera" .-> U_VIEW
     VWT -. "alimenta" .-> CTR
 
@@ -304,8 +318,8 @@ flowchart TB
 
     class DT,ASC,DESC orden
     class VT,HT,LLT,DLLT,BTT,VWT struct
-    class V_TR,H_TR,LL_TR,DLL_TR,BT_TR,CTR comb
-    class U_V,U_H,U_LL,U_DLL,U_BT,U_AVL,U_VIEW user
+    class V_TR,H_TR,LL_TR,DLL_TR,BT_TR,HT_TR,CTR comb
+    class U_V,U_H,U_LL,U_DLL,U_BT,U_AVL,U_HT,U_VIEW user
 
     style ORDEN fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
     style STRUCT fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
@@ -748,9 +762,135 @@ Ejemplo de salida en terminal:
 
 </details>
 
-### 6. Guía de Uso y Demostración Práctica de la API
+### 6. Contenedor Asociativo HashTable y Protocolo de Serialización en Capas
 
-#### A. Creación y Recorridos Dinámicos de Árboles
+[`HashTable`](containers/hashtable.h) provee una interfaz asociativa clave-valor construida sobre la arquitectura genérica del repositorio. Internamente, `BaseHashTable` compone una instancia de `BaseAVLTree` para garantizar búsquedas, inserciones y validaciones de pertenencia en $O(\log N)$ con sincronización concurrente (`m_mutex`).
+
+#### A. Arquitectura de Serialización Multicapa (Unwrapping I/O)
+
+La serialización (`Printable`) y deserialización (`Readable`) implementa un desacoplamiento estricto por niveles de abstracción: ninguna capa superior o inferior interfiere con los delimitadores de sus capas contiguas:
+
+```mermaid
+flowchart TB
+    subgraph L1["Capa 1: Contenedor (Printable / Readable en mixins.h)"]
+        direction LR
+        L1_FMT["<b>Envolvente de Colección</b><br/>Delimitadores: <b>[</b> elemento1 , elemento2 <b>]</b><br/><i>Coordina flujo general y ciclo clear() / push_back()</i>"]
+    end
+
+    subgraph L2["Capa 2: Nodo del Grafo / Árbol (GeneralNode.h)"]
+        direction LR
+        L2_FMT["<b>Empaquetado de Nodo</b><br/>Delimitadores: <b>(</b> m_value , m_ref <b>)</b><br/><i>Preserva metadatos de referencia (Ref)</i>"]
+    end
+
+    subgraph L3["Capa 3: Par Asociativo Autocontenido (HashEntry en hashtable.h)"]
+        direction LR
+        L3_FMT["<b>Entrada Clave-Valor Autocontenida</b><br/>Delimitadores: <b>(</b> clave <b>:</b> valor <b>)</b> o <b>{</b> clave <b>:</b> valor <b>}</b><br/><i>Consume apertura y cierre propios; desacoplado del nivel nodo</i>"]
+    end
+
+    subgraph L4["Capa 4: Tipos de Datos (Key, Value)"]
+        direction LR
+        L4_STR["<b>std::string</b><br/><i>std::quoted</i> ➔ <b>&quot;texto con espacios&quot;</b>"]
+        L4_PRIM["<b>Tipos Primitivos / Clases</b><br/>operator&lt;&lt; y operator&gt;&gt; nativos"]
+    end
+
+    L1 -->|"cada elemento es un nodo"| L2
+    L2 -->|"m_value es HashEntry"| L3
+    L3 -->|"extrae clave y valor"| L4
+
+    classDef c1 fill:#E8EAF6,stroke:#3949AB,color:#111,stroke-width:1.5px;
+    classDef c2 fill:#E0F2F1,stroke:#00897B,color:#111,stroke-width:1.5px;
+    classDef c3 fill:#EDE7F6,stroke:#512DA8,color:#111,stroke-width:1.5px;
+    classDef c4 fill:#FFF3E0,stroke:#EF6C00,color:#111,stroke-width:1.5px;
+
+    class L1,L1_FMT c1
+    class L2,L2_FMT c2
+    class L3,L3_FMT c3
+    class L4,L4_STR,L4_PRIM c4
+```
+
+- **Invariante de autocontención**: Al poseer delimitadores de apertura y cierre propios (`(` y `)` o `{` y `}`), `HashEntry` nunca colisiona con la coma `,` que `GeneralNode` utiliza para separar `m_value` de `m_ref`.
+- **Soporte de cadenas arbitrarias**: El uso de `std::quoted` (vía `<iomanip>`) asegura que cadenas con espacios, caracteres Unicode o signos de puntuación se deserialicen íntegras sin interrumpir el flujo.
+
+---
+
+#### B. Diagrama de Secuencia de Deserialización (`Readable` + `operator>>`)
+
+El flujo secuencial de extracción muestra cómo cada nivel consume exactamente sus tokens sin invadir el cursor de la capa adyacente:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Stream as std::istream (Archivo / Cadena)
+    participant R as Readable::operator>>
+    participant N as GeneralNode::operator>>
+    participant H as HashEntry::operator>>
+    participant C as BaseHashTable
+
+    Stream->>R: is >> d (consume '[')
+    loop Mientras no sea ']'
+        R->>N: is >> node
+        N->>Stream: consume '('
+        N->>H: is >> node.m_value
+        H->>Stream: consume '(' o '{'
+        H->>Stream: read_elem(m_key) [std::quoted o nativo]
+        H->>Stream: consume ':'
+        H->>Stream: read_elem(m_value)
+        H->>Stream: consume ')' o '}'
+        H-->>N: HashEntry deserializado
+        N->>Stream: consume ','
+        N->>Stream: is >> node.m_ref
+        N->>Stream: consume ')'
+        N-->>R: Node deserializado (valor + ref)
+        R->>C: push_back(node.getValue(), node.getRef())
+        R->>Stream: is >> d (consume ',' o ']')
+    end
+```
+
+---
+
+#### C. Flujo Operacional de `BaseHashTable`
+
+Las operaciones de acceso, pertenencia y reconstrucción delegan en el árbol balanceado interno garantizando seguridad concurrente:
+
+```mermaid
+flowchart TD
+    START(["Invocación: htable[key]"]) --> LOCK["std::lock_guard(m_mutex)"]
+    LOCK --> TARGET["Crear objetivo efímero:<br/>target = HashEntry(key, Value{})"]
+    TARGET --> FIND["m_data.find(target)<br/><i>Búsqueda en BaseAVLTree O(log N)</i>"]
+    FIND --> FOUND{¿Encontrado?}
+    
+    FOUND -->|"Sí (pair_found != nullptr)"| RET["Retornar pair_found->value()<br/><i>Referencia mutable</i>"]
+    FOUND -->|"No"| INS["m_data.insert(target, 0)<br/><i>Inserta nodo en AVL y rebalancea</i>"]
+    INS --> RET_NEW["Retornar pair_inserted->value()"]
+
+    subgraph PB["push_back(pair, ref)"]
+        direction TB
+        PB_LOCK["std::lock_guard(m_mutex)"] --> PB_FIND["m_data.find(pair)"]
+        PB_FIND --> PB_CHECK{¿Existe?}
+        PB_CHECK -->|"Sí"| PB_UPD["Actualizar: found->value() = pair.getValue()"]
+        PB_CHECK -->|"No"| PB_INS["m_data.insert(pair, ref)<br/><i>Preserva ref para Readable</i>"]
+    end
+
+    classDef op fill:#E8EAF6,stroke:#3949AB,color:#111,stroke-width:1.5px;
+    classDef dec fill:#FFF9C4,stroke:#FBC02D,color:#111,stroke-width:1.5px;
+    classDef sub fill:#E0F2F1,stroke:#00897B,color:#111,stroke-width:1.5px;
+
+    class START,LOCK,TARGET,FIND,INS,RET,RET_NEW op
+    class FOUND dec
+    class PB_LOCK,PB_FIND,PB_CHECK,PB_UPD,PB_INS sub
+```
+
+- **`operator[]`**: Inserta perezosamente bajo demanda si la clave no existe, retornando una referencia modificable en $O(\log N)$.
+- **`contains(key)`**: Consulta de solo lectura que no altera la topología del árbol.
+- **`push_back(pair, ref)`**: Hook requerido por `Readable` que preserva la referencia (`Ref`) original de cada nodo.
+
+---
+
+## 🚀 III. Guía de Uso y Demostración Práctica de la API
+
+Demostración concisa de los casos de uso más frecuentes de los contenedores y vistas del repositorio.
+
+### 1. Árboles Binarios y Recorridos Dinámicos en O(1)
 
 ```cpp
 #include "containers/binarytree.h"
@@ -782,7 +922,7 @@ auto& found = tree.traverse<Order::PostOrder>().FirstThat(
 std::cout << "Primer nodo en PostOrder > 25: " << found << std::endl;
 ```
 
-#### B. Manejo de Contenedores Reversibles
+### 2. Contenedores Reversibles (Vistas Invertidas)
 
 ```cpp
 #include "containers/vector.h"
@@ -799,11 +939,40 @@ auto& last_gt = vec.reversed().FirstThat(
 );
 ```
 
-#### C. Renderizado Gráfico de Árboles
+### 3. Renderizado Gráfico en Consola
 
 ```cpp
 #include "utilities/render.h"
 
 // Dibujo directo en consola utilizando el mixin Drawable:
 tree.draw(ConsoleGraphRenderer(std::cout));
+```
+
+### 4. Diccionario Asociativo (HashTable) y Persistencia
+
+```cpp
+#include "containers/hashtable.h"
+
+// 1. Instanciación con clave string y valor int
+HashTable<HashTableTraits<std::string, int>> htable;
+htable["a"] = 42;
+htable["b"] = 7;
+htable["la hermenéutica telúrica incáica"] = 9;
+
+// 2. Consulta de pertenencia y acceso mutable
+if (htable.contains("b")) {
+    std::cout << "Clave 'b' encontrada: " << htable["b"] << std::endl;
+}
+
+// 3. Serialización automática formateada (Printable)
+// Salida: [(("la hermenéutica telúrica incáica":9),0),(("b":7),0),(("a":42),0)]
+std::cout << "HashTable serializado: " << htable << std::endl;
+
+// 4. Deserialización íntegra respetando espacios en blanco (Readable)
+std::stringstream ss;
+ss << htable;
+
+HashTable<HashTableTraits<std::string, int>> htable_restored;
+ss >> htable_restored;
+std::cout << "Restaurado: " << htable_restored["la hermenéutica telúrica incáica"] << std::endl;
 ```

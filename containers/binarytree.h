@@ -156,7 +156,7 @@ public:
     BaseBinaryTree(BaseBinaryTree&& another) noexcept { *this = std::move(another); }
     virtual ~BaseBinaryTree() { clear(); }
 
-    void insert(const value_type&, Ref);
+    auto* insert(const value_type&, Ref);
     void remove(NodePtr);
 
     void connect(NodePtr, NodePtr, TX);
@@ -204,22 +204,27 @@ public:
     TX height() const { return height(m_pRoot); };
 };
 
+
+template <typename Traits, template <typename> typename... Mixins>
+using value_type = BaseBinaryTree<Traits, Mixins...>::value_type;
+
 template <typename Traits, template <typename> typename... Mixins>
 auto BaseBinaryTree<Traits, Mixins...>::internalInsert(NodePtr& node, const value_type& value, Ref ref, NodePtr parent) {
     if (!node) {
         node = new Node(value, ref);
         node->m_parent = parent;
-        return parent;
+        return node;
     }
     auto branch = Compare()(node->getValue(), value);
     return internalInsert(node->m_pChild[1-branch], value, ref, node); // Tail recursion to insert in the correct branch
 }
 
 template <typename Traits, template <typename> typename... Mixins>
-void BaseBinaryTree<Traits, Mixins...>::insert(const value_type& value, Ref ref) {
+auto* BaseBinaryTree<Traits, Mixins...>::insert(const value_type& value, Ref ref) {
     std::lock_guard lock(this->m_mutex);
     NodePtr node = internalInsert(m_pRoot, value, ref);
     rebalance(node);
+    return &(node->value());
 }
 
 template <typename Traits, template <typename> typename... Mixins>
