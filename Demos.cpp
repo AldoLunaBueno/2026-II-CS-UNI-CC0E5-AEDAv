@@ -1,6 +1,7 @@
 #include <iostream>
 #include <ostream>
 #include <fstream> // ofstream para escribir en archivo
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -13,6 +14,7 @@
 #include "containers/binarytree.h"
 #include "containers/avltree.h"
 #include "containers/hashtable.h"
+#include "containers/merkletree.h"
 #include "utilities/printcolored.h"
 #include "utilities/render.h"
 #include "Demos.h"
@@ -132,7 +134,7 @@ void TestForwardTraversal(Container &container, const typename Container::value_
 }
 
 void DemoVector() {
-    PrintColored(cout, "Pruebas del contenedor Vector", Color::Yellow);
+    cout << styled(" █ Pruebas del contenedor Vector ").black().bg_bright_yellow().bold() << "\n\n";
     // Dejamos los archivos vacios para que TestContainer acumule (append)
     // el estado del container tras cada paso
     ofstream("vector.txt", ios::trunc).close();
@@ -301,26 +303,54 @@ void TestDoubleLinkedListSpecifics(DoubleContainer &list) {
 void DemoLinkedList()
 {
     cout << "\n";
-    PrintColored(cout, "Pruebas para LinkedList", Color::Yellow);
+    cout << styled(" █ Pruebas para LinkedList ").black().bg_bright_yellow().bold() << "\n\n";
     LinkedList<LinkedListAscTraits<TX>> list;
     TestLinkedList(list, "linkedlist.txt");
 
     cout << "\n";
-    PrintColored(cout, "Pruebas para DoubleLinkedList", Color::Yellow);
+    cout << styled(" █ Pruebas para DoubleLinkedList ").black().bg_bright_yellow().bold() << "\n\n";
     DoubleLinkedList<DoubleLinkedListAscTraits<TX>> dlist;
     TestLinkedList(dlist, "doublelinkedlist.txt");
     TestDoubleLinkedListSpecifics(dlist);
 
     cout << "\n";
-    PrintColored(cout, "Pruebas para CircularLinkedList", Color::Yellow);
+    cout << styled(" █ Pruebas para CircularLinkedList ").black().bg_bright_yellow().bold() << "\n\n";
     CircularLinkedList<LinkedListAscTraits<TX>> clist;
     TestLinkedList(clist, "circularlinkedlist.txt");
 
+    cout << styled(" ◉ Diagrama de Lista Enlazada Circular (Personalizado con Lambda y Color): ").black().bg_bright_cyan().bold() << "\n";
+    istringstream ss("[(51,15),(1,11),(8,18),(3,13),(45,16),(71,1),(28,8),(32,3),(15,5),(51,15),(1,11),(8,18),(15,5),(10,21),(81,28),(13,23)]");
+    ss >> clist;
+    clist.draw(
+        CircularListLayout{[](const auto& node) {
+            auto val = node.getValue();
+            if (val > 50) {
+                return styled(val).bright_red().bold().str();
+            } else if (val % 2 == 0) {
+                return styled(val).bright_green().bold().str();
+            } else {
+                return styled(val).bright_yellow().str();
+            }
+        }},
+        ConsoleGraphRenderer(cout)
+    );
+    cout << endl;
+
     cout << "\n";
-    PrintColored(cout, "Pruebas para CircularDoubleLinkedList", Color::Yellow);
+    cout << styled(" █ Pruebas para CircularDoubleLinkedList ").black().bg_bright_yellow().bold() << "\n\n";
     CircularDoubleLinkedList<DoubleLinkedListAscTraits<TX>> cdlist;
     TestLinkedList(cdlist, "circulardoublelinkedlist.txt");
     TestDoubleLinkedListSpecifics(cdlist);
+
+    cout << styled(" ◉ Diagrama de Lista Circular Doblemente Enlazada (Truecolor RGB / Cyan): ").black().bg_bright_cyan().bold() << "\n";
+    cdlist.draw(
+        CircularListLayout{[](const auto& node) {
+            auto val = node.getValue();
+            return styled(val).rgb(0, 220, 255).bold().str();
+        }},
+        ConsoleGraphRenderer(cout)
+    );
+    cout << endl;
 }
 
 template <typename Heap>
@@ -360,14 +390,32 @@ void TestHeap(Heap& heap) {
 
 void DemoHeap() {
     cout << "\n";
-    PrintColored(cout, "Pruebas para MinHeap", Color::Yellow);
+    cout << styled(" █ Pruebas para MinHeap ").black().bg_bright_yellow().bold() << "\n\n";
     MinHeap minHeap;
     TestHeap(minHeap);
 
     cout << "\n";
-    PrintColored(cout, "Pruebas para MaxHeap", Color::Yellow);
+    cout << styled(" █ Pruebas para MaxHeap ").black().bg_bright_yellow().bold() << "\n\n";
     MaxHeap maxHeap;
     TestHeap(maxHeap);
+}
+
+// Función que calcula un color pseudo-aleatorio consistente basado en operaciones modulares sobre el valor del nodo
+template <typename T>
+std::string get_modular_node_color(const T& val) {
+    static const Color palette[] = {
+        Color::BrightRed,
+        Color::BrightGreen,
+        Color::BrightYellow,
+        Color::BrightBlue,
+        Color::BrightMagenta,
+        Color::BrightCyan,
+        Color::Cyan,
+        Color::Green
+    };
+    constexpr size_t N = sizeof(palette) / sizeof(palette[0]);
+    size_t idx = static_cast<size_t>(((val * 5 + 3) % N + N) % N);
+    return styled(val).add(palette[idx]).bold().str();
 }
 
 // contenedor instanciado como tipo concreto
@@ -387,9 +435,25 @@ void TestBinaryTreeGeneral(TreeContainer &tree, const string &filename) {
         }, 
         filename);
 
-    PrintColored(cout, "Diagrama de árbol:", Color::Red);
+    cout << styled(" ◉ Diagrama de árbol (Disposición Vertical con Formato Condicional): ").black().bg_bright_cyan().bold() << "\n";
     std::cout << "(Altura: " << tree.height() << ")" << std::endl;
-    tree.draw(ConsoleGraphRenderer(cout));
+    tree.draw(
+        VerticalTreeLayout{[](const auto& node) {
+            auto val = node.getValue();
+            if (val == 50) return styled(val).bright_magenta().bold().underline().str();
+            if (val > 50)  return styled(val).bright_yellow().bold().str();
+            return styled(val).bright_cyan().str();
+        }},
+        ConsoleGraphRenderer(cout)
+    );
+    std::cout << std::endl;
+
+    cout << styled(" ◉ Diagrama de árbol (Disposición Horizontal - Dirigida): ").black().bg_bright_cyan().bold() << "\n";
+    tree.draw(HorizontalTreeLayout{true}, ConsoleGraphRenderer(cout));
+    std::cout << std::endl;
+
+    cout << styled(" ◉ Diagrama de árbol (Disposición Horizontal - No dirigida): ").black().bg_bright_cyan().bold() << "\n";
+    tree.draw(HorizontalTreeLayout{false}, ConsoleGraphRenderer(cout));
     std::cout << std::endl;
 
     // in-order
@@ -402,11 +466,16 @@ void TestBinaryTreeGeneral(TreeContainer &tree, const string &filename) {
         Node &target_node = tree.FirstThat(IsEqualTo<Node, ValueType>, val);
         tree.remove(&target_node);
         string s = "Arbol tras remove(" + std::to_string(val) + "): ";
-        PrintColored(cout,  s, Color::Red);
+        cout << styled(" ◉ " + s).black().bg_bright_red().bold() << "\n";
         std::cout << tree << endl;
-        PrintColored(cout, "Diagrama de árbol tras eliminaciones:", Color::Red);
+        cout << styled(" ◉ Diagrama de árbol tras eliminaciones (Colores Modulares): ").black().bg_bright_red().bold() << "\n";
         std::cout << "(Altura: " << tree.height() << ")" << std::endl;
-        tree.draw(ConsoleGraphRenderer(cout));
+        tree.draw(
+            VerticalTreeLayout{[](const auto& node) {
+                return get_modular_node_color(node.getValue());
+            }},
+            ConsoleGraphRenderer(cout)
+        );
         std::cout << std::endl;
     }
 
@@ -451,7 +520,7 @@ void TestAllTours() {
 
     InsertElements(tree, values);
     cout << "(Altura: " << tree.height() << ")" << std::endl;
-    tree.draw(ConsoleGraphRenderer(cout));
+    tree.draw(VerticalTreeLayout{}, ConsoleGraphRenderer(cout));
     cout << endl;
 
     cout << "Recorrido in-order:" << endl;
@@ -499,21 +568,18 @@ void TestBinaryTree(const string &filename = "tree_test.txt") {
 }
 
 void DemoBinaryTree() {
-    PrintColored(cout, "Pruebas para BinaryTree", Color::Yellow);
-    cout << endl;
+    cout << styled(" █ Pruebas para BinaryTree ").black().bg_bright_yellow().bold() << "\n\n";
     TestBinaryTree<BinaryTree>("binarytree_test.txt");
     cout << endl;
     
-    PrintColored(cout, "Pruebas para AVLTree", Color::Yellow);
-    cout << endl;
+    cout << styled(" █ Pruebas para AVLTree ").black().bg_bright_yellow().bold() << "\n\n";
     TestBinaryTree<AVLTree>("avltree_test.txt");
 }
 
 void DemoHashTable() {
-    PrintColored(cout, "Pruebas para HashTable", Color::Yellow);
-    cout << endl;
+    cout << styled(" █ Pruebas para HashTable ").black().bg_bright_yellow().bold() << "\n\n";
 
-    HashTable<HashTableTraits<std::string, int>> htable;
+    HashTable<HashTableTraits<std::string, TX>> htable;
     htable["a"] = 42;
     htable["b"] = 7;
     htable["c"] = 18;
@@ -537,7 +603,7 @@ void DemoHashTable() {
     of << htable << endl;
     of.close();
 
-    HashTable<HashTableTraits<std::string, int>> htable_restored;
+    HashTable<HashTableTraits<std::string, TX>> htable_restored;
     ifstream in(filename);
     in >> htable_restored;
     in.close();
@@ -546,4 +612,91 @@ void DemoHashTable() {
     cout << htable_restored << endl;
     cout << "- Clave 'la hermenéutica telúrica incáica' restaurada: " 
          << htable_restored["la hermenéutica telúrica incáica"] << endl;
+}
+
+void DemoMerkleTree() {
+    cout << "\n";
+    cout << styled(" █ Pruebas para MerkleTree ").black().bg_bright_yellow().bold() << "\n\n";
+
+    MerkleTree<> mtree;
+    mtree.push_back("Tx0: Alice -> Bob 50 BTC", 0);
+    mtree.push_back("Tx1: Bob -> Charlie 20 BTC", 1);
+    mtree.push_back("Tx2: Charlie -> Dave 10 BTC", 2);
+    mtree.push_back("Tx3: Dave -> Eve 5 BTC", 3);
+
+    cout << "Cantidad de hojas: " << mtree.size() << endl;
+    cout << "Altura del arbol:  " << mtree.height() << endl;
+    cout << "Merkle Root Hash:  " << mtree.getRootHash() << endl << endl;
+
+    cout << "Arbol Merkle usando operator<< (Printable - Recorrido In-Order):" << endl;
+    cout << mtree << endl << endl;
+
+    // Recorrido Pre-Order mediante Euler Tour
+    cout << "Recorrido Pre-Order sobre MerkleTree (.traverse<Order::PreOrder>()):" << endl;
+    cout << "[";
+    mtree.traverse<Order::PreOrder>().call([](const auto& node, ostream& os) {
+        os << "(" << node.getValue() << ", ref=" << node.getRef() << ") ";
+    }, cout);
+    cout << "]" << endl << endl;
+
+    // Generar y verificar Merkle Proof para la transacción 2
+    size_t target_idx = 2;
+    string target_tx = mtree.getData(target_idx);
+    auto proof = mtree.getProof(target_idx);
+
+    PrintColored(cout, "Generacion de Merkle Proof para hoja #" + to_string(target_idx) + ":", Color::Cyan);
+    cout << "Dato original: " << quoted(target_tx) << endl;
+    cout << "Hash de hoja:  " << mtree.getLeafHash(target_idx) << endl;
+    cout << "Pasos en el camino de auditoria (audit path):" << endl;
+    for (size_t i = 0; i < proof.size(); ++i) {
+        cout << "  Nivel " << i + 1 << ": " << proof[i] << endl;
+    }
+    cout << endl;
+
+    // Verificación con datos auténticos
+    bool valid = MerkleTree<>::verify(target_tx, proof, mtree.getRootHash());
+    cout << "Verificacion con dato autentico: ";
+    if (valid) {
+        PrintColored(cout, "VALIDA (Integridad confirmada)", Color::Green);
+    } else {
+        PrintColored(cout, "INVALIDA", Color::Red);
+    }
+    cout << endl;
+
+    // Verificación con datos manipulados / alterados
+    string forged_tx = "Tx2: Charlie -> Dave 9999 BTC";
+    bool forged_valid = MerkleTree<>::verify(forged_tx, proof, mtree.getRootHash());
+    cout << "Verificacion con dato falsificado (" << quoted(forged_tx) << "): ";
+    if (!forged_valid) {
+        PrintColored(cout, "RECHAZADA (Ataque detectado con exito)", Color::Green);
+    } else {
+        PrintColored(cout, "FALLO DE SEGURIDAD", Color::Red);
+    }
+    cout << endl;
+
+    // Actualización de una hoja y verificación de cambio en la raíz
+    string old_root = mtree.getRootHash();
+    cout << "Actualizando hoja #" << target_idx << "..." << endl;
+    mtree.update(target_idx, "Tx2: Charlie -> Dave 15 BTC");
+    string new_root = mtree.getRootHash();
+    cout << "Raiz anterior: " << old_root << endl;
+    cout << "Nueva raiz:    " << new_root << endl;
+    cout << "¿Raices distintas? " << (old_root != new_root ? "Si (Propagacion correcta)" : "No") << endl;
+
+    // La prueba anterior ya no debe ser válida para la nueva raíz
+    bool old_proof_on_new_root = MerkleTree<>::verify(target_tx, proof, new_root);
+    cout << "¿Prueba vieja valida en nueva raiz? " 
+         << (old_proof_on_new_root ? "Si" : "No (Correcto, estado invalidado)") << endl << endl;
+
+    // Prueba de número impar de transacciones (duplicación balanceada)
+    PrintColored(cout, "Prueba con cantidad impar de transacciones (5 hojas):", Color::Cyan);
+    mtree.push_back("Tx4: Eve -> Frank 1 BTC", 4);
+    cout << "Cantidad de hojas: " << mtree.size() << endl;
+    cout << "Altura del arbol:  " << mtree.height() << endl;
+    cout << "Nueva Merkle Root: " << mtree.getRootHash() << endl;
+
+    auto proof_odd = mtree.getProof(4);
+    bool valid_odd = MerkleTree<>::verify(mtree.getData(4), proof_odd, mtree.getRootHash());
+    cout << "Verificacion de hoja impar (#4): " 
+         << (valid_odd ? "VALIDA (OK)" : "INVALIDA") << endl;
 }

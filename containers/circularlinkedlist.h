@@ -1,12 +1,13 @@
 #ifndef __CIRCULAR_LINKEDLIST_H__
 #define __CIRCULAR_LINKEDLIST_H__
 #include "linkedlist.h"
+#include "../utilities/render.h"
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseCircularLinkedList;
 
 template <typename Traits>
-using CircularLinkedList = BaseCircularLinkedList<Traits, Callable, Searchable, Applicable, Printable, Readable>;
+using CircularLinkedList = BaseCircularLinkedList<Traits, Callable, Searchable, Applicable, Printable, Readable, Drawable>;
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseCircularLinkedList : virtual public BaseLinkedList<Traits, Mixins...> {
