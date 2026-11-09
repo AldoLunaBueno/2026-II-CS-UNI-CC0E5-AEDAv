@@ -17,6 +17,7 @@
 #include "containers/merkletree.h"
 #include "utilities/printcolored.h"
 #include "utilities/render.h"
+#include "utilities/layouts.h"
 #include "Demos.h"
 using namespace std;
 
