@@ -4,30 +4,17 @@
 #include <iostream>
 #include "../containers/vector.h"
 #include "../types.h"
-
-struct VisualGraph;
-
-// Mixin: dibujable
-template <typename Traits>
-class Drawable : virtual public ContainerCore<Traits> {
-public:
-    virtual VisualGraph sketch() const = 0;
-
-    template <typename Renderer>
-    decltype(auto) draw(Renderer&& renderer) const {
-        std::lock_guard lock(this->mutex());
-        return renderer.render(this->sketch());
-    }
-};
-
-template <typename T>
-using SimpleVector = BaseVector<VectorAscTraits<T>, Callable>;
+#include "canvas.h"
 
 // Tipos de aristas
 enum class VisualEdgeType {
     LeftChild,
-    RightChild
+    RightChild,
+    General
 };
+
+template <typename T>
+using SimpleVector = BaseVector<VectorAscTraits<T>, Callable>;
 
 // Nodo en plano XY
 struct VisualNode {
@@ -41,7 +28,7 @@ struct VisualNode {
 struct VisualEdge {
     TX from_id;
     TX to_id;
-    VisualEdgeType type;
+    VisualEdgeType type = VisualEdgeType::General;
 };
 
 // Geometría y topología del grafo
@@ -51,6 +38,22 @@ struct VisualGraph {
     TX width = 0;       // ancho del layout
     TX height = 0;      // alto del layout
     TX cell_width = 3;  // Ancho de celda usado para el espaciado y ramificaciones
+    bool directed = false;
+};
+
+// Mixin: dibujable
+template <typename Traits>
+class Drawable : virtual public ContainerCore<Traits> {
+public:
+    template <typename Self, typename Layout, typename Renderer>
+    decltype(auto) draw(this Self&& self, Layout&& layout, Renderer&& renderer) {
+        VisualGraph graph;
+        {
+            std::lock_guard lock(self.mutex());
+            graph = layout(self);
+        }
+        return renderer.render(graph);
+    }
 };
 
 // Renderizador abstracto de grafos
@@ -63,128 +66,182 @@ public:
 // TODO: Renderizador de grafos 2D
 class SvgGraphRenderer : public GraphRenderer {};
 
-// TODO: Generalizar a renderizador de cualquier grafo
-// Renderizador de árboles binarios en consola
+// Estilo de línea para el renderizado en consola
+enum class ConsoleLineStyle {
+    Rounded,       // Esquinas curvas/codos UTF-8 (╭ ╮ ╰ ╯) con diagonales continuas (╱ ╲) y flechas (►) [Por defecto]
+    Sharp,         // Esquinas rectas UTF-8 (┌ ┐ └ ┘) con diagonales continuas (╱ ╲) y flechas (►)
+    DivisionSlash, // Usa U+2215 (∕) y U+2216 (∖) en las uniones
+    BoxDrawing = Rounded, // Alias compatible hacia atrás
+    Ascii          // ASCII clásico (-, /, \, >)
+};
+
+// Renderizador generalista de grafos en consola
 class ConsoleGraphRenderer : public GraphRenderer {
     std::ostream& m_os;
+    ConsoleLineStyle m_style;
 public:
-    explicit ConsoleGraphRenderer(std::ostream& os = std::cout) : m_os(os) {}
+    explicit ConsoleGraphRenderer(std::ostream& os = std::cout, ConsoleLineStyle style = ConsoleLineStyle::Rounded)
+        : m_os(os), m_style(style) {}
 
-    std::ostream& render(const VisualGraph& graph) {
+    ConsoleGlyphs getGlyphs() const {
+        ConsoleGlyphs g;
+        if (m_style == ConsoleLineStyle::DivisionSlash) {
+            g.h_dash = "─";
+            g.v_bar  = "│";
+            g.corner_down_right = "∕"; // U+2215 (Division slash)
+            g.corner_down_left  = "∖"; // U+2216 (Set minus / mirror)
+            g.corner_up_right   = "∖"; // U+2216 (Set minus / mirror)
+            g.corner_up_left    = "∕"; // U+2215 (Division slash)
+            g.diag_up           = "∕"; // U+2215
+            g.diag_down         = "∖"; // U+2216
+            g.arrow             = "►";
+        } else if (m_style == ConsoleLineStyle::Rounded) {
+            g.h_dash = "─";
+            g.v_bar  = "│";
+            g.corner_down_right = "╭";
+            g.corner_down_left  = "╮";
+            g.corner_up_right   = "╰";
+            g.corner_up_left    = "╯";
+            g.diag_up           = "╱";
+            g.diag_down         = "╲";
+            g.arrow             = "►";
+        } else if (m_style == ConsoleLineStyle::Sharp) {
+            g.h_dash = "─";
+            g.v_bar  = "│";
+            g.corner_down_right = "┌";
+            g.corner_down_left  = "┐";
+            g.corner_up_right   = "└";
+            g.corner_up_left    = "┘";
+            g.diag_up           = "╱";
+            g.diag_down         = "╲";
+            g.arrow             = "►";
+        } else {
+            g.h_dash = "-";
+            g.v_bar  = "|";
+            g.corner_down_right = "/";
+            g.corner_down_left  = "\\";
+            g.corner_up_right   = "\\";
+            g.corner_up_left    = "/";
+            g.diag_up           = "/";
+            g.diag_down         = "\\";
+            g.arrow             = ">";
+        }
+        return g;
+    }
+
+    std::string getDashGlyph() const {
+        return getGlyphs().h_dash;
+    }
+
+    std::ostream& render(const VisualGraph& graph) override {
         if (graph.nodes.empty()) return m_os;
 
-        const CW RIGHT_B = '_';
-        const CW LEFT_B  = '_';
-        const CW ANGLE_B = '\\';
-        const CW ANGLE_L = '/';
-        const CW SPACE   = ' ';
+        Canvas2D canvas;
+        ConsoleGlyphs glyphs = getGlyphs();
 
-        TX cell_width = graph.cell_width > 0 ? graph.cell_width : cell_width;
-        TX width = graph.width;
-        TX height = graph.height;
+        // Helper para obtener los vecinos conectados a un nodo en el plano
+        auto get_neighbors = [&](TX node_id) {
+            std::vector<VisualNode> neighbors;
+            for (const auto& item_e : graph.edges) {
+                const auto& edge = item_e.getValue();
+                TX other_id = -1;
+                if (edge.from_id == node_id) other_id = edge.to_id;
+                else if (edge.to_id == node_id) other_id = edge.from_id;
 
-        // asegurar dimensiones válidas para el lienzo
-        for (const auto& item : graph.nodes) {
-            const auto& node = item.getValue();
-            TX node_right = node.x + static_cast<TX>(node.label.size());
-            if (node_right > width) width = node_right;
-            if (node.y + 1 > height) height = node.y + 1;
-        }
+                if (other_id != -1) {
+                    for (const auto& item_n : graph.nodes) {
+                        const auto& node = item_n.getValue();
+                        if (node.id == other_id) {
+                            neighbors.push_back(node);
+                            break;
+                        }
+                    }
+                }
+            }
+            return neighbors;
+        };
 
-        // matriz de caracteres para el lienzo de consola
-        SimpleVector<std::string> canvas = {};
-        for (std::size_t i=0; i < height; i++) {
-            canvas.push_back(std::string(width, SPACE));
-        } 
+        // 1. Trazar aristas con la regla agnóstica de Crestas y Valles
+        for (const auto& item_e : graph.edges) {
+            const auto& edge = item_e.getValue();
+            VisualNode from_node, to_node;
+            bool found_from = false, found_to = false;
 
-        // dibujar conexiones
-        for (const auto& item : graph.edges) {
-            const auto& edge = item.getValue();
-            VisualNode from_node;
-            VisualNode to_node;
-            bool found_from = false;
-            bool found_to = false;
-
-            for (const auto& item : graph.nodes) {
-                const auto& node = item.getValue();
+            for (const auto& item_n : graph.nodes) {
+                const auto& node = item_n.getValue();
                 if (node.id == edge.from_id) { from_node = node; found_from = true; }
                 if (node.id == edge.to_id)   { to_node = node;   found_to = true; }
             }
 
             if (!found_from || !found_to) continue;
 
-            if (edge.type == VisualEdgeType::LeftChild) {
-                // barra horizontal hacia la rama izquierda
-                TX y_parent = from_node.y;
-                TX x_parent = from_node.x;
-                TX x_child  = to_node.x;
+            // Decisión agnóstica: ¿el tramo horizontal corresponde a from_node o to_node?
+            bool horizontal_at_from = true;
 
-                TX bar_start = x_child + static_cast<TX>(to_node.label.size()) + cell_width - 1;
-                TX bar_end   = x_parent - 1;
+            auto from_nbrs = get_neighbors(from_node.id);
+            auto to_nbrs   = get_neighbors(to_node.id);
 
-                for (TX col = bar_start; col <= bar_end; col++) {
-                    if (y_parent < height && col >= 0 && col < width) {
-                        canvas[y_parent].value()[col] = LEFT_B;
-                    }
-                }
-
-                // rama diagonal descendente hacia el hijo izquierdo
-                for (TX i = 0; i < cell_width - 1; i++) {
-                    TX row = y_parent + 1 + i;
-                    TX col = x_child + static_cast<TX>(to_node.label.size()) + cell_width - 2 - i;
-                    if (row < height && col >= 0 && col < width) {
-                        canvas[row].value()[col] = ANGLE_L;
-                    }
-                }
-            } else if (edge.type == VisualEdgeType::RightChild) {
-                // barra horizontal hacia la rama derecha
-                TX y_parent = from_node.y;
-                TX x_parent = from_node.x;
-                TX x_child  = to_node.x;
-
-                TX bar_start = x_parent + static_cast<TX>(from_node.label.size());
-                TX bar_end   = x_child - cell_width;
-
-                for (TX col = bar_start; col <= bar_end; col++) {
-                    if (y_parent < height && col >= 0 && col < width) {
-                        canvas[y_parent].value()[col] = RIGHT_B;
-                    }
-                }
-
-                // rama diagonal descendente hacia el hijo derecho
-                for (TX i = 0; i < cell_width - 1; i++) {
-                    TX row = y_parent + 1 + i;
-                    TX col = x_child - cell_width + 1 + i;
-                    if (row < height && col >= 0 && col < width) {
-                        canvas[row].value()[col] = ANGLE_B;
-                    }
-                }
+            // Condición de Valle (convergencia inferior en bucle/circuito cerrado):
+            // Grado >= 2 y todos los vecinos conectados en Y están por encima (y < y_nodo)
+            bool from_is_valley = (from_nbrs.size() >= 2);
+            for (const auto& n : from_nbrs) {
+                if (n.y >= from_node.y) { from_is_valley = false; break; }
             }
-        }
 
-        // colocar las etiquetas de los nodos sobre el lienzo
-        for (const auto& item : graph.nodes) {
-            const auto& node = item.getValue();
-            if (node.y < height && node.x < width) {
-                canvas[node.y].value().replace(node.x, node.label.size(), node.label);
+            bool to_is_valley = (to_nbrs.size() >= 2);
+            for (const auto& n : to_nbrs) {
+                if (n.y >= to_node.y) { to_is_valley = false; break; }
             }
-        }
 
-        // canvas -> stream
-        for (auto& row_node : canvas) {
-            auto& row_str = row_node.value();
-            size_t end_pos = row_str.find_last_not_of(SPACE);
-            if (end_pos != std::string::npos) {
-                row_str.erase(end_pos + 1);
+            if (from_is_valley) {
+                horizontal_at_from = true;
+            } else if (to_is_valley) {
+                horizontal_at_from = false;
             } else {
-                row_str.clear();
+                // Comprobación de ramificación hacia la derecha en layouts horizontales:
+                // Si el nodo emite >= 2 aristas hacia la derecha en diferentes filas Y,
+                // las ramas no pueden compartir la misma horizontal a la salida (colisionarían).
+                // En ese caso, la horizontal y codo se colocan en el nodo destino.
+                int outgoing_right = 0;
+                for (const auto& item_other_e : graph.edges) {
+                    const auto& other_e = item_other_e.getValue();
+                    if (other_e.from_id == from_node.id) {
+                        for (const auto& item_n : graph.nodes) {
+                            const auto& cand = item_n.getValue();
+                            if (cand.id == other_e.to_id && cand.x > from_node.x && cand.y != from_node.y) {
+                                outgoing_right++;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (outgoing_right >= 2) {
+                    horizontal_at_from = false;
+                } else {
+                    // Por defecto en geometrías verticales (árboles binarios verticales, crestas poligonales):
+                    // El nodo superior (menor Y) contiene el tramo horizontal y los codos simétricos
+                    horizontal_at_from = (from_node.y < to_node.y);
+                }
             }
-            m_os << row_str << std::endl;
+
+            canvas.draw_edge(
+                from_node.x, from_node.y, static_cast<TX>(visible_length(from_node.label)),
+                to_node.x, to_node.y, static_cast<TX>(visible_length(to_node.label)),
+                horizontal_at_from, glyphs, graph.directed
+            );
         }
 
-        return m_os;
+        // 2. Colocar las etiquetas de los nodos sobre el lienzo
+        for (const auto& item_n : graph.nodes) {
+            const auto& node = item_n.getValue();
+            canvas.write(node.x, node.y, node.label);
+        }
+
+        return canvas.render(m_os);
     }
 };
 
-#endif // __RENDERER_H__
+#include "layouts.h"
 
+#endif // __RENDER_H__
