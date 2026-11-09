@@ -198,8 +198,7 @@ public:
     BaseBinaryTree& operator=(const BaseBinaryTree&);
     BaseBinaryTree& operator=(BaseBinaryTree&&) noexcept;
 
-    // TODO: Segregar a clase aparte
-    VisualGraph sketch() const;
+    NodePtr getRoot() const { return m_pRoot; }
     TX height(const NodePtr&) const;
     TX height() const { return height(m_pRoot); };
 };
@@ -288,73 +287,6 @@ template <typename Traits, template <typename> typename... Mixins>
 auto BaseBinaryTree<Traits, Mixins...>::operator=(BaseBinaryTree&& another) noexcept -> BaseBinaryTree& {
     this->move_from(another, [&]{ m_pRoot = std::exchange(another.m_pRoot, nullptr); });
     return *this;
-}
-
-template <typename Traits, template <typename> typename... Mixins>
-VisualGraph BaseBinaryTree<Traits, Mixins...>::sketch() const {
-    VisualGraph graph;
-    if (!m_pRoot) return graph;
-
-    TX cell_width = 3;
-    TX h = height();
-    TX line_width = (1 << h) * cell_width;
-    TX total_height = h > 0 ? (h - 1) * cell_width + 1 : 0;
-
-    graph.width = line_width;
-    graph.height = total_height;
-    graph.cell_width = cell_width;
-
-    SimpleVector<NodePtr> curr_level;
-    curr_level.push_back(m_pRoot);
-
-    SimpleVector<TX> curr_ids;
-    curr_ids.push_back(0);
-    TX next_id = 1;
-    TX num_level_nodes = 1;
-
-    for (TX k = 0; k < h; k++) {
-        TX segment_width = (2 * cell_width) * (1 << (h - k - 1));
-        SimpleVector<NodePtr> next_level;
-        SimpleVector<TX> next_ids;
-        TX next_size = 1 << (k + 1);
-        for (TX s = 0; s < next_size; s++) {
-            next_level.push_back(nullptr);
-            next_ids.push_back(-1);
-        }
-
-        for (TX i = 0; i < num_level_nodes; i++) {
-            NodePtr node = curr_level[i].getValue();
-            if (node) {
-                TX node_id = curr_ids[i].getValue();
-                TX x = i * segment_width + segment_width / 2;
-                TX y = k * cell_width;
-
-                graph.nodes.push_back(VisualNode{node_id, std::to_string(node->getValue()), x, y});
-
-                // crear aristas
-                for (size_t j=0; j<2; j++) {
-                    if (node->m_pChild[j]) {
-                        next_level[2 * i + j].value() = node->m_pChild[j];
-                        TX to_id = next_id++;
-                        next_ids[2 * i + j].value() = to_id;
-                        graph.edges.push_back(VisualEdge{
-                            node_id,
-                            to_id,
-                            (j == 0 ? VisualEdgeType::LeftChild : VisualEdgeType::RightChild)
-                        });
-                    }
-                }
-            }
-        }
-
-        if (k == h - 1) break;
-
-        curr_level = std::move(next_level);
-        curr_ids = std::move(next_ids);
-        num_level_nodes *= 2;
-    }
-
-    return graph;
 }
 
 template <typename Traits, template <typename> typename... Mixins>
