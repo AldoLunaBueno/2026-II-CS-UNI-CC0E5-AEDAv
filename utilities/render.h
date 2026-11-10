@@ -19,6 +19,7 @@ struct VisualNode {
     std::string label;
     TX x = 0;
     TX y = 0;
+    std::string css_class;
 };
 
 struct VisualEdge {
@@ -157,11 +158,13 @@ public:
             return;
         }
 
-        // Caso 2: Conexión vertical pura
-        if (x1 == x2) {
+        // Caso 2: Conexión vertical pura (mismo centro o mismo origen X)
+        TX col1 = x1 + len1 / 2;
+        TX col2 = x2 + len2 / 2;
+        if (col1 == col2 || x1 == x2) {
             TX y_start = std::min(y1, y2) + 1;
             TX y_end   = std::max(y1, y2) - 1;
-            TX col     = x1 + len1 / 2;
+            TX col     = (col1 == col2) ? col1 : (x1 + len1 / 2);
             for (TX y = y_start; y <= y_end; ++y) set(col, y, glyphs.v_bar);
             return;
         }

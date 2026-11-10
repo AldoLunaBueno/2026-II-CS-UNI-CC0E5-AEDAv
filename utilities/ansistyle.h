@@ -129,6 +129,7 @@ public:
     StyledBuilder& blue()    { return append("34"); }   StyledBuilder& magenta() { return append("35"); }
     StyledBuilder& cyan()    { return append("36"); }   StyledBuilder& white()   { return append("37"); }
     StyledBuilder& default_color() { return append("39"); }
+    StyledBuilder& pure_black()    { return rgb(0, 0, 0); }
 
     // Colores de texto brillantes (Bright FG)
     StyledBuilder& gray()           { return append("90"); }   StyledBuilder& bright_black()   { return append("90"); }
@@ -143,6 +144,7 @@ public:
     StyledBuilder& bg_blue()    { return append("44"); }   StyledBuilder& bg_magenta() { return append("45"); }
     StyledBuilder& bg_cyan()    { return append("46"); }   StyledBuilder& bg_white()   { return append("47"); }
     StyledBuilder& bg_default_color() { return append("49"); }
+    StyledBuilder& bg_pure_black()    { return bg_rgb(0, 0, 0); }
 
     // Colores de fondo brillantes (Bright BG)
     StyledBuilder& bg_gray()           { return append("100"); }  StyledBuilder& bg_bright_black()   { return append("100"); }

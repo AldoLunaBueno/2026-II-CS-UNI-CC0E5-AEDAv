@@ -135,7 +135,7 @@ void TestForwardTraversal(Container &container, const typename Container::value_
 }
 
 void DemoVector() {
-    cout << styled(" █ Pruebas del contenedor Vector ").black().bg_bright_yellow().bold() << "\n\n";
+    cout << styled(" █ Pruebas del contenedor Vector ").pure_black().bg_bright_yellow() << "\n\n";
     // Dejamos los archivos vacios para que TestContainer acumule (append)
     // el estado del container tras cada paso
     ofstream("vector.txt", ios::trunc).close();
@@ -304,22 +304,22 @@ void TestDoubleLinkedListSpecifics(DoubleContainer &list) {
 void DemoLinkedList()
 {
     cout << "\n";
-    cout << styled(" █ Pruebas para LinkedList ").black().bg_bright_yellow().bold() << "\n\n";
+    cout << styled(" █ Pruebas para LinkedList ").pure_black().bg_bright_yellow() << "\n\n";
     LinkedList<LinkedListAscTraits<TX>> list;
     TestLinkedList(list, "linkedlist.txt");
 
     cout << "\n";
-    cout << styled(" █ Pruebas para DoubleLinkedList ").black().bg_bright_yellow().bold() << "\n\n";
+    cout << styled(" █ Pruebas para DoubleLinkedList ").pure_black().bg_bright_yellow() << "\n\n";
     DoubleLinkedList<DoubleLinkedListAscTraits<TX>> dlist;
     TestLinkedList(dlist, "doublelinkedlist.txt");
     TestDoubleLinkedListSpecifics(dlist);
 
     cout << "\n";
-    cout << styled(" █ Pruebas para CircularLinkedList ").black().bg_bright_yellow().bold() << "\n\n";
+    cout << styled(" █ Pruebas para CircularLinkedList ").pure_black().bg_bright_yellow() << "\n\n";
     CircularLinkedList<LinkedListAscTraits<TX>> clist;
     TestLinkedList(clist, "circularlinkedlist.txt");
 
-    cout << styled(" ◉ Diagrama de Lista Enlazada Circular (Personalizado con Lambda y Color): ").black().bg_bright_cyan().bold() << "\n";
+    cout << styled(" ◉ Diagrama de Lista Enlazada Circular (Personalizado con Lambda y Color): ").pure_black().bg_bright_cyan() << "\n";
     istringstream ss("[(51,15),(1,11),(8,18),(3,13),(45,16),(71,1),(28,8),(32,3),(15,5),(51,15),(1,11),(8,18),(15,5),(10,21),(81,28),(13,23)]");
     ss >> clist;
     clist.draw(
@@ -338,12 +338,12 @@ void DemoLinkedList()
     cout << endl;
 
     cout << "\n";
-    cout << styled(" █ Pruebas para CircularDoubleLinkedList ").black().bg_bright_yellow().bold() << "\n\n";
+    cout << styled(" █ Pruebas para CircularDoubleLinkedList ").pure_black().bg_bright_yellow() << "\n\n";
     CircularDoubleLinkedList<DoubleLinkedListAscTraits<TX>> cdlist;
     TestLinkedList(cdlist, "circulardoublelinkedlist.txt");
     TestDoubleLinkedListSpecifics(cdlist);
 
-    cout << styled(" ◉ Diagrama de Lista Circular Doblemente Enlazada (Truecolor RGB / Cyan): ").black().bg_bright_cyan().bold() << "\n";
+    cout << styled(" ◉ Diagrama de Lista Circular Doblemente Enlazada (Truecolor RGB / Cyan): ").pure_black().bg_bright_cyan() << "\n";
     cdlist.draw(
         CircularListLayout{[](const auto& node) {
             auto val = node.getValue();
@@ -391,12 +391,12 @@ void TestHeap(Heap& heap) {
 
 void DemoHeap() {
     cout << "\n";
-    cout << styled(" █ Pruebas para MinHeap ").black().bg_bright_yellow().bold() << "\n\n";
+    cout << styled(" █ Pruebas para MinHeap ").pure_black().bg_bright_yellow() << "\n\n";
     MinHeap minHeap;
     TestHeap(minHeap);
 
     cout << "\n";
-    cout << styled(" █ Pruebas para MaxHeap ").black().bg_bright_yellow().bold() << "\n\n";
+    cout << styled(" █ Pruebas para MaxHeap ").pure_black().bg_bright_yellow() << "\n\n";
     MaxHeap maxHeap;
     TestHeap(maxHeap);
 }
@@ -436,24 +436,28 @@ void TestBinaryTreeGeneral(TreeContainer &tree, const string &filename) {
         }, 
         filename);
 
-    cout << styled(" ◉ Diagrama de árbol (Disposición Vertical con Formato Condicional): ").black().bg_bright_cyan().bold() << "\n";
+    cout << styled(" ◉ Diagrama de árbol (Disposición Vertical con Roles Semánticos / CSS): ").pure_black().bg_bright_cyan() << "\n";
     std::cout << "(Altura: " << tree.height() << ")" << std::endl;
     tree.draw(
-        VerticalTreeLayout{[](const auto& node) {
+        VerticalTreeLayout{[](const auto& node, TreeRole role) {
             auto val = node.getValue();
-            if (val == 50) return styled(val).bright_magenta().bold().underline().str();
-            if (val > 50)  return styled(val).bright_yellow().bold().str();
-            return styled(val).bright_cyan().str();
+            switch (role) {
+                case TreeRole::Root:  return styled(val).bright_magenta().bold().underline().str();
+                case TreeRole::Leaf:  return styled(val).bright_yellow().bold().str();
+                case TreeRole::Left:  return styled(val).bright_cyan().str();
+                case TreeRole::Right: return styled(val).bright_green().str();
+            }
+            return styled(val).str();
         }},
         ConsoleGraphRenderer(cout)
     );
     std::cout << std::endl;
 
-    cout << styled(" ◉ Diagrama de árbol (Disposición Horizontal - Dirigida): ").black().bg_bright_cyan().bold() << "\n";
+    cout << styled(" ◉ Diagrama de árbol (Disposición Horizontal - Dirigida): ").pure_black().bg_bright_cyan() << "\n";
     tree.draw(HorizontalTreeLayout{true}, ConsoleGraphRenderer(cout));
     std::cout << std::endl;
 
-    cout << styled(" ◉ Diagrama de árbol (Disposición Horizontal - No dirigida): ").black().bg_bright_cyan().bold() << "\n";
+    cout << styled(" ◉ Diagrama de árbol (Disposición Horizontal - No dirigida): ").pure_black().bg_bright_cyan() << "\n";
     tree.draw(HorizontalTreeLayout{false}, ConsoleGraphRenderer(cout));
     std::cout << std::endl;
 
@@ -467,9 +471,9 @@ void TestBinaryTreeGeneral(TreeContainer &tree, const string &filename) {
         Node &target_node = tree.FirstThat(IsEqualTo<Node, ValueType>, val);
         tree.remove(&target_node);
         string s = "Arbol tras remove(" + std::to_string(val) + "): ";
-        cout << styled(" ◉ " + s).black().bg_bright_red().bold() << "\n";
+        cout << styled(" ◉ " + s).pure_black().bg_bright_red() << "\n";
         std::cout << tree << endl;
-        cout << styled(" ◉ Diagrama de árbol tras eliminaciones (Colores Modulares): ").black().bg_bright_red().bold() << "\n";
+        cout << styled(" ◉ Diagrama de árbol tras eliminaciones (Colores Modulares): ").pure_black().bg_bright_red() << "\n";
         std::cout << "(Altura: " << tree.height() << ")" << std::endl;
         tree.draw(
             VerticalTreeLayout{[](const auto& node) {
@@ -569,16 +573,16 @@ void TestBinaryTree(const string &filename = "tree_test.txt") {
 }
 
 void DemoBinaryTree() {
-    cout << styled(" █ Pruebas para BinaryTree ").black().bg_bright_yellow().bold() << "\n\n";
+    cout << styled(" █ Pruebas para BinaryTree ").pure_black().bg_bright_yellow() << "\n\n";
     TestBinaryTree<BinaryTree>("binarytree_test.txt");
     cout << endl;
     
-    cout << styled(" █ Pruebas para AVLTree ").black().bg_bright_yellow().bold() << "\n\n";
+    cout << styled(" █ Pruebas para AVLTree ").pure_black().bg_bright_yellow() << "\n\n";
     TestBinaryTree<AVLTree>("avltree_test.txt");
 }
 
 void DemoHashTable() {
-    cout << styled(" █ Pruebas para HashTable ").black().bg_bright_yellow().bold() << "\n\n";
+    cout << styled(" █ Pruebas para HashTable ").pure_black().bg_bright_yellow() << "\n\n";
 
     HashTable<HashTableTraits<std::string, TX>> htable;
     htable["a"] = 42;
@@ -617,7 +621,7 @@ void DemoHashTable() {
 
 void DemoMerkleTree() {
     cout << "\n";
-    cout << styled(" █ Pruebas para MerkleTree ").black().bg_bright_yellow().bold() << "\n\n";
+    cout << styled(" █ Pruebas para MerkleTree ").pure_black().bg_bright_yellow() << "\n\n";
 
     MerkleTree<> mtree;
     mtree.push_back("Tx0: Alice -> Bob 50 BTC", 0);
@@ -631,6 +635,23 @@ void DemoMerkleTree() {
 
     cout << "Arbol Merkle usando operator<< (Printable - Recorrido In-Order):" << endl;
     cout << mtree << endl << endl;
+
+    // Formateador inyectado por el cliente para pintar el árbol según sus roles semánticos
+    auto merkle_painter = [](const std::string& text, MerkleRole role) {
+        switch (role) {
+            case MerkleRole::Root:      return styled(text.substr(0, 8)).bold().bright_green().str();
+            case MerkleRole::Leaf:      return styled(text.substr(0, 8)).bold().bright_yellow().str();
+            case MerkleRole::CloneLeaf: return styled(text.substr(0, 8)).dim().italic().str();
+            case MerkleRole::Internal:  return styled(text.substr(0, 8)).dim().str();
+            case MerkleRole::Data:      return styled("[" + text + "]").bright_cyan().str();
+            case MerkleRole::CloneData: return styled("[" + text + " (copia)]").dim().italic().str();
+        }
+        return text;
+    };
+
+    cout << "Visualizacion del Merkle Tree (4 transacciones - Pintado por el Cliente):" << endl;
+    mtree.draw(MerkleTreeLayout{merkle_painter}, ConsoleGraphRenderer(cout));
+    cout << endl;
 
     // Recorrido Pre-Order mediante Euler Tour
     cout << "Recorrido Pre-Order sobre MerkleTree (.traverse<Order::PreOrder>()):" << endl;
@@ -684,6 +705,10 @@ void DemoMerkleTree() {
     cout << "Nueva raiz:    " << new_root << endl;
     cout << "¿Raices distintas? " << (old_root != new_root ? "Si (Propagacion correcta)" : "No") << endl;
 
+    cout << "\nVisualizacion tras actualizar hoja #2 (nueva raiz propagada - Pintado por el Cliente):" << endl;
+    mtree.draw(MerkleTreeLayout{merkle_painter}, ConsoleGraphRenderer(cout));
+    cout << endl;
+
     // La prueba anterior ya no debe ser válida para la nueva raíz
     bool old_proof_on_new_root = MerkleTree<>::verify(target_tx, proof, new_root);
     cout << "¿Prueba vieja valida en nueva raiz? " 
@@ -700,4 +725,29 @@ void DemoMerkleTree() {
     bool valid_odd = MerkleTree<>::verify(mtree.getData(4), proof_odd, mtree.getRootHash());
     cout << "Verificacion de hoja impar (#4): " 
          << (valid_odd ? "VALIDA (OK)" : "INVALIDA") << endl;
+
+    cout << "\nVisualizacion con 5 transacciones (Layout Puro sin Pintar - Texto Plano):" << endl;
+    mtree.draw(MerkleTreeLayout{}, ConsoleGraphRenderer(cout));
+    cout << endl;
+
+    cout << "Visualizacion con 5 transacciones (Pintado por el Cliente con Roles Semanticos):" << endl;
+    mtree.draw(MerkleTreeLayout{merkle_painter}, ConsoleGraphRenderer(cout));
+    cout << endl;
+
+    cout << "Visualizacion con Paleta Alternativa inyectada por el Cliente:" << endl;
+    mtree.draw(
+        MerkleTreeLayout{[](const std::string& text, MerkleRole role) {
+            switch (role) {
+                case MerkleRole::Root:      return styled(text.substr(0, 8)).bold().bright_magenta().str();
+                case MerkleRole::Leaf:      return styled(text.substr(0, 8)).bold().bright_cyan().str();
+                case MerkleRole::CloneLeaf: return styled(text.substr(0, 8)).dim().italic().str();
+                case MerkleRole::Internal:  return styled(text.substr(0, 8)).dim().str();
+                case MerkleRole::Data:      return styled("<" + text + ">").bright_yellow().bold().str();
+                case MerkleRole::CloneData: return styled("<" + text + " [DUP]>").dim().italic().str();
+            }
+            return text;
+        }},
+        ConsoleGraphRenderer(cout)
+    );
+    cout << endl;
 }

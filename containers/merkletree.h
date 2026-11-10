@@ -59,9 +59,8 @@ struct MerkleTreeTraits {
 template <typename Traits, template <typename> typename... Mixins>
 class BaseMerkleTree;
 
-// Se omiten intencionalmente Drawable y sketch para no interferir con la refactorización en curso
 template <typename Traits = MerkleTreeTraits<std::string>>
-using MerkleTree = BaseMerkleTree<Traits, Callable, Applicable, Searchable, Reversible, Printable, Readable>;
+using MerkleTree = BaseMerkleTree<Traits, Callable, Applicable, Searchable, Reversible, Printable, Readable, Drawable>;
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseMerkleTree : public BaseBinaryTree<Traits, Mixins...> {
@@ -223,6 +222,16 @@ public:
             throw std::out_of_range("MerkleTree::getData: indice fuera de rango");
         }
         return m_raw_data[index];
+    }
+
+    const std::vector<std::string>& getRawData() const {
+        std::lock_guard lock(m_mutex);
+        return m_raw_data;
+    }
+
+    const std::vector<NodePtr>& getLeafNodes() const {
+        std::lock_guard lock(m_mutex);
+        return m_leaf_nodes;
     }
 
     value_type getLeafHash(size_t index) const {
