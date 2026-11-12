@@ -1,0 +1,191 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-500 -270 1000 540" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="m-arr" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#1565C0" />
+    </marker>
+    <marker id="m-gold" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#E65100" />
+    </marker>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity="0.08" />
+    </filter>
+  </defs>
+
+  <style>
+    .bg          { fill: #FAFAFA; stroke: #CFD8DC; stroke-width: 2; rx: 16; }
+    .title       { font-size: 20px; font-weight: 800; fill: #1A237E; text-anchor: middle; }
+    .subtitle    { font-size: 12.5px; fill: #546E7A; text-anchor: middle; }
+    
+    /* Cajas y nodos */
+    .card        { fill: #FFFFFF; stroke-width: 1.8; rx: 10; filter: url(#shadow); }
+    .node-root   { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 2.2; }
+    .node-target { fill: #E1F5FE; stroke: #0288D1; stroke-width: 2.2; }
+    .node-proof  { fill: #FFF3E0; stroke: #E65100; stroke-width: 2.2; }
+    .node-norm   { fill: #F5F5F5; stroke: #9E9E9E; stroke-width: 1.6; }
+    .node-data   { fill: #ECEFF1; stroke: #607D8B; stroke-width: 1.5; rx: 6; }
+    .node-data-t { fill: #E0F7FA; stroke: #00ACC1; stroke-width: 2; rx: 6; }
+
+    /* Tipografía */
+    .lbl-hash    { font-size: 11.5px; font-family: 'JetBrains Mono', monospace; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+    .lbl-data    { font-size: 10.5px; font-family: 'JetBrains Mono', monospace; font-weight: 600; text-anchor: middle; dominant-baseline: central; }
+    .lbl-tag     { font-size: 9.5px; font-weight: 700; text-anchor: middle; }
+
+    /* Aristas y líneas */
+    .edge-norm   { stroke: #90A4AE; stroke-width: 2; stroke-linecap: round; }
+    .edge-proof  { stroke: #E65100; stroke-width: 2.8; stroke-linecap: round; stroke-dasharray: 6 4; }
+    .edge-target { stroke: #0288D1; stroke-width: 2.8; stroke-linecap: round; }
+    .edge-vert   { stroke: #00838F; stroke-width: 2; stroke-dasharray: 4 3; }
+
+    /* Panel lateral de verificación */
+    .pnl-verify  { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2; rx: 12; filter: url(#shadow); }
+    .pnl-title   { font-size: 13.5px; font-weight: 800; fill: #1A237E; }
+    .pnl-step    { font-size: 11px; font-family: 'JetBrains Mono', monospace; fill: #263238; }
+    .pnl-badge   { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.2; rx: 6; }
+    .pnl-badge-t { font-size: 11px; font-weight: 800; fill: #1B5E20; text-anchor: middle; dominant-baseline: central; }
+  </style>
+
+  <!-- Fondo General -->
+  <rect x="-485" y="-255" width="970" height="510" class="bg" />
+
+  <!-- Encabezado -->
+  <text x="0" y="-220" class="title">Árbol Criptográfico de Merkle y Prueba de Auditoría (Audit Proof)</text>
+  <text x="0" y="-200" class="subtitle">Vinculación vertical hoja-dato, verificación estática O(log N) y preservación de privacidad</text>
+
+  <!-- ==================== ÁRBOL VISUAL ==================== -->
+  <g transform="translate(-160, 0)">
+    <!-- Aristas del Árbol -->
+    <!-- Raiz -> H01 y H23 -->
+    <line x1="-120" y1="-80" x2="0" y2="-140" class="edge-proof" />
+    <line x1="120" y1="-80" x2="0" y2="-140" class="edge-target" />
+
+    <!-- H01 -> H0, H1 -->
+    <line x1="-180" y1="0" x2="-120" y2="-80" class="edge-norm" />
+    <line x1="-60" y1="0" x2="-120" y2="-80" class="edge-norm" />
+
+    <!-- H23 -> H2 (target), H3 (proof sibling 1) -->
+    <line x1="60" y1="0" x2="120" y2="-80" class="edge-target" />
+    <line x1="180" y1="0" x2="120" y2="-80" class="edge-proof" />
+
+    <!-- Conexiones verticales hoja -> dato -->
+    <line x1="-180" y1="20" x2="-180" y2="70" class="edge-vert" />
+    <line x1="-60" y1="20" x2="-60" y2="70" class="edge-vert" />
+    <line x1="60" y1="20" x2="60" y2="70" class="edge-vert" />
+    <line x1="180" y1="20" x2="180" y2="70" class="edge-vert" />
+
+    <!-- Nivel Raíz (Merkle Root) -->
+    <g transform="translate(0, -140)">
+      <rect x="-90" y="-20" width="180" height="40" class="card node-root" />
+      <text x="0" y="-4" class="lbl-hash" fill="#1B5E20">df476373...</text>
+      <text x="0" y="10" class="lbl-tag" fill="#2E7D32">MERKLE ROOT</text>
+    </g>
+
+    <!-- Nivel Intermedio 1 -->
+    <!-- H01 (Sibling #2 de la prueba) -->
+    <g transform="translate(-120, -80)">
+      <rect x="-65" y="-18" width="130" height="36" class="card node-proof" />
+      <text x="0" y="-4" class="lbl-hash" fill="#BF360C">4d627bc8...</text>
+      <text x="0" y="10" class="lbl-tag" fill="#E65100">Hermano Prueba #2 (Izq)</text>
+    </g>
+
+    <!-- H23 (Camino de reconstrucción de Target) -->
+    <g transform="translate(120, -80)">
+      <rect x="-65" y="-18" width="130" height="36" class="card node-target" />
+      <text x="0" y="-4" class="lbl-hash" fill="#01579B">4e327ae4...</text>
+      <text x="0" y="10" class="lbl-tag" fill="#0288D1">Subárbol H(H2 + H3)</text>
+    </g>
+
+    <!-- Nivel Hojas de Hashes -->
+    <!-- H0 -->
+    <g transform="translate(-180, 0)">
+      <rect x="-45" y="-16" width="90" height="32" class="card node-norm" />
+      <text x="0" y="0" class="lbl-hash" fill="#424242">5a70fea8</text>
+    </g>
+
+    <!-- H1 -->
+    <g transform="translate(-60, 0)">
+      <rect x="-45" y="-16" width="90" height="32" class="card node-norm" />
+      <text x="0" y="0" class="lbl-hash" fill="#424242">d9a5d4fd</text>
+    </g>
+
+    <!-- H2 (Hoja Objetivo - Target) -->
+    <g transform="translate(60, 0)">
+      <rect x="-45" y="-16" width="90" height="32" class="card node-target" />
+      <text x="0" y="-3" class="lbl-hash" fill="#01579B">4ebac541</text>
+      <text x="0" y="9" class="lbl-tag" fill="#0288D1">Hoja Tx2 (Target)</text>
+    </g>
+
+    <!-- H3 (Hermano Prueba #1) -->
+    <g transform="translate(180, 0)">
+      <rect x="-45" y="-16" width="90" height="32" class="card node-proof" />
+      <text x="0" y="-3" class="lbl-hash" fill="#BF360C">04cfbb1a</text>
+      <text x="0" y="9" class="lbl-tag" fill="#E65100">Hermano #1 (Der)</text>
+    </g>
+
+    <!-- Nivel Datos Originales (Transacciones) -->
+    <!-- Tx0 -->
+    <g transform="translate(-180, 95)">
+      <rect x="-50" y="-18" width="100" height="36" class="node-data" />
+      <text x="0" y="-4" class="lbl-data" fill="#37474F">Tx0: Alice</text>
+      <text x="0" y="10" class="lbl-tag" fill="#546E7A">50 BTC</text>
+    </g>
+
+    <!-- Tx1 -->
+    <g transform="translate(-60, 95)">
+      <rect x="-50" y="-18" width="100" height="36" class="node-data" />
+      <text x="0" y="-4" class="lbl-data" fill="#37474F">Tx1: Bob</text>
+      <text x="0" y="10" class="lbl-tag" fill="#546E7A">20 BTC</text>
+    </g>
+
+    <!-- Tx2 (Objetivo de la Prueba) -->
+    <g transform="translate(60, 95)">
+      <rect x="-52" y="-19" width="104" height="38" class="node-data-t" />
+      <text x="0" y="-4" class="lbl-data" fill="#006064" font-weight="800">Tx2: Charlie</text>
+      <text x="0" y="10" class="lbl-tag" fill="#00838F" font-weight="700">15 BTC [OBJETIVO]</text>
+    </g>
+
+    <!-- Tx3 -->
+    <g transform="translate(180, 95)">
+      <rect x="-50" y="-18" width="100" height="36" class="node-data" />
+      <text x="0" y="-4" class="lbl-data" fill="#37474F">Tx3: Dave</text>
+      <text x="0" y="10" class="lbl-tag" fill="#546E7A">5 BTC</text>
+    </g>
+
+    <!-- Leyenda de Conexión Vertical -->
+    <text x="0" y="145" font-size="11px" font-weight="700" fill="#00838F" text-anchor="middle">
+      ▲ Conexión vertical hoja-dato trazada con glifo UTF-8 │ en MerkleTreeLayout ▲
+    </text>
+  </g>
+
+  <!-- ==================== PANEL LATERAL DE VERIFICACIÓN ==================== -->
+  <g transform="translate(260, -145)">
+    <rect x="-180" y="0" width="370" height="320" class="pnl-verify" />
+    
+    <text x="-160" y="28" class="pnl-title">Protocolo de Verificación Estática</text>
+    <text x="-160" y="46" font-size="11px" fill="#546E7A">MerkleTree&lt;&gt;::verify(tx, proof, expected_root)</text>
+
+    <!-- Separador -->
+    <line x1="-160" y1="56" x2="170" y2="56" stroke="#C5CAE9" stroke-width="1.2" />
+
+    <!-- Paso 1 -->
+    <text x="-160" y="80" class="pnl-step" font-weight="700" fill="#0288D1">1. Hash del dato objetivo:</text>
+    <rect x="-160" y="90" width="330" height="26" rx="5" fill="#F4FAFD" stroke="#B3E5FC" />
+    <text x="-150" y="107" class="pnl-step" font-size="10px">h = sha256(&quot;Tx2: Charlie ...&quot;) = 4ebac541</text>
+
+    <!-- Paso 2 -->
+    <text x="-160" y="138" class="pnl-step" font-weight="700" fill="#E65100">2. Hermano #1 (Der: 04cfbb1a):</text>
+    <rect x="-160" y="148" width="330" height="26" rx="5" fill="#FFF8E1" stroke="#FFE082" />
+    <text x="-150" y="165" class="pnl-step" font-size="10px">h = sha256(h + &quot;04cfbb1a&quot;) = 4e327ae4</text>
+
+    <!-- Paso 3 -->
+    <text x="-160" y="196" class="pnl-step" font-weight="700" fill="#E65100">3. Hermano #2 (Izq: 4d627bc8):</text>
+    <rect x="-160" y="206" width="330" height="26" rx="5" fill="#FFF8E1" stroke="#FFE082" />
+    <text x="-150" y="223" class="pnl-step" font-size="10px">h = sha256(&quot;4d627bc8&quot; + h) = df476373</text>
+
+    <!-- Paso 4 Resultado -->
+    <rect x="-160" y="248" width="330" height="48" rx="8" class="pnl-badge" />
+    <text x="5" y="268" class="pnl-badge-t" font-size="12.5px">✓ VERIFICACIÓN EXITOSA (h == root)</text>
+    <text x="5" y="284" font-size="9.5px" fill="#2E7D32" font-weight="600" text-anchor="middle">
+      Complejidad O(log N) hashes • Cero revelación de Tx0, Tx1 o Tx3
+    </text>
+  </g>
+</svg>

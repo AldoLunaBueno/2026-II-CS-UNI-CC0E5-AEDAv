@@ -7,6 +7,7 @@
   - [3. Sistema de Iteradores, Nodos y Recorridos](#3-sistema-de-iteradores-nodos-y-recorridos)
   - [4. Sistema de Traits, Políticas de Orden y Desacoplamiento de Vistas](#4-sistema-de-traits-políticas-de-orden-y-desacoplamiento-de-vistas)
   - [5. Patrón Template Method en Árboles (BinaryTree / AVLTree), Invariante Rebuild y Renderizado](#5-patrón-template-method-en-árboles-binarytree--avltree-invariante-rebuild-y-renderizado)
+  - [6. Arquitectura del Motor Modular de Layouts 2D y Roles Semánticos](#6-arquitectura-del-motor-modular-de-layouts-2d-y-roles-semánticos)
 - [⚙️ II. Detalle de Aspectos Específicos](#️-ii-detalle-de-aspectos-específicos)
   - [1. Máquina de Estados del Recorrido de Euler por Fases](#1-máquina-de-estados-del-recorrido-de-euler-por-fases)
   - [2. Desacoplamiento Estructural: Separación de Contenedor y Recorrido mediante Vistas (BaseView)](#2-desacoplamiento-estructural-separación-de-contenedor-y-recorrido-mediante-vistas-baseview)
@@ -14,11 +15,15 @@
   - [4. Invariante de Reconstrucción de Contenedores (rebuild)](#4-invariante-de-reconstrucción-de-contenedores-rebuild)
   - [5. Subsistema de Renderizado ASCII en Consola (sketch y ConsoleGraphRenderer)](#5-subsistema-de-renderizado-ascii-en-consola-sketch-y-consolegraphrenderer)
   - [6. Contenedor Asociativo HashTable y Protocolo de Serialización en Capas](#6-contenedor-asociativo-hashtable-y-protocolo-de-serialización-en-capas)
+  - [7. Contenedor Criptográfico MerkleTree y Pruebas de Auditoría](#7-contenedor-criptográfico-merkletree-y-pruebas-de-auditoría)
+  - [8. Subsistema Modular de Layouts 2D y Roles Semánticos](#8-subsistema-modular-de-layouts-2d-y-roles-semánticos)
 - [🚀 III. Guía de Uso y Demostración Práctica de la API](#-iii-guía-de-uso-y-demostración-práctica-de-la-api)
   - [1. Árboles Binarios y Recorridos Dinámicos en O(1)](#1-árboles-binarios-y-recorridos-dinámicos-en-o1)
   - [2. Contenedores Reversibles (Vistas Invertidas)](#2-contenedores-reversibles-vistas-invertidas)
   - [3. Renderizado Gráfico en Consola](#3-renderizado-gráfico-en-consola)
   - [4. Diccionario Asociativo (HashTable) y Persistencia](#4-diccionario-asociativo-hashtable-y-persistencia)
+  - [5. Árbol de Merkle: Construcción, Mutación y Verificación de Pruebas](#5-árbol-de-merkle-construcción-mutación-y-verificación-de-pruebas)
+  - [6. Personalización Visual de Contenedores con Layouts y Estilos ANSI](#6-personalización-visual-de-contenedores-con-layouts-y-estilos-ansi)
 
 
 
@@ -32,16 +37,16 @@
 flowchart LR
     TRAITS["<b>1. TRAITS</b><br/>Orden (Asc/Desc) +<br/>Estructura (Node, Iter) +<br/>Vistas (ViewTraits)"]
     MIXINS["<b>2. MIXINS & VISTAS</b><br/>Consulta (Callable, Printable,...)<br/>Contenedor (Applicable, Reversible,...)<br/>BaseView + FilterViewMixin"]
-    CONT["<b>3. CONTENEDORES</b><br/>IterableCore y ContainerCore<br/>Vector, Heap, BinaryTree, AVL, Listas<br/>y HashTable (Asociativo)"]
+    CONT["<b>3. CONTENEDORES</b><br/>IterableCore y ContainerCore<br/>Vector, Heap, BinaryTree, AVL, Listas,<br/>HashTable y MerkleTree"]
     ITER["<b>4. ITERADORES</b><br/>CRTP GeneralIterator<br/>(Forward / Backward / Euler)"]
     NODOS["<b>5. NODOS</b><br/>GeneralNode, LinkedListNode,<br/>BinaryTreeNode (m_height)"]
-    LIBRES["<b>6. LIBRES & UTILS</b><br/>::call, operator&lt;&lt;,&gt;&gt;,<br/>ConsoleGraphRenderer"]
+    LIBRES["<b>6. LAYOUTS & UTILS</b><br/>BaseLayout, Tree/Circular/MerkleLayout<br/>ConsoleGraphRenderer, ansistyle.h"]
 
     TRAITS ==>|"Inyecta tipos, Compare y View"| CONT
     MIXINS ==>|"Ensambla capacidades y vistas"| CONT
     CONT ==>|"begin() / end() / rbegin() / traverse()"| ITER
     ITER ==>|"Apuntan y recorren"| NODOS
-    LIBRES -.->|"Operan vía iteradores / sketch()"| CONT
+    LIBRES -.->|"Proyectan y renderizan vía .draw()"| CONT
 
     classDef c1 fill:#E8EAF6,stroke:#3949AB,color:#111,stroke-width:2px;
     classDef c2 fill:#FCE4EC,stroke:#C2185B,color:#111,stroke-width:2px;
@@ -117,12 +122,14 @@ flowchart TB
         BT["<b>BinaryTree#lt;Traits#gt;</b><br/><i>BaseBinaryTree<br/>.traverse#lt;Order, Dir#gt;() ➔ EulerView<br/>(insert, remove, connect, virtual rebalance)</i>"]
         AVL["<b>AVLTree#lt;Traits#gt;</b><br/><i>BaseAVLTree<br/>(override rebalance, rotate_up, connect)</i>"]
         HT["<b>HashTable#lt;Traits#gt;</b><br/><i>BaseHashTable (Asociativo)<br/>m_data: BaseAVLTree<br/>Mixins: Callable, Printable, Readable</i>"]
+        MT["<b>MerkleTree#lt;Traits#gt;</b><br/><i>BaseMerkleTree (Criptográfico)<br/>Hashes SHA-256 + Propagación ascendente<br/>.getAuditProof(), .verify(), .traverse()</i>"]
 
         GC --> V
         GC --> H
         GC --> LL
         GC --> BT
         GC --> HT
+        GC --> MT
 
         H --> MH
         H -. "m_data" .-> V
@@ -134,6 +141,7 @@ flowchart TB
 
         BT --> AVL
         HT -. "m_data (composición)" .-> AVL
+        BT -. "estructura jerárquica" .-> MT
     end
 
     REV -. ".reversed()" .-> BV
@@ -147,6 +155,7 @@ flowchart TB
     classDef lista fill:#FFF8E1,stroke:#FF8F00,color:#1A1A1A,stroke-width:1.5px,font-size:15px;
     classDef arbol fill:#E8F5E9,stroke:#2E7D32,color:#1A1A1A,stroke-width:1.5px,font-size:15px;
     classDef hash fill:#EDE7F6,stroke:#512DA8,color:#1A1A1A,stroke-width:1.5px,font-size:15px;
+    classDef merkle fill:#E0F7FA,stroke:#00838F,color:#1A1A1A,stroke-width:1.5px,font-size:15px;
 
     class IC,CC,GC core
     class CAL,SEA,PRI mix_q
@@ -156,6 +165,7 @@ flowchart TB
     class LL,LC,LDE,LDEC lista
     class BT,AVL arbol
     class HT hash
+    class MT merkle
 
     style MIX_Q fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
     style MIX_C fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
@@ -393,6 +403,79 @@ flowchart LR
     style AVL_SUB fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
     style REND fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
     style CORE_REBUILD fill:#8080800F,stroke:#9E9E9E,stroke-width:1px
+```
+
+### 6. Arquitectura del Motor Modular de Layouts 2D y Roles Semánticos
+
+El subsistema de proyección geométrica en [`utilities/layouts/`](utilities/layouts/) desacopla de manera estricta la topología espacial de cualquier contenedor respecto a su estilizado y coloración en terminal:
+
+```mermaid
+flowchart TB
+    subgraph INPUT["Entradas al Pipeline"]
+        direction TB
+        CONT["<b>Contenedor Concreto</b><br/>(BinaryTree, CircularList, MerkleTree)"]
+        FMT["<b>Formateador Inyectado por el Cliente</b><br/>Lambda: (const Node&, Role role) ➔ string<br/>(Estilizado tipográfico y color con ansistyle.h)"]
+    end
+
+    subgraph BASE["Capa Base de Abstracción (layouts/base_layout.h)"]
+        direction TB
+        BL["<b>BaseLayout#lt;Formatter#gt;</b><br/>m_directed (aristas dirigidas)<br/>format_node(node, role)<br/>normalize_and_bound(nodes, w, h)"]
+        DF["<b>DefaultNodeFormatter</b><br/>Proyección neutra en texto plano"]
+        DF -. "por defecto" .-> BL
+    end
+
+    subgraph LAYOUTS["Layouts Modulares Especializados"]
+        direction TB
+        subgraph TREE_MOD["layouts/tree_layout.h"]
+            TL["<b>TreeLayout#lt;Formatter#gt;</b><br/>Estructura agregada LayoutNode<br/>Template Method operator()"]
+            VTL["<b>VerticalTreeLayout</b><br/>Contornos dinámicos sin colisión"]
+            HTL["<b>HorizontalTreeLayout</b><br/>In-Order y centrado dinámico"]
+            TR["<b>TreeRole</b><br/>Root, Leaf, Left, Right"]
+            TL --> VTL
+            TL --> HTL
+            TR -. "asigna rol" .-> TL
+        end
+
+        subgraph CIRC_MOD["layouts/circular_list_layout.h"]
+            CLL["<b>CircularListLayout#lt;Formatter#gt;</b><br/>Elipse continua en dos arcos opuestos"]
+            CLR["<b>CircularListRole</b><br/>Head, Tail, Node"]
+            CLR -. "asigna rol" .-> CLL
+        end
+
+        subgraph MERKLE_MOD["layouts/merkle_tree_layout.h"]
+            MTL["<b>MerkleTreeLayout#lt;Formatter#gt;</b><br/>Estructura agregada MerkleNode<br/>Hashes abreviados + Enlace vertical │"]
+            MR["<b>MerkleRole</b><br/>Root, Internal, Leaf, CloneLeaf, Data, CloneData"]
+            MR -. "asigna rol" .-> MTL
+        end
+
+        BL --> TL
+        BL --> CLL
+        BL --> MTL
+    end
+
+    subgraph OUTPUT["Grafo Visual Normalizado y Rasterizador"]
+        direction TB
+        VG["<b>VisualGraph (render.h)</b><br/>VisualNode (id, label, x, y, css_class)<br/>VisualEdge (from_id, to_id)"]
+        C2D["<b>Canvas2D (canvas.h)</b><br/>Matriz 2D de celdas UTF-8 / ANSI<br/>visible_length ANSI-Aware"]
+        REND["<b>ConsoleGraphRenderer</b><br/>Líneas redondeadas, agudas o ASCII"]
+        VG --> C2D --> REND
+    end
+
+    CONT ==>|"Invoca .draw(layout, renderer)"| LAYOUTS
+    FMT ==>|"Inyecta reglas y colores"| BL
+    LAYOUTS ==>|"Construye coordenadas 2D"| VG
+
+    classDef input fill:#E8EAF6,stroke:#3949AB,color:#111,stroke-width:1.5px;
+    classDef base fill:#EDE7F6,stroke:#512DA8,color:#111,stroke-width:1.5px;
+    classDef layout fill:#E1F5FE,stroke:#0288D1,color:#111,stroke-width:1.5px;
+    classDef role fill:#FFF8E1,stroke:#FFA000,color:#111,stroke-width:1.5px;
+    classDef render fill:#E8F5E9,stroke:#2E7D32,color:#111,stroke-width:1.5px;
+
+    class CONT,FMT input
+    class BL,DF base
+    class TL,VTL,HTL,CLL,MTL layout
+    class TR,CLR,MR role
+    class VG,C2D,REND render
 ```
 
 ---
@@ -886,6 +969,148 @@ flowchart TD
 
 ---
 
+### 7. Contenedor Criptográfico MerkleTree y Pruebas de Auditoría
+
+[`MerkleTree`](containers/merkletree.h) implementa un árbol de autenticación criptográfica basado en la arquitectura de nodos y contenedores del repositorio (`GeneralContainer` con `BinaryTreeNode`). Permite registrar colecciones inmutables de transacciones o bloques de datos, computar de forma jerárquica la raíz criptográfica (*Merkle Root*) mediante funciones hash criptográficas (como SHA-256), y generar pruebas de inclusión en $O(\log N)$ con preservación total de privacidad.
+
+![Árbol Merkle y Prueba de Auditoría](docs/merkle_tree_proof.svg)
+
+#### A. Estructura y Propagación Criptográfica de Hashes
+
+En el árbol de Merkle:
+1. **Nivel de Hojas de Datos ($D_i$)**: Contiene los datos originales de las transacciones (`std::string`).
+2. **Nivel de Hojas Hash ($H_i$)**: Cada hoja almacena el hash criptográfico directo de su transacción:
+   $$H_i = \text{Hash}(D_i)$$
+3. **Nodos Internos**: Cada nodo padre combina los hashes de sus dos hijos en un único hash concatenado:
+   $$H_{\text{padre}} = \text{Hash}(H_{\text{izq}} \parallel H_{\text{der}})$$
+4. **Propagación Ascendente Inmediata**:
+   Al invocar `updateData(idx, newData)`, el árbol actualiza el dato original, recalcula la hoja correspondiente y asciende de forma recursiva por la cadena de ancestros hasta la raíz en $O(\log N)$:
+   $$\text{Raíz nueva} = \text{MerkleTree}::\text{getRootHash}()$$
+   Cualquier alteración en un solo carácter de una transacción invalida la raíz previa, proporcionando detección instantánea de manipulación o corrupción de datos.
+
+---
+
+#### B. Manejo de Cantidad Impar de Hojas y Hojas Clonadas
+
+En árboles binarios completos donde el número de transacciones $N$ es impar, el último dato se empareja duplicando su propio hash para garantizar que el árbol sea estrictamente balanceado:
+$$\text{Si } N = 5 \implies \text{Hojas: } [H_0, H_1, H_2, H_3, H_4, H_4']$$
+El motor de layouts y roles semánticos clasifica automáticamente a este nodo con el rol `MerkleRole::CloneLeaf` y a su dato vinculado con `MerkleRole::CloneData`, permitiendo que el cliente visualice la hoja clonada con estilo atenuado o cursivo (`.dim().italic()`) para distinguirla claramente de las transacciones genuinas.
+
+---
+
+#### C. Generación de Pruebas de Auditoría (*Merkle Audit Proof*)
+
+Una **Prueba de Inclusión** (*Merkle Audit Proof*) permite a un cliente o auditor certificar que una transacción específica $D_k$ pertenece al conjunto autenticado por la raíz sin necesidad de descargar ni conocer ninguna de las demás transacciones:
+
+```cpp
+// Genera la prueba compacta para la transacción en la posición target_index:
+auto proof = mtree.getAuditProof(target_index);
+```
+
+La prueba es un vector de pares `std::vector<std::pair<std::string, bool>>` de tamaño $\lceil \log_2 N \rceil$:
+- `first`: Hash del nodo hermano en ese nivel de altura.
+- `second`: Booleano `is_left` que indica si el hermano debe concatenarse a la izquierda (`true`) o a la derecha (`false`).
+
+---
+
+#### D. Protocolo y Algoritmo de Verificación Estática
+
+La verificación se realiza de manera totalmente estática e independiente de cualquier instancia del árbol mediante `MerkleTree<>::verify(...)`:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Auditor as Auditor / Cliente Verificador
+    participant V as MerkleTree::verify(data, proof, expected_root)
+    participant H as Función Criptográfica Hash (SHA-256)
+
+    Auditor->>V: Inicia verificación con (Tx, Proof, ExpectedRoot)
+    V->>H: h = Hash(Tx)
+    H-->>V: Retorna hash de la hoja
+    loop Por cada hermano (sibling_hash, is_left) en Proof
+        alt is_left == true
+            V->>H: h = Hash(sibling_hash + h)
+        else is_left == false
+            V->>H: h = Hash(h + sibling_hash)
+        end
+        H-->>V: Nuevo hash intermedio acumulado
+    end
+    V->>V: Comparar (h == expected_root)
+    alt Coinciden exactamente
+        V-->>Auditor: true (Prueba VÁLIDA: Transacción auténtica)
+    else No coinciden
+        V-->>Auditor: false (Prueba INVÁLIDA: Transacción falsa o raíz incorrecta)
+    end
+```
+
+---
+
+### 8. Subsistema Modular de Layouts 2D y Roles Semánticos
+
+El directorio [`utilities/layouts/`](utilities/layouts/) implementa una arquitectura desacoplada que separa la formulación geométrica de los grafos en 2D de la presentación tipográfica y cromática:
+
+![Arquitectura Modular de Layouts 2D y Roles](docs/layout_hierarchy.svg)
+
+#### A. Principio de Separación: Geometría Pura vs. Coloración Inyectada
+
+1. **La Capa de Layout es Neutra**:
+   Las clases derivadas de `BaseLayout` (`VerticalTreeLayout`, `HorizontalTreeLayout`, `CircularListLayout`, `MerkleTreeLayout`) tienen una única responsabilidad: calcular las coordenadas espaciales $(X, Y)$, los contornos de subárboles para evitar solapamientos y las aristas dirigidas/no dirigidas. Por defecto utilizan `DefaultNodeFormatter`, proyectando texto plano sin secuencias de escape ANSI.
+2. **Inyección de Estilos por el Cliente**:
+   El cliente inyecta una función o lambda que recibe el nodo (o texto) y su **rol semántico** (`enum class Role`), devolviendo una cadena con el formato deseado mediante el motor tipográfico [`ansistyle.h`](utilities/ansistyle.h).
+
+---
+
+#### B. Catálogo de Roles Semánticos y Clases CSS
+
+Cada layout define su propio `enum class` de roles semánticos mutuamente excluyentes, acompañados de una función `to_css_class(role)` que serializa el rol a su identificador CSS correspondiente en `VisualNode::css_class`:
+
+| Layout | Enum de Rol | Valores del Enum | Clases CSS (`to_css_class`) | Propósito Topológico |
+| :--- | :--- | :--- | :--- | :--- |
+| [`TreeLayout`](utilities/layouts/tree_layout.h) | `TreeRole` | `Root`, `Leaf`, `Left`, `Right` | `"root"`, `"leaf"`, `"left"`, `"right"` | Distingue la raíz, las hojas terminales y las ramas internas izquierda/derecha. |
+| [`CircularListLayout`](utilities/layouts/circular_list_layout.h) | `CircularListRole` | `Head`, `Tail`, `Node` | `"head"`, `"tail"`, `"node"` | Identifica el inicio de la lista circular, el último nodo antes del cierre, y nodos intermedios. |
+| [`MerkleTreeLayout`](utilities/layouts/merkle_tree_layout.h) | `MerkleRole` | `Root`, `Internal`, `Leaf`, `CloneLeaf`, `Data`, `CloneData` | `"root"`, `"internal"`, `"leaf"`, `"clone-leaf"`, `"data"`, `"clone-data"` | Distingue la raíz criptográfica, hashes internos, hojas de hash originales o clonadas, y nodos de transacción base. |
+
+El cliente utiliza la sentencia `switch (role)` nativa de C++23, lo que permite al compilador verificar de forma exhaustiva (`-Wswitch`) que todos los roles sean atendidos:
+
+```cpp
+auto painter = [](const std::string& text, MerkleRole role) {
+    switch (role) {
+        case MerkleRole::Root:      return styled(text.substr(0, 8)).bold().bright_green().str();
+        case MerkleRole::Leaf:      return styled(text.substr(0, 8)).bold().bright_yellow().str();
+        case MerkleRole::CloneLeaf: return styled(text.substr(0, 8)).dim().italic().str();
+        case MerkleRole::Internal:  return styled(text.substr(0, 8)).dim().str();
+        case MerkleRole::Data:      return styled("[" + text + "]").bright_cyan().str();
+        case MerkleRole::CloneData: return styled("[" + text + " (copia)]").dim().italic().str();
+    }
+    return text;
+};
+```
+
+---
+
+#### C. Motor Tipográfico ANSI y Ancho Visual (`ansistyle.h`)
+
+[`utilities/ansistyle.h`](utilities/ansistyle.h) implementa el repertorio completo de estilos y secuencias de escape ANSI para terminales modernas:
+- **Builder Fluido `styled(...)`**: Encadenamiento legible de modificaciones (`styled("texto").bold().underline().bright_yellow()`).
+- **Soporte TrueColor de 24 Bits**: Colores RGB directos (`rgb(r, g, b)`, `hex("#RRGGBB")`).
+- **Prevención de Gris por `Bold` con `pure_black()`**:
+  En terminales ANSI estándar, la combinación `black()` (`\033[30m`) + `bold()` (`\033[1m`) convierte el negro en `Bright Black` (`\033[90m`), produciendo texto gris (`#666666`). El método `pure_black()` emite TrueColor 24-bit `\033[38;2;0;0;0m`, garantizando color negro absoluto sobre fondos claros:
+  ```cpp
+  cout << styled(" █ Pruebas ").pure_black().bg_bright_yellow() << "\n\n";
+  ```
+- **Cálculo de Ancho Visual Libre de Secuencias (`visible_length`)**:
+  La función `visible_length(std::string_view)` analiza la cadena caracter a caracter ignorando bytes pertenecientes a códigos de escape ANSI `\033[...m` y calculando el número real de columnas de terminal monoespaciadas que ocuparán los glifos UTF-8.
+
+---
+
+#### D. Lienzo Matricial `Canvas2D` y Trazado de Conexiones Verticales `│`
+
+[`Canvas2D`](utilities/canvas.h) administra una matriz direccionable $(x, y)$ donde cada celda almacena un glifo UTF-8 junto a sus atributos ANSI:
+- **Sin Desfases Geométricos**: Al escribir cadenas formateadas con ANSI en las coordenadas del nodo, las secuencias de escape se asocian a la primera celda visible sin avanzar columnas espaciales en la matriz.
+- **Conexiones Verticales Puras (`│`)**: `MerkleTreeLayout` proyecta aristas verticales con alineación milimétrica entre cada hoja de hash y su dato original subyacente.
+
+---
+
 ## 🚀 III. Guía de Uso y Demostración Práctica de la API
 
 Demostración concisa de los casos de uso más frecuentes de los contenedores y vistas del repositorio.
@@ -975,4 +1200,104 @@ ss << htable;
 HashTable<HashTableTraits<std::string, int>> htable_restored;
 ss >> htable_restored;
 std::cout << "Restaurado: " << htable_restored["la hermenéutica telúrica incáica"] << std::endl;
+```
+
+### 5. Árbol de Merkle: Construcción, Mutación y Verificación de Pruebas
+
+```cpp
+#include "containers/merkletree.h"
+#include "utilities/render.h"
+#include "utilities/layouts.h"
+
+// 1. Instanciación e inserción de transacciones
+MerkleTree<> mtree;
+mtree.push_back("Tx0: Alice -> Bob 50 BTC", 0);
+mtree.push_back("Tx1: Bob -> Charlie 20 BTC", 1);
+mtree.push_back("Tx2: Charlie -> Dave 15 BTC", 2);
+mtree.push_back("Tx3: Dave -> Eve 5 BTC", 3);
+
+// 2. Consulta de Raíz Criptográfica
+std::string root = mtree.getRootHash();
+std::cout << "Merkle Root: " << root << std::endl;
+
+// 3. Generación de Prueba de Auditoría para Tx2
+std::string target_tx = mtree.getData(2);
+auto proof = mtree.getAuditProof(2);
+
+// 4. Verificación estática e independiente
+bool is_valid = MerkleTree<>::verify(target_tx, proof, root);
+std::cout << "¿Prueba válida? " << (is_valid ? "SÍ (Auténtica)" : "NO") << std::endl;
+
+// 5. Detección inmediata de manipulación (Mutación)
+mtree.updateData(2, "Tx2: Charlie -> Dave 999 BTC FRAUDE");
+std::string new_root = mtree.getRootHash();
+std::cout << "¿Raíz alterada tras fraude? " 
+          << (root != new_root ? "SÍ (Detección instantánea)" : "NO") << std::endl;
+
+// La prueba previa queda automáticamente invalidada:
+bool old_proof_valid = MerkleTree<>::verify(target_tx, proof, new_root);
+std::cout << "¿Prueba vieja válida en nueva raíz? " 
+          << (old_proof_valid ? "VÁLIDA" : "RECHAZADA (Segura)") << std::endl;
+```
+
+### 6. Personalización Visual de Contenedores con Layouts y Estilos ANSI
+
+```cpp
+#include "containers/avltree.h"
+#include "containers/circularlinkedlist.h"
+#include "containers/merkletree.h"
+#include "utilities/render.h"
+#include "utilities/layouts.h"
+#include "utilities/ansistyle.h"
+
+// 1. Visualización de Árbol AVL con Roles Semánticos (TreeRole)
+AVLTree<BinaryTreeAscTraits<int>> tree;
+// ... inserciones ...
+tree.draw(
+    VerticalTreeLayout{[](const auto& node, TreeRole role) {
+        auto val = node.getValue();
+        switch (role) {
+            case TreeRole::Root:  return styled(val).bright_magenta().bold().underline().str();
+            case TreeRole::Leaf:  return styled(val).bright_yellow().bold().str();
+            case TreeRole::Left:  return styled(val).bright_cyan().str();
+            case TreeRole::Right: return styled(val).bright_green().str();
+        }
+        return styled(val).str();
+    }},
+    ConsoleGraphRenderer(std::cout)
+);
+
+// 2. Visualización de Lista Enlazada Circular con CircularListRole
+CircularLinkedList<LinkedListAscTraits<int>> clist;
+// ... inserciones ...
+clist.draw(
+    CircularListLayout{[](const auto& node, CircularListRole role) {
+        auto val = node.getValue();
+        switch (role) {
+            case CircularListRole::Head: return styled(val).bold().bright_green().str();
+            case CircularListRole::Tail: return styled(val).bold().bright_red().str();
+            case CircularListRole::Node: return styled(val).cyan().str();
+        }
+        return styled(val).str();
+    }},
+    ConsoleGraphRenderer(std::cout)
+);
+
+// 3. Visualización de Merkle Tree con Roles y Datos Asociados
+MerkleTree<> mtree;
+// ... transacciones ...
+mtree.draw(
+    MerkleTreeLayout{[](const std::string& text, MerkleRole role) {
+        switch (role) {
+            case MerkleRole::Root:      return styled(text.substr(0, 8)).bold().bright_green().str();
+            case MerkleRole::Leaf:      return styled(text.substr(0, 8)).bold().bright_yellow().str();
+            case MerkleRole::CloneLeaf: return styled(text.substr(0, 8)).dim().italic().str();
+            case MerkleRole::Internal:  return styled(text.substr(0, 8)).dim().str();
+            case MerkleRole::Data:      return styled("[" + text + "]").bright_cyan().str();
+            case MerkleRole::CloneData: return styled("[" + text + " (copia)]").dim().italic().str();
+        }
+        return text;
+    }},
+    ConsoleGraphRenderer(std::cout)
+);
 ```

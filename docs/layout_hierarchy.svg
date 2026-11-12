@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-500 -270 1000 540" width="100%" height="100%" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr-blue" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#0288D1" />
+    </marker>
+    <marker id="arr-green" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#2E7D32" />
+    </marker>
+    <marker id="arr-purple" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#512DA8" />
+    </marker>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity="0.08" />
+    </filter>
+  </defs>
+
+  <style>
+    .bg          { fill: #FAFAFA; stroke: #CFD8DC; stroke-width: 2; rx: 16; }
+    .title       { font-size: 20px; font-weight: 800; fill: #1A237E; text-anchor: middle; }
+    .subtitle    { font-size: 12.5px; fill: #546E7A; text-anchor: middle; }
+    
+    /* Columnas / Secciones */
+    .col-box     { fill: #FFFFFF; stroke-width: 1.8; rx: 12; filter: url(#shadow); }
+    .col-hdr     { font-size: 14px; font-weight: 800; text-anchor: middle; }
+    .col-sub     { font-size: 10.5px; fill: #546E7A; text-anchor: middle; }
+
+    /* Tarjetas y componentes */
+    .card-base   { fill: #EDE7F6; stroke: #512DA8; stroke-width: 1.8; rx: 8; }
+    .card-layout { fill: #E1F5FE; stroke: #0288D1; stroke-width: 1.6; rx: 7; }
+    .card-role   { fill: #FFF8E1; stroke: #FFA000; stroke-width: 1.4; rx: 6; }
+    .card-client { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.8; rx: 8; }
+    .card-render { fill: #ECEFF1; stroke: #455A64; stroke-width: 1.6; rx: 8; }
+
+    /* Tipografía interna */
+    .txt-title   { font-size: 12px; font-family: 'JetBrains Mono', monospace; font-weight: 800; }
+    .txt-body    { font-size: 10px; font-family: 'JetBrains Mono', monospace; fill: #37474F; }
+    .txt-role    { font-size: 9.5px; font-family: 'JetBrains Mono', monospace; font-weight: 700; fill: #E65100; }
+    .txt-code    { font-size: 9.5px; font-family: 'JetBrains Mono', monospace; fill: #1B5E20; }
+
+    /* Conectores */
+    .flow-line   { fill: none; stroke-width: 2; stroke-linecap: round; }
+  </style>
+
+  <!-- Fondo General -->
+  <rect x="-485" y="-255" width="970" height="510" class="bg" />
+
+  <!-- Encabezado -->
+  <text x="0" y="-220" class="title">Arquitectura Modular de Layouts 2D y Roles Semánticos</text>
+  <text x="0" y="-200" class="subtitle">Separación estricta entre Proyección Geométrica Pura y Estilizado ANSI Inyectado</text>
+
+  <!-- ==================== COLUMNA 1: CONTENEDORES (Izquierda) ==================== -->
+  <g transform="translate(-350, -165)">
+    <rect x="-115" y="0" width="230" height="380" class="col-box" stroke="#3949AB" />
+    <text x="0" y="28" class="col-hdr" fill="#1A237E">1. Estructura de Datos</text>
+    <text x="0" y="44" class="col-sub">Topología Lógica / Contenedor</text>
+    <line x1="-95" y1="54" x2="95" y2="54" stroke="#E0E0E0" stroke-width="1.2" />
+
+    <!-- BinaryTree / AVLTree -->
+    <g transform="translate(0, 85)">
+      <rect x="-95" y="-22" width="190" height="44" rx="7" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1.5" />
+      <text x="0" y="-4" class="txt-title" fill="#4A148C" text-anchor="middle">BinaryTree / AVLTree</text>
+      <text x="0" y="12" class="txt-body" fill="#6A1B9A" text-anchor="middle">Raíz, hijos [2], m_parent</text>
+    </g>
+
+    <!-- CircularList -->
+    <g transform="translate(0, 160)">
+      <rect x="-95" y="-22" width="190" height="44" rx="7" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1.5" />
+      <text x="0" y="-4" class="txt-title" fill="#4A148C" text-anchor="middle">CircularLinkedList</text>
+      <text x="0" y="12" class="txt-body" fill="#6A1B9A" text-anchor="middle">m_pNext circular continuo</text>
+    </g>
+
+    <!-- MerkleTree -->
+    <g transform="translate(0, 235)">
+      <rect x="-95" y="-22" width="190" height="44" rx="7" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1.5" />
+      <text x="0" y="-4" class="txt-title" fill="#4A148C" text-anchor="middle">MerkleTree</text>
+      <text x="0" y="12" class="txt-body" fill="#6A1B9A" text-anchor="middle">Hashes + Hojas transacciones</text>
+    </g>
+
+    <!-- Mixin Drawable -->
+    <g transform="translate(0, 315)">
+      <rect x="-95" y="-24" width="190" height="48" rx="7" fill="#E8EAF6" stroke="#283593" stroke-width="1.5" />
+      <text x="0" y="-6" class="txt-title" fill="#1A237E" text-anchor="middle">Mixin Drawable</text>
+      <text x="0" y="11" class="txt-code" fill="#283593" text-anchor="middle">.draw(layout, renderer)</text>
+    </g>
+  </g>
+
+  <!-- Flecha Columna 1 -> Columna 2 -->
+  <line x1="-230" y1="20" x2="-180" y2="20" class="flow-line" stroke="#0288D1" stroke-dasharray="6 4" marker-end="url(#arr-blue)" />
+
+  <!-- ==================== COLUMNA 2: MOTOR DE LAYOUTS (Centro) ==================== -->
+  <g transform="translate(-10, -165)">
+    <rect x="-160" y="0" width="320" height="380" class="col-box" stroke="#0288D1" />
+    <text x="0" y="28" class="col-hdr" fill="#01579B">2. utilities/layouts/</text>
+    <text x="0" y="44" class="col-sub">Geometría Pura y Roles Semánticos</text>
+    <line x1="-140" y1="54" x2="140" y2="54" stroke="#E0E0E0" stroke-width="1.2" />
+
+    <!-- BaseLayout -->
+    <g transform="translate(0, 85)">
+      <rect x="-145" y="-24" width="290" height="48" class="card-base" />
+      <text x="0" y="-6" class="txt-title" fill="#311B92" text-anchor="middle">BaseLayout&lt;Formatter&gt;</text>
+      <text x="0" y="11" class="txt-body" fill="#4527A0" text-anchor="middle">normalize_and_bound() • format_node()</text>
+    </g>
+
+    <!-- Sub-layouts Modulares -->
+    <!-- TreeLayout -->
+    <g transform="translate(0, 160)">
+      <rect x="-145" y="-22" width="290" height="44" class="card-layout" />
+      <text x="-135" y="-4" class="txt-title" fill="#01579B">Vertical / HorizontalTreeLayout</text>
+      <text x="-135" y="11" class="txt-body">Contornos multinivel sin colisión</text>
+      <rect x="55" y="-12" width="80" height="24" class="card-role" />
+      <text x="95" y="4" class="txt-role" text-anchor="middle">TreeRole</text>
+    </g>
+
+    <!-- CircularListLayout -->
+    <g transform="translate(0, 225)">
+      <rect x="-145" y="-22" width="290" height="44" class="card-layout" />
+      <text x="-135" y="-4" class="txt-title" fill="#01579B">CircularListLayout</text>
+      <text x="-135" y="11" class="txt-body">Elipse trigonométrica continua</text>
+      <rect x="35" y="-12" width="100" height="24" class="card-role" />
+      <text x="85" y="4" class="txt-role" text-anchor="middle">CircularListRole</text>
+    </g>
+
+    <!-- MerkleTreeLayout -->
+    <g transform="translate(0, 295)">
+      <rect x="-145" y="-22" width="290" height="44" class="card-layout" />
+      <text x="-135" y="-4" class="txt-title" fill="#01579B">MerkleTreeLayout</text>
+      <text x="-135" y="11" class="txt-body">Hashes abreviados + línea vertical │</text>
+      <rect x="45" y="-12" width="90" height="24" class="card-role" />
+      <text x="90" y="4" class="txt-role" text-anchor="middle">MerkleRole</text>
+    </g>
+
+    <text x="0" y="355" font-size="10px" font-weight="700" fill="#00838F" text-anchor="middle">
+      ✓ Por defecto: Proyección pura en texto plano sin ANSI
+    </text>
+  </g>
+
+  <!-- Flecha Columna 2 -> Columna 3 -->
+  <line x1="165" y1="20" x2="215" y2="20" class="flow-line" stroke="#2E7D32" marker-end="url(#arr-green)" />
+
+  <!-- ==================== COLUMNA 3: SALIDA & CLIENTE (Derecha) ==================== -->
+  <g transform="translate(345, -165)">
+    <rect x="-125" y="0" width="250" height="380" class="col-box" stroke="#2E7D32" />
+    <text x="0" y="28" class="col-hdr" fill="#1B5E20">3. Formateo y Visualización</text>
+    <text x="0" y="44" class="col-sub">Inyección Cliente + Canvas2D</text>
+    <line x1="-105" y1="54" x2="105" y2="54" stroke="#E0E0E0" stroke-width="1.2" />
+
+    <!-- Inyección Cliente con Lambdas -->
+    <g transform="translate(0, 100)">
+      <rect x="-110" y="-36" width="220" height="72" class="card-client" />
+      <text x="0" y="-18" class="txt-title" fill="#1B5E20" text-anchor="middle">Inyección del Cliente</text>
+      <text x="-95" y="0" class="txt-code">auto painter = [](text, role) {</text>
+      <text x="-80" y="14" class="txt-code">switch (role) { ... }</text>
+      <text x="-95" y="27" class="txt-code">};</text>
+    </g>
+
+    <!-- VisualGraph -->
+    <g transform="translate(0, 195)">
+      <rect x="-110" y="-24" width="220" height="48" class="card-render" />
+      <text x="0" y="-6" class="txt-title" fill="#263238" text-anchor="middle">VisualGraph</text>
+      <text x="0" y="11" class="txt-body" fill="#37474F" text-anchor="middle">VisualNode (x, y, css_class), Edges</text>
+    </g>
+
+    <!-- Canvas2D y ConsoleGraphRenderer -->
+    <g transform="translate(0, 290)">
+      <rect x="-110" y="-36" width="220" height="72" rx="8" fill="#212121" stroke="#424242" stroke-width="1.8" />
+      <text x="0" y="-18" class="txt-title" fill="#80CBC4" text-anchor="middle">Canvas2D &amp; Renderer</text>
+      <text x="0" y="0" class="txt-body" fill="#FFCA28" text-anchor="middle">Matriz celda a celda UTF-8</text>
+      <text x="0" y="17" class="txt-body" fill="#81C784" text-anchor="middle">visible_length ANSI-Aware</text>
+    </g>
+
+    <text x="0" y="355" font-size="10px" font-weight="700" fill="#2E7D32" text-anchor="middle">
+      Terminal con estilos ANSI / Truecolor
+    </text>
+  </g>
+</svg>
