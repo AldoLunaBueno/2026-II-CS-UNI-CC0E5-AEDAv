@@ -1,7 +1,7 @@
 #ifndef __CIRCULAR_LINKEDLIST_H__
 #define __CIRCULAR_LINKEDLIST_H__
-#include "linkedlist.h"
-#include "../utilities/render.h"
+#include "linked_list.h"
+#include "../../utilities/render.h"
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseCircularLinkedList;

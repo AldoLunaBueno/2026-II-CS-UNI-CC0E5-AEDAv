@@ -1,7 +1,7 @@
 CXX        := g++
 CXXFLAGS   := -std=c++23
 TARGET     := main
-SRCS       := main.cpp Demos.cpp
+SRCS       := main.cpp demos.cpp
 PR_OUT     := tmp/pr_comment.md
 PR_SCRIPT  := scripts/gen_pr_comment.sh
 

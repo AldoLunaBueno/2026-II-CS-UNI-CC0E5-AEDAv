@@ -8,7 +8,7 @@
 #include <type_traits>
 #include "../../types.h"
 #include "../render.h"
-#include "../ansistyle.h"
+#include "../ansi_style.h"
 
 // Formateador por defecto para cualquier tipo de nodo o valor
 struct DefaultNodeFormatter {

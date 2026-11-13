@@ -40,7 +40,7 @@ flowchart LR
     CONT["<b>3. CONTENEDORES</b><br/>IterableCore y ContainerCore<br/>Vector, Heap, BinaryTree, AVL, Listas,<br/>HashTable y MerkleTree"]
     ITER["<b>4. ITERADORES</b><br/>CRTP GeneralIterator<br/>(Forward / Backward / Euler)"]
     NODOS["<b>5. NODOS</b><br/>GeneralNode, LinkedListNode,<br/>BinaryTreeNode (m_height)"]
-    LIBRES["<b>6. LAYOUTS & UTILS</b><br/>BaseLayout, Tree/Circular/MerkleLayout<br/>ConsoleGraphRenderer, ansistyle.h"]
+    LIBRES["<b>6. LAYOUTS & UTILS</b><br/>BaseLayout, Tree/Circular/MerkleLayout<br/>ConsoleGraphRenderer, ansi_style.h"]
 
     TRAITS ==>|"Inyecta tipos, Compare y View"| CONT
     MIXINS ==>|"Ensambla capacidades y vistas"| CONT
@@ -112,7 +112,7 @@ flowchart TB
         V["<b>Vector#lt;Traits#gt;</b><br/><i>BaseVector</i>"]
         
         H["<b>Heap#lt;Traits#gt;</b><br/><i>BaseHeap (override rebuild)</i>"]
-        MH["<b>MinHeap / MaxHeap</b><br/><i>(Heap.h)</i>"]
+        MH["<b>MinHeap / MaxHeap</b><br/><i>(trees/heap.h)</i>"]
         
         LL["<b>LinkedList#lt;Traits#gt;</b><br/><i>BaseLinkedList (virtual linkNode)</i>"]
         LC["<b>CircularLinkedList#lt;Traits#gt;</b>"]
@@ -195,7 +195,7 @@ flowchart TB
         PH -->|"suma de fases (bits)"| ORD
     end
 
-    subgraph ITER["Jerarquía de Iteradores (GeneralIterator.h)"]
+    subgraph ITER["Jerarquía de Iteradores (core/general_iterator.h)"]
         direction TB
         GI["<b>GeneralIterator#lt;Derived, T#gt;</b><br/>CRTP: m_ptr, m_pStart, operator*, ==, !="]
         
@@ -214,7 +214,7 @@ flowchart TB
         GI --> BTI
     end
 
-    subgraph NODOS["Jerarquía de Nodos (GeneralNode.h)"]
+    subgraph NODOS["Jerarquía de Nodos (core/general_node.h)"]
         direction TB
         GN["<b>GeneralNode#lt;T#gt;</b><br/>m_value (T), m_ref (Ref)<br/>getValue(), getRef(), value(), ref(), stream I/O"]
         
@@ -258,7 +258,7 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    subgraph ORDEN["Políticas de Comparación (GeneralContainer.h)"]
+    subgraph ORDEN["Políticas de Comparación (core/general_container.h)"]
         direction TB
         DT["<b>DefaultTraits#lt;T, Compare#gt;</b><br/>value_type = T, Compare = _Compare"]
         ASC["<b>AscendingTraits#lt;T#gt;</b><br/>Compare = std::less#lt;T#gt;"]
@@ -341,7 +341,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    subgraph BST["BaseBinaryTree (binarytree.h)"]
+    subgraph BST["BaseBinaryTree (trees/binary_tree.h)"]
         direction TB
         INS["<b>insert(value, ref)</b><br/>1. lock_guard(m_mutex)<br/>2. p = internalInsert(...)<br/>3. rebalance(p)"]
         REM["<b>remove(node)</b><br/>1. lock_guard(m_mutex)<br/>2. p = internalRemove(node)<br/>3. rebalance(p)"]
@@ -359,7 +359,7 @@ flowchart LR
         I_REM --> CONN_B
     end
 
-    subgraph AVL_SUB["BaseAVLTree (avltree.h)"]
+    subgraph AVL_SUB["BaseAVLTree (trees/avl_tree.h)"]
         direction TB
         REB_A["<b>rebalance(node) override</b><br/>Sube por m_parent actualizando<br/>m_height y evaluando getbf(z), getbf(y)"]
         ROT["<b>rotate_up(node)</b><br/>Rotación unificada (simple = 1x y,<br/>doble = 2x x) usando dp y dg"]
@@ -369,7 +369,7 @@ flowchart LR
         ROT --> CONN_A
     end
 
-    subgraph CORE_REBUILD["Invariante Rebuild (ContainerCore.h / Heap.h)"]
+    subgraph CORE_REBUILD["Invariante Rebuild (core/container_core.h / trees/heap.h)"]
         direction TB
         APP_HOOK["<b>Applicable::ApplyFunction(...)</b><br/>1. this->call(...)<br/>2. this->rebuild()"]
         REB_CORE["<b>ContainerCore::rebuild()</b><br/><i>virtual no-op por defecto</i>"]
@@ -407,14 +407,14 @@ flowchart LR
 
 ### 6. Arquitectura del Motor Modular de Layouts 2D y Roles Semánticos
 
-El subsistema de proyección geométrica en [`utilities/layouts/`](utilities/layouts/) desacopla de manera estricta la topología espacial de cualquier contenedor respecto a su estilizado y coloración en terminal:
+El subsistema de proyección geométrica en [`utilities/layouts/`](utilities/layouts) desacopla de manera estricta la topología espacial de cualquier contenedor respecto a su estilizado y coloración en terminal:
 
 ```mermaid
 flowchart TB
     subgraph INPUT["Entradas al Pipeline"]
         direction TB
         CONT["<b>Contenedor Concreto</b><br/>(BinaryTree, CircularList, MerkleTree)"]
-        FMT["<b>Formateador Inyectado por el Cliente</b><br/>Lambda: (const Node&, Role role) ➔ string<br/>(Estilizado tipográfico y color con ansistyle.h)"]
+        FMT["<b>Formateador Inyectado por el Cliente</b><br/>Lambda: (const Node&, Role role) ➔ string<br/>(Estilizado tipográfico y color con ansi_style.h)"]
     end
 
     subgraph BASE["Capa Base de Abstracción (layouts/base_layout.h)"]
@@ -455,8 +455,8 @@ flowchart TB
 
     subgraph OUTPUT["Grafo Visual Normalizado y Rasterizador"]
         direction TB
-        VG["<b>VisualGraph (render.h)</b><br/>VisualNode (id, label, x, y, css_class)<br/>VisualEdge (from_id, to_id)"]
-        C2D["<b>Canvas2D (canvas.h)</b><br/>Matriz 2D de celdas UTF-8 / ANSI<br/>visible_length ANSI-Aware"]
+        VG["<b>VisualGraph (layouts/visual_graph.h)</b><br/>VisualNode (id, label, x, y, css_class)<br/>VisualEdge (from_id, to_id)"]
+        C2D["<b>Canvas2D (render.h)</b><br/>Matriz 2D de celdas UTF-8 / ANSI<br/>visible_length ANSI-Aware"]
         REND["<b>ConsoleGraphRenderer</b><br/>Líneas redondeadas, agudas o ASCII"]
         VG --> C2D --> REND
     end
@@ -486,14 +486,14 @@ flowchart TB
 
 #### A. ¿Cómo avanza el Recorrido de Euler por el contorno de un árbol?
 
-El iterador [`BinaryTreeIterator<T, Order, Dir>`](containers/binarytree.h) modela el recorrido como una caminata continua por el **contorno exterior** del árbol. Al rodear el perímetro de cualquier subárbol, el iterador toca cada nodo exactamente en **3 momentos (fases)**:
+El iterador [`BinaryTreeIterator<T, Order, Dir>`](containers/trees/binary_tree.h) modela el recorrido como una caminata continua por el **contorno exterior** del árbol. Al rodear el perímetro de cualquier subárbol, el iterador toca cada nodo exactamente en **3 momentos (fases)**:
 - **🟢 Fase `0` (`FirstPhase` = `Phase::Pre` = `0b100`):** al bajar por el costado izquierdo del nodo (antes de visitar su subárbol izquierdo `I`).
 - **🟡 Fase `1` (`Phase::In` = `0b010`):** al pasar por debajo del nodo (después de volver de `I` y antes de bajar a su subárbol derecho `D`).
 - **🔴 Fase `2` (`LastPhase` = `Phase::Post` = `0b001`):** al subir por el costado derecho del nodo (después de volver de `D`, listo para regresar a su padre `P`).
 
 La caminata completa genera la traza maestra del recorrido de Euler (`PreInPostOrder`), y tanto los recorridos **puros** (como `InOrder`) como los **híbridos** (como `PrePostOrder`) son **subsecuencias** filtradas de esta secuencia completa:
 
-![Contorno del Recorrido de Euler](docs/euler_contour.svg)
+![Contorno del Recorrido de Euler](docs/images/euler_contour.svg)
 
 ---
 
@@ -501,7 +501,7 @@ La caminata completa genera la traza maestra del recorrido de Euler (`PreInPostO
 
 En cada paso del bucle `do-while` de `step_until_phase()`, el nodo actual (`m_ptr`) evalúa su fase `(0)`, `(1)` o `(2)` y decide si **salta a un nodo vecino** (`I`, `D`, `P ➔ I`, `P ➔ D`, o `fin`) o si **avanza de fase dentro del mismo nodo**:
 
-![Máquina de Estados del Recorrido de Euler](docs/euler_state_machine.svg)
+![Máquina de Estados del Recorrido de Euler](docs/images/euler_state_machine.svg)
 
 <details>
 <summary>🔍 Ver especificación algorítmica y diagrama de flujo interno</summary>
@@ -565,9 +565,9 @@ flowchart TB
 
 #### C. Puente entre Fases y Órdenes: Codificación en Máscara Binaria
 
-Numerar las fases como `0`, `1` y `2` es un recurso didáctico para distinguir los tres contactos al rodear un nodo, pero en el código ([`containers/binarytree.h`](containers/binarytree.h)) cada fase es una potencia de 2 que ocupa **una posición de bit exclusiva** dentro de un número binario de 3 cifras (`Phase::Pre = 0b100`, `Phase::In = 0b010`, `Phase::Post = 0b001`). Así, cualquier orden de recorrido [`Order`](containers/binarytree.h) funciona como un panel de 3 interruptores donde cada cifra binaria **enciende (`1`)** o **apaga (`0`)** la parada del iterador en esa fase mediante `while (m_ptr && !(m_phase & Ord))`:
+Numerar las fases como `0`, `1` y `2` es un recurso didáctico para distinguir los tres contactos al rodear un nodo, pero en el código ([`containers/trees/binary_tree.h`](containers/trees/binary_tree.h)) cada fase es una potencia de 2 que ocupa **una posición de bit exclusiva** dentro de un número binario de 3 cifras (`Phase::Pre = 0b100`, `Phase::In = 0b010`, `Phase::Post = 0b001`). Así, cualquier orden de recorrido [`Order`](containers/trees/binary_tree.h) funciona como un panel de 3 interruptores donde cada cifra binaria **enciende (`1`)** o **apaga (`0`)** la parada del iterador en esa fase mediante `while (m_ptr && !(m_phase & Ord))`:
 
-![Puente entre Fases y Máscara Binaria](docs/euler_bitmask.svg)
+![Puente entre Fases y Máscara Binaria](docs/images/euler_bitmask.svg)
 
 ---
 
@@ -575,7 +575,7 @@ Numerar las fases como `0`, `1` y `2` es un recurso didáctico para distinguir l
 
 Al combinar los 3 bits de `{Phase::Pre, Phase::In, Phase::Post}`, las $2^3 - 1 = 7$ regiones no vacías de intersección definen los 3 órdenes **Puros** y los 4 órdenes **Híbridos** (con el recorrido de Euler completo `0b111` en la intersección triple central), que multiplicados por las 2 direcciones (`Asc` y `Desc`) producen los **14 recorridos**:
 
-![Diagrama de Venn de los 14 Recorridos](docs/euler_venn.svg)
+![Diagrama de Venn de los 14 Recorridos](docs/images/euler_venn.svg)
 
 ### 2. Desacoplamiento Estructural: Separación de Contenedor y Recorrido mediante Vistas (BaseView)
 
@@ -625,12 +625,12 @@ Para permitir que tanto contenedores propietarios como vistas no propietarias co
 
 Un contenedor concreto puede incorporar mixins mutantes como `Applicable` (que modifica nodos) o `Readable` (que llama a `clear()` y `push_back()`). Sin embargo, una **Vista (`BaseView`) no es dueña del contenedor ni debe modificar su topología**.
 
-![Filtrado Estático de Mixins](docs/mixin_filter.svg)
+![Filtrado Estático de Mixins](docs/images/mixin_filter.svg)
 
 <details>
 <summary>🔍 Ver implementación de conceptos C++20 y ensamblado de BaseView</summary>
 
-Mediante metaprogramación de conceptos C++20 en [`containers/GeneralContainer.h`](containers/GeneralContainer.h), el sistema clasifica y filtra los mixins en tiempo de compilación:
+Mediante metaprogramación de conceptos C++20 en [`containers/core/general_container.h`](containers/core/general_container.h), el sistema clasifica y filtra los mixins en tiempo de compilación:
 
 ```cpp
 template <template <typename> typename M, typename Traits>
@@ -668,7 +668,7 @@ class BaseView :
 
 1. Si el contenedor tiene `Callable`, `Searchable` o `Printable` (que solo dependen de `IterableCore`), la vista los **hereda automáticamente**.
 2. Si el contenedor tiene `Applicable`, `Readable` o `Reversible` (que dependen de `ContainerCore`), `FilterViewMixin` los transforma en `IgnoredMixin`, descartándolos a nivel de tipos sin overhead de memoria.
-3. Se verifica formalmente con `static_assert` en [`Demos.cpp`](Demos.cpp):
+3. Se verifica formalmente con `static_assert` en [`demos.cpp`](demos.cpp):
    ```cpp
    static_assert(IsCallableWith<RevView, ...>);    // ✔️ Callable permitido en vista
    static_assert(IsSearchableWith<RevView, ...>);  // ✔️ Searchable permitido en vista
@@ -708,7 +708,7 @@ El mixin `Reversible` reemplaza y amplía la funcionalidad del antiguo `ReverseC
 
 #### E. Vistas de Recorridos en Árboles con `tree.traverse<Order, Direction>()`
 
-En [`containers/binarytree.h`](containers/binarytree.h), `BaseBinaryTree` ofrece el método plantilla `.traverse()`:
+En [`containers/trees/binary_tree.h`](containers/trees/binary_tree.h), `BaseBinaryTree` ofrece el método plantilla `.traverse()`:
 ```cpp
 template <Order Ord, Direction Dir = Direction::Asc>
 auto traverse() const {
@@ -727,7 +727,7 @@ Cualquiera de los 14 recorridos de Euler es accesible de inmediato como un objet
 
 ### 3. Mecanismo de Rebalanceo AVL por Rotación Unificada (rotate_up)
 
-En [`containers/avltree.h`](containers/avltree.h), `BaseAVLTree` implementa el auto-balanceo extendiendo `BaseBinaryTree` mediante el patrón **Template Method**:
+En [`containers/trees/avl_tree.h`](containers/trees/avl_tree.h), `BaseAVLTree` implementa el auto-balanceo extendiendo `BaseBinaryTree` mediante el patrón **Template Method**:
 1. Las operaciones de mutación (`insert` y `remove`) delegan la restauración del árbol al hook virtual `rebalance(node)`.
 2. Al insertar o eliminar, `BaseAVLTree::rebalance(node)` asciende por los ancestros actualizando `m_height = 1 + std::max(h_izq, h_der)`.
 3. Cuando detecta un nodo desbalanceado $Z$ con factor de balance $|bf(Z)| > 1$ (donde $bf = h \text{izq} - h \text{der}$):
@@ -766,7 +766,7 @@ Cada invocación a `connect(parent, child, d)` enlaza los punteros bidireccional
   rotate_up(node); // 2da rotación: asciende X al lugar de Z (balancea el subárbol)
   ```
 
-![Rotaciones para rebalancear AVL](docs/avl_step_up.svg)
+![Rotaciones para rebalancear AVL](docs/images/avl_step_up.svg)
 
 El diagrama animado superior ilustra cómo la transformación geométrica preserva de forma estricta la invariante del recorrido in-order:
 
@@ -776,7 +776,7 @@ $T 1 < (X \text{ o } Y) < T 2 < (Y \text{ o } X) < T 3 < Z < T 4$
 
 Cuando se ejecutan operaciones masivas que transforman el valor de los nodos in-place (como `ApplyFunction`), las invariantes estructurales de ciertos contenedores pueden invalidarse.
 
-![Ciclo de Invariante de Reconstrucción](docs/heap_rebuild.svg)
+![Ciclo de Invariante de Reconstrucción](docs/images/heap_rebuild.svg)
 
 <details>
 <summary>🔍 Ver implementación del patrón Template Method y hook virtual</summary>
@@ -795,7 +795,7 @@ Para solventar esto de manera limpia y polimórfica:
        this->rebuild(); // Hook de restauración del invariante
    }
    ```
-3. En [`containers/Heap.h`](containers/Heap.h), `BaseHeap` sobreescribe `rebuild()`:
+3. En [`containers/trees/heap.h`](containers/trees/heap.h), `BaseHeap` sobreescribe `rebuild()`:
    ```cpp
    template <typename Traits, template <typename> typename... Mixins>
    void BaseHeap<Traits, Mixins...>::rebuild() {
@@ -811,7 +811,7 @@ Para solventar esto de manera limpia y polimórfica:
 
 El subsistema visual en [`utilities/render.h`](utilities/render.h) separa la representación lógica del grafo de su renderizado visual:
 
-![Pipeline de Renderizado ASCII](docs/render_pipeline.svg)
+![Pipeline de Renderizado ASCII](docs/images/render_pipeline.svg)
 
 <details>
 <summary>🔍 Ver detalles del cálculo espacial de niveles y salida en consola</summary>
@@ -847,7 +847,7 @@ Ejemplo de salida en terminal:
 
 ### 6. Contenedor Asociativo HashTable y Protocolo de Serialización en Capas
 
-[`HashTable`](containers/hashtable.h) provee una interfaz asociativa clave-valor construida sobre la arquitectura genérica del repositorio. Internamente, `BaseHashTable` compone una instancia de `BaseAVLTree` para garantizar búsquedas, inserciones y validaciones de pertenencia en $O(\log N)$ con sincronización concurrente (`m_mutex`).
+[`HashTable`](containers/hash_table.h) provee una interfaz asociativa clave-valor construida sobre la arquitectura genérica del repositorio. Internamente, `BaseHashTable` compone una instancia de `BaseAVLTree` para garantizar búsquedas, inserciones y validaciones de pertenencia en $O(\log N)$ con sincronización concurrente (`m_mutex`).
 
 #### A. Arquitectura de Serialización Multicapa (Unwrapping I/O)
 
@@ -855,17 +855,17 @@ La serialización (`Printable`) y deserialización (`Readable`) implementa un de
 
 ```mermaid
 flowchart TB
-    subgraph L1["Capa 1: Contenedor (Printable / Readable en mixins.h)"]
+    subgraph L1["Capa 1: Contenedor (Printable / Readable en core/mixins.h)"]
         direction LR
         L1_FMT["<b>Envolvente de Colección</b><br/>Delimitadores: <b>[</b> elemento1 , elemento2 <b>]</b><br/><i>Coordina flujo general y ciclo clear() / push_back()</i>"]
     end
 
-    subgraph L2["Capa 2: Nodo del Grafo / Árbol (GeneralNode.h)"]
+    subgraph L2["Capa 2: Nodo del Grafo / Árbol (core/general_node.h)"]
         direction LR
         L2_FMT["<b>Empaquetado de Nodo</b><br/>Delimitadores: <b>(</b> m_value , m_ref <b>)</b><br/><i>Preserva metadatos de referencia (Ref)</i>"]
     end
 
-    subgraph L3["Capa 3: Par Asociativo Autocontenido (HashEntry en hashtable.h)"]
+    subgraph L3["Capa 3: Par Asociativo Autocontenido (HashEntry en hash_table.h)"]
         direction LR
         L3_FMT["<b>Entrada Clave-Valor Autocontenida</b><br/>Delimitadores: <b>(</b> clave <b>:</b> valor <b>)</b> o <b>{</b> clave <b>:</b> valor <b>}</b><br/><i>Consume apertura y cierre propios; desacoplado del nivel nodo</i>"]
     end
@@ -971,9 +971,9 @@ flowchart TD
 
 ### 7. Contenedor Criptográfico MerkleTree y Pruebas de Auditoría
 
-[`MerkleTree`](containers/merkletree.h) implementa un árbol de autenticación criptográfica basado en la arquitectura de nodos y contenedores del repositorio (`GeneralContainer` con `BinaryTreeNode`). Permite registrar colecciones inmutables de transacciones o bloques de datos, computar de forma jerárquica la raíz criptográfica (*Merkle Root*) mediante funciones hash criptográficas (como SHA-256), y generar pruebas de inclusión en $O(\log N)$ con preservación total de privacidad.
+[`MerkleTree`](containers/trees/merkle_tree.h) implementa un árbol de autenticación criptográfica basado en la arquitectura de nodos y contenedores del repositorio (`GeneralContainer` con `BinaryTreeNode`). Permite registrar colecciones inmutables de transacciones o bloques de datos, computar de forma jerárquica la raíz criptográfica (*Merkle Root*) mediante funciones hash criptográficas (como SHA-256), y generar pruebas de inclusión en $O(\log N)$ con preservación total de privacidad.
 
-![Árbol Merkle y Prueba de Auditoría](docs/merkle_tree_proof.svg)
+![Árbol Merkle y Prueba de Auditoría](docs/images/merkle_tree_proof.svg)
 
 #### A. Estructura y Propagación Criptográfica de Hashes
 
@@ -1047,16 +1047,16 @@ sequenceDiagram
 
 ### 8. Subsistema Modular de Layouts 2D y Roles Semánticos
 
-El directorio [`utilities/layouts/`](utilities/layouts/) implementa una arquitectura desacoplada que separa la formulación geométrica de los grafos en 2D de la presentación tipográfica y cromática:
+El directorio [`utilities/layouts/`](utilities/layouts) implementa una arquitectura desacoplada que separa la formulación geométrica de los grafos en 2D de la presentación tipográfica y cromática:
 
-![Arquitectura Modular de Layouts 2D y Roles](docs/layout_hierarchy.svg)
+![Arquitectura Modular de Layouts 2D y Roles](docs/images/layout_hierarchy.svg)
 
 #### A. Principio de Separación: Geometría Pura vs. Coloración Inyectada
 
 1. **La Capa de Layout es Neutra**:
    Las clases derivadas de `BaseLayout` (`VerticalTreeLayout`, `HorizontalTreeLayout`, `CircularListLayout`, `MerkleTreeLayout`) tienen una única responsabilidad: calcular las coordenadas espaciales $(X, Y)$, los contornos de subárboles para evitar solapamientos y las aristas dirigidas/no dirigidas. Por defecto utilizan `DefaultNodeFormatter`, proyectando texto plano sin secuencias de escape ANSI.
 2. **Inyección de Estilos por el Cliente**:
-   El cliente inyecta una función o lambda que recibe el nodo (o texto) y su **rol semántico** (`enum class Role`), devolviendo una cadena con el formato deseado mediante el motor tipográfico [`ansistyle.h`](utilities/ansistyle.h).
+   El cliente inyecta una función o lambda que recibe el nodo (o texto) y su **rol semántico** (`enum class Role`), devolviendo una cadena con el formato deseado mediante el motor tipográfico [`ansi_style.h`](utilities/ansi_style.h).
 
 ---
 
@@ -1088,9 +1088,9 @@ auto painter = [](const std::string& text, MerkleRole role) {
 
 ---
 
-#### C. Motor Tipográfico ANSI y Ancho Visual (`ansistyle.h`)
+#### C. Motor Tipográfico ANSI y Ancho Visual (`ansi_style.h`)
 
-[`utilities/ansistyle.h`](utilities/ansistyle.h) implementa el repertorio completo de estilos y secuencias de escape ANSI para terminales modernas:
+[`utilities/ansi_style.h`](utilities/ansi_style.h) implementa el repertorio completo de estilos y secuencias de escape ANSI para terminales modernas:
 - **Builder Fluido `styled(...)`**: Encadenamiento legible de modificaciones (`styled("texto").bold().underline().bright_yellow()`).
 - **Soporte TrueColor de 24 Bits**: Colores RGB directos (`rgb(r, g, b)`, `hex("#RRGGBB")`).
 - **Prevención de Gris por `Bold` con `pure_black()`**:
@@ -1105,7 +1105,7 @@ auto painter = [](const std::string& text, MerkleRole role) {
 
 #### D. Lienzo Matricial `Canvas2D` y Trazado de Conexiones Verticales `│`
 
-[`Canvas2D`](utilities/canvas.h) administra una matriz direccionable $(x, y)$ donde cada celda almacena un glifo UTF-8 junto a sus atributos ANSI:
+[`Canvas2D`](utilities/render.h) administra una matriz direccionable $(x, y)$ donde cada celda almacena un glifo UTF-8 junto a sus atributos ANSI:
 - **Sin Desfases Geométricos**: Al escribir cadenas formateadas con ANSI en las coordenadas del nodo, las secuencias de escape se asocian a la primera celda visible sin avanzar columnas espaciales en la matriz.
 - **Conexiones Verticales Puras (`│`)**: `MerkleTreeLayout` proyecta aristas verticales con alineación milimétrica entre cada hoja de hash y su dato original subyacente.
 
@@ -1118,8 +1118,8 @@ Demostración concisa de los casos de uso más frecuentes de los contenedores y 
 ### 1. Árboles Binarios y Recorridos Dinámicos en O(1)
 
 ```cpp
-#include "containers/binarytree.h"
-#include "containers/avltree.h"
+#include "containers/trees/binary_tree.h"
+#include "containers/trees/avl_tree.h"
 
 // 1. Instanciación con Traits por defecto (InOrder estándar)
 BinaryTree<BinaryTreeAscTraits<int>> tree;
@@ -1176,7 +1176,7 @@ tree.draw(ConsoleGraphRenderer(std::cout));
 ### 4. Diccionario Asociativo (HashTable) y Persistencia
 
 ```cpp
-#include "containers/hashtable.h"
+#include "containers/hash_table.h"
 
 // 1. Instanciación con clave string y valor int
 HashTable<HashTableTraits<std::string, int>> htable;
@@ -1205,7 +1205,7 @@ std::cout << "Restaurado: " << htable_restored["la hermenéutica telúrica incá
 ### 5. Árbol de Merkle: Construcción, Mutación y Verificación de Pruebas
 
 ```cpp
-#include "containers/merkletree.h"
+#include "containers/trees/merkle_tree.h"
 #include "utilities/render.h"
 #include "utilities/layouts.h"
 
@@ -1243,12 +1243,12 @@ std::cout << "¿Prueba vieja válida en nueva raíz? "
 ### 6. Personalización Visual de Contenedores con Layouts y Estilos ANSI
 
 ```cpp
-#include "containers/avltree.h"
-#include "containers/circularlinkedlist.h"
-#include "containers/merkletree.h"
+#include "containers/trees/avl_tree.h"
+#include "containers/lists/circular_linked_list.h"
+#include "containers/trees/merkle_tree.h"
 #include "utilities/render.h"
 #include "utilities/layouts.h"
-#include "utilities/ansistyle.h"
+#include "utilities/ansi_style.h"
 
 // 1. Visualización de Árbol AVL con Roles Semánticos (TreeRole)
 AVLTree<BinaryTreeAscTraits<int>> tree;

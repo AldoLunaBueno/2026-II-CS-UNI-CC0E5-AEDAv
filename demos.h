@@ -1,7 +1,7 @@
 #ifndef __DEMOS_H__
 #define __DEMOS_H__
 #include "types.h"
-#include "containers/Heap.h"
+#include "containers/trees/heap.h"
 
 void DemoVector();
 void DemoCustomContainer();

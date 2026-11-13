@@ -1,9 +1,9 @@
 #ifndef __LINKEDLIST_H__
 #define __LINKEDLIST_H__
-#include "GeneralContainer.h"
-#include "GeneralIterator.h"
-#include "GeneralNode.h"
-#include "mixins.h"
+#include "../core/general_container.h"
+#include "../core/general_iterator.h"
+#include "../core/general_node.h"
+#include "../core/mixins.h"
 
 template <typename T>
 class LinkedListNode : public GeneralNode<T> {

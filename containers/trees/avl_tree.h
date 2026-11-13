@@ -1,7 +1,7 @@
 #ifndef __AVLTREE_H__
 #define __AVLTREE_H__
-#include "binarytree.h"
-#include "../types.h"
+#include "binary_tree.h"
+#include "../../types.h"
 #include <cmath>
 
 template <typename Traits, template <typename> typename... Mixins>

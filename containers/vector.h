@@ -1,10 +1,10 @@
 #ifndef __VECTOR_H__
 #define __VECTOR_H__
 #include <initializer_list>
-#include "GeneralContainer.h"
-#include "GeneralIterator.h"
-#include "GeneralNode.h"
-#include "mixins.h"
+#include "core/general_container.h"
+#include "core/general_iterator.h"
+#include "core/general_node.h"
+#include "core/mixins.h"
 
 using namespace std;
 

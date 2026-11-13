@@ -1,7 +1,7 @@
 #ifndef __HEAP_H__
 #define __HEAP_H__
-#include "GeneralContainer.h"
-#include "vector.h"
+#include "../core/general_container.h"
+#include "../vector.h"
 
 template <typename T>
 struct HeapTraits {

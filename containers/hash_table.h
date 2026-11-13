@@ -1,10 +1,10 @@
 #ifndef __HASHTABLE_H__
 #define __HASHTABLE_H__
 
-#include "avltree.h"
-#include "binarytree.h"
-#include "mixins.h"
-#include "GeneralContainer.h"
+#include "trees/avl_tree.h"
+#include "trees/binary_tree.h"
+#include "core/mixins.h"
+#include "core/general_container.h"
 #include <iomanip>
 #include <string>
 #include <type_traits>

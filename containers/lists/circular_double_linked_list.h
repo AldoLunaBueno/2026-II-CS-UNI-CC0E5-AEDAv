@@ -1,7 +1,7 @@
 #ifndef __CIRCULAR_DOUBLE_LINKEDLIST_H__
 #define __CIRCULAR_DOUBLE_LINKEDLIST_H__
-#include "circularlinkedlist.h"
-#include "doublelinkedlist.h"
+#include "circular_linked_list.h"
+#include "double_linked_list.h"
 
 template <typename Traits, template <typename> typename... Mixins>
 class BaseCircularDoubleLinkedList;

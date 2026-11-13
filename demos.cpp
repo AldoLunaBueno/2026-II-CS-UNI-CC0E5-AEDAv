@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <iostream>
 #include <ostream>
 #include <fstream> // ofstream para escribir en archivo
@@ -6,20 +7,32 @@
 #include <thread>
 #include <vector>
 #include "containers/vector.h"
-#include "containers/linkedlist.h"
-#include "containers/doublelinkedlist.h"
-#include "containers/circularlinkedlist.h"
-#include "containers/circulardoublelinkedlist.h"
-#include "containers/Heap.h"
-#include "containers/binarytree.h"
-#include "containers/avltree.h"
-#include "containers/hashtable.h"
-#include "containers/merkletree.h"
-#include "utilities/printcolored.h"
+#include "containers/lists/linked_list.h"
+#include "containers/lists/double_linked_list.h"
+#include "containers/lists/circular_linked_list.h"
+#include "containers/lists/circular_double_linked_list.h"
+#include "containers/trees/heap.h"
+#include "containers/trees/binary_tree.h"
+#include "containers/trees/avl_tree.h"
+#include "containers/hash_table.h"
+#include "containers/trees/merkle_tree.h"
+#include "utilities/print_colored.h"
 #include "utilities/render.h"
 #include "utilities/layouts.h"
-#include "Demos.h"
+#include "demos.h"
 using namespace std;
+
+filesystem::path OUTPUT_DIR_PATH = "output";
+
+void init_directories() {
+    try {
+        if (filesystem::create_directories(OUTPUT_DIR_PATH)) {
+            cout << "Carpeta" << OUTPUT_DIR_PATH << " creada exitosamente.\n";
+        }
+    } catch (const filesystem::filesystem_error& e) {
+        cout << "Error del sistema de archivos: " << e.what() << endl;
+    }
+}
 
 void AddOne(GeneralNode<TX> &node) {
     node.value() += 1;
@@ -72,6 +85,7 @@ template <typename Container>
 void TestContainer(Container &container,
                     const vector<pair<typename Container::value_type, Ref>> &values,
                     const string &filename) {
+    init_directories();
     InsertElements(container, values);
 
     // Impresion usando operador de inserción
@@ -81,7 +95,8 @@ void TestContainer(Container &container,
 
     // Escritura hacia un archivo, en modo append para acumular cada estado
     // (el archivo se deja vacio una vez al inicio, ver DemoVector)
-    ofstream of(filename, ios::app);
+    std::filesystem::path file_path = OUTPUT_DIR_PATH / filename;
+    ofstream of(file_path, ios::app);
     of << container;
     of << endl;
     of.close();
@@ -251,7 +266,9 @@ void DemoRaceCondition() {
 
 template <typename Container>
 void TestLinkedList(Container &list, const string &filename) {
-    ofstream(filename, ios::trunc).close();
+    init_directories();
+    std::filesystem::path file_path = OUTPUT_DIR_PATH / filename;
+    ofstream(file_path, ios::trunc).close();
 
     // Pruebas de push_back
     TestContainer(list, {{5, 15}, {1, 11}, {8, 18}, {3, 13}}, filename);
@@ -279,7 +296,7 @@ void TestLinkedList(Container &list, const string &filename) {
 
     // Prueba de lectura y asignacion (operator=)
     Container new_list;
-    ifstream in(filename);
+    ifstream in(file_path);
     in >> new_list;
     in.close();
     cout << "Lista leida desde archivo: " << new_list << endl;
@@ -306,18 +323,18 @@ void DemoLinkedList()
     cout << "\n";
     cout << styled(" █ Pruebas para LinkedList ").pure_black().bg_bright_yellow() << "\n\n";
     LinkedList<LinkedListAscTraits<TX>> list;
-    TestLinkedList(list, "linkedlist.txt");
+    TestLinkedList(list, "linked_list.txt");
 
     cout << "\n";
     cout << styled(" █ Pruebas para DoubleLinkedList ").pure_black().bg_bright_yellow() << "\n\n";
     DoubleLinkedList<DoubleLinkedListAscTraits<TX>> dlist;
-    TestLinkedList(dlist, "doublelinkedlist.txt");
+    TestLinkedList(dlist, "double_linked_list.txt");
     TestDoubleLinkedListSpecifics(dlist);
 
     cout << "\n";
     cout << styled(" █ Pruebas para CircularLinkedList ").pure_black().bg_bright_yellow() << "\n\n";
     CircularLinkedList<LinkedListAscTraits<TX>> clist;
-    TestLinkedList(clist, "circularlinkedlist.txt");
+    TestLinkedList(clist, "circular_linked_list.txt");
 
     cout << styled(" ◉ Diagrama de Lista Enlazada Circular (Personalizado con Lambda y Color): ").pure_black().bg_bright_cyan() << "\n";
     istringstream ss("[(51,15),(1,11),(8,18),(3,13),(45,16),(71,1),(28,8),(32,3),(15,5),(51,15),(1,11),(8,18),(15,5),(10,21),(81,28),(13,23)]");
@@ -340,7 +357,7 @@ void DemoLinkedList()
     cout << "\n";
     cout << styled(" █ Pruebas para CircularDoubleLinkedList ").pure_black().bg_bright_yellow() << "\n\n";
     CircularDoubleLinkedList<DoubleLinkedListAscTraits<TX>> cdlist;
-    TestLinkedList(cdlist, "circulardoublelinkedlist.txt");
+    TestLinkedList(cdlist, "circular_double_linked_list.txt");
     TestDoubleLinkedListSpecifics(cdlist);
 
     cout << styled(" ◉ Diagrama de Lista Circular Doblemente Enlazada (Truecolor RGB / Cyan): ").pure_black().bg_bright_cyan() << "\n";
@@ -422,9 +439,12 @@ std::string get_modular_node_color(const T& val) {
 // contenedor instanciado como tipo concreto
 template < typename TreeContainer >
 void TestBinaryTreeGeneral(TreeContainer &tree, const string &filename) {
+    init_directories();
+    std::filesystem::path file_path = OUTPUT_DIR_PATH / filename;
+    ofstream(file_path, ios::trunc).close();
+
     using ValueType = typename TreeContainer::value_type;
 
-    ofstream(filename, ios::trunc).close();
 
     // Pruebas de insercion y persistencia
     TestContainer(tree, 
@@ -495,7 +515,7 @@ void TestBinaryTreeGeneral(TreeContainer &tree, const string &filename) {
 
     // lectura
     TreeContainer new_tree;
-    ifstream in(filename);
+    ifstream in(file_path);
     in >> new_tree;
     in.close();
     cout << "Arbol leido desde archivo: " << new_tree << endl;
@@ -563,6 +583,8 @@ void TestAllTours() {
 
 template < template < typename > class TreeContainer >
 void TestBinaryTree(const string &filename = "tree_test.txt") {
+    init_directories();
+    std::filesystem::path file_path = OUTPUT_DIR_PATH / filename;
     // instanciación con traits por defecto
     TreeContainer< BinaryTreeAscTraits< TX > > tree;
     
@@ -603,13 +625,13 @@ void DemoHashTable() {
     cout << "- contains('z'): " << (htable.contains("z") ? "true" : "false") << endl << endl;
 
     // Prueba de persistencia (escritura en archivo y lectura con Readable)
-    const string filename = "hashtable_test.txt";
-    ofstream of(filename, ios::trunc);
+    filesystem::path file_path = OUTPUT_DIR_PATH / "hashtable_test.txt";
+    ofstream of(file_path , ios::trunc);
     of << htable << endl;
     of.close();
 
     HashTable<HashTableTraits<std::string, TX>> htable_restored;
-    ifstream in(filename);
+    ifstream in(file_path );
     in >> htable_restored;
     in.close();
 

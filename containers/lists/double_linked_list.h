@@ -1,7 +1,7 @@
 #ifndef __DOUBLE_LINKEDLIST_H__
 #define __DOUBLE_LINKEDLIST_H__
-#include "linkedlist.h"
-#include "mixins.h"
+#include "linked_list.h"
+#include "../core/mixins.h"
 
 template <typename T>
 class LinkedListBackwardIterator : 

@@ -1,7 +1,7 @@
 #ifndef __MIXINS__
 #define __MIXINS__
-#include "../foreach.h"
-#include "ContainerCore.h"
+#include "../../foreach.h"
+#include "container_core.h"
 #include <ostream>
 #include <istream>
 
@@ -95,6 +95,20 @@ class Readable : virtual public ContainerCore<Traits> {
         }
 
         return is; 
+    }
+};
+
+// 2. Mixin dibujable para contenedores
+template <typename Traits>
+class Drawable : virtual public ContainerCore<Traits> {
+public:
+    template <typename Self, typename Layout, typename Renderer>
+    decltype(auto) draw(this Self&& self, Layout&& layout, Renderer&& renderer) {
+        auto graph = [&]() {
+            std::lock_guard lock(self.mutex());
+            return layout(self);
+        }();
+        return renderer.render(graph);
     }
 };
 

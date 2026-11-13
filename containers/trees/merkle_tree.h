@@ -1,10 +1,10 @@
 #ifndef __MERKLETREE_H__
 #define __MERKLETREE_H__
 
-#include "binarytree.h"
-#include "mixins.h"
-#include "GeneralContainer.h"
-#include "../types.h"
+#include "binary_tree.h"
+#include "../core/mixins.h"
+#include "../core/general_container.h"
+#include "../../types.h"
 #include <string>
 #include <vector>
 #include <sstream>

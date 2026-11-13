@@ -1,11 +1,11 @@
 #ifndef __BINARYTREE_H__
 #define __BINARYTREE_H__
-#include "GeneralNode.h"
-#include "GeneralIterator.h"
-#include "GeneralContainer.h"
-#include "mixins.h"
-#include "../types.h"
-#include "../utilities/render.h"
+#include "../core/general_node.h"
+#include "../core/general_iterator.h"
+#include "../core/general_container.h"
+#include "../core/mixins.h"
+#include "../../types.h"
+#include "../../utilities/render.h"
 #include <iostream>
 
 template <typename T>
