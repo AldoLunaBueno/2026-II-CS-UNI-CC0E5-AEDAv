@@ -128,8 +128,22 @@ public:
 
     /** @brief Acceso indexado con verificación de límites (`std::out_of_range`). */
     Node& operator[](size_t index);
+    /** @brief Acceso indexado de solo lectura con verificación de límites (`std::out_of_range`). */
+    const Node& operator[](size_t index) const;
     /** @brief Acceso indexado con verificación de límites (`std::out_of_range`). */
     Node& at(size_t index);
+    /** @brief Acceso indexado de solo lectura con verificación de límites (`std::out_of_range`). */
+    const Node& at(size_t index) const;
+    /** @brief Retorna el último nodo del vector. */
+    Node& back();
+    /** @brief Retorna el último nodo del vector (solo lectura). */
+    const Node& back() const;
+
+    /** @brief Reserva capacidad para al menos `new_cap` elementos. */
+    void reserve(size_t new_cap) {
+        std::lock_guard lock(m_mutex);
+        resize(new_cap);
+    }
 
     /** @brief Retorna la cantidad de elementos almacenados. */
     size_t size()     const { return m_size; }
@@ -196,9 +210,33 @@ auto BaseVector<Traits, Mixins...>::operator[](size_t index) -> Node& {
 }
 
 template <typename Traits, template <typename> typename... Mixins>
+auto BaseVector<Traits, Mixins...>::operator[](size_t index) const -> const Node& {
+    if (index >= m_size) throw std::out_of_range("Indice fuera de rango");
+    return m_data[index];
+}
+
+template <typename Traits, template <typename> typename... Mixins>
 auto BaseVector<Traits, Mixins...>::at(size_t index) -> Node& {
     if (index >= m_size) throw std::out_of_range("Indice fuera de rango");
     return m_data[index];
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+auto BaseVector<Traits, Mixins...>::at(size_t index) const -> const Node& {
+    if (index >= m_size) throw std::out_of_range("Indice fuera de rango");
+    return m_data[index];
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+auto BaseVector<Traits, Mixins...>::back() -> Node& {
+    if (m_size == 0) throw std::out_of_range("Vector vacio");
+    return m_data[m_size - 1];
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+auto BaseVector<Traits, Mixins...>::back() const -> const Node& {
+    if (m_size == 0) throw std::out_of_range("Vector vacio");
+    return m_data[m_size - 1];
 }
 
 template <typename Traits, template <typename> typename... Mixins>

@@ -700,7 +700,7 @@ void DemoMerkleTree() {
     cout << "Hash de hoja:  " << mtree.getLeafHash(target_idx) << endl;
     cout << "Pasos en el camino de auditoria (audit path):" << endl;
     for (size_t i = 0; i < proof.size(); ++i) {
-        cout << "  Nivel " << i + 1 << ": " << proof[i] << endl;
+        cout << "  Nivel " << i + 1 << ": " << proof[i].getValue() << endl;
     }
     cout << endl;
 
@@ -779,6 +779,24 @@ void DemoMerkleTree() {
         ConsoleGraphRenderer(cout)
     );
     cout << endl;
+
+    // Prueba de persistencia (escritura en archivo y lectura con reconstrucción exacta)
+    filesystem::path merkle_path = OUTPUT_DIR_PATH / "merkle_test.txt";
+    ofstream mof(merkle_path, ios::trunc);
+    mof << mtree << endl;
+    mof.close();
+
+    MerkleTree<> mtree_restored;
+    ifstream min(merkle_path);
+    min >> mtree_restored;
+    min.close();
+
+    PrintColored(cout, "MerkleTree leido desde archivo (Persistencia):", Color::Green);
+    cout << mtree_restored << endl;
+    cout << "- Merkle Root original:   " << mtree.getRootHash() << endl;
+    cout << "- Merkle Root restaurada: " << mtree_restored.getRootHash()
+         << (mtree.getRootHash() == mtree_restored.getRootHash() ? " (IDENTICAS)" : " (DIFERENTES)")
+         << endl;
 }
 
 void DemoGotoxy() {

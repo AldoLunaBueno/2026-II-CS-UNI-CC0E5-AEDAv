@@ -148,7 +148,7 @@ MerkleTreeLayout<Formatter>::extract_topology_impl(const MerkleTreeType& tree) c
     for (size_t i = 0; i < leaf_ids.size(); ++i) {
         TX leaf_id = leaf_ids[i];
         bool is_clone = (i >= num_data);
-        std::string d_text = is_clone ? (num_data > 0 ? raw_data.back() : "") : raw_data[i];
+        std::string d_text = is_clone ? (num_data > 0 ? raw_data.back().getValue() : "") : raw_data[i].getValue();
 
         auto* leaf_node = find_node(draft.nodes, leaf_id);
         if (leaf_node && is_clone) {
