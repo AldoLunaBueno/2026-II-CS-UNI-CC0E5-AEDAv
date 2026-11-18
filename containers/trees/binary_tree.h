@@ -240,6 +240,31 @@ public:
         return nullptr;
     }
 
+    /**
+     * @brief Busca un valor equivalente en el árbol o lo inserta si no existe, en un solo recorrido.
+     * @param value Valor a buscar o insertar.
+     * @param ref Referencia asociada en caso de inserción (por defecto `0`).
+     * @return Puntero mutable al valor existente o recién insertado.
+     */
+    value_type* find_or_insert(const value_type& value, Ref ref = 0) {
+        std::lock_guard lock(this->m_mutex);
+        NodePtr* curr = &m_pRoot;
+        NodePtr parent = nullptr;
+        while (*curr) {
+            auto branch = Compare()((*curr)->getValue(), value);
+            if (!branch && !Compare()(value, (*curr)->getValue())) {
+                return &((*curr)->value());
+            }
+            parent = *curr;
+            curr = &((*curr)->m_pChild[1 - branch]);
+        }
+        *curr = new Node(value, ref);
+        (*curr)->m_parent = parent;
+        NodePtr inserted = *curr;
+        rebalance(inserted);
+        return &(inserted->value());
+    }
+
     /** @brief Libera recursivamente el subárbol en post-orden. */
     void clear_recursive(NodePtr);
 

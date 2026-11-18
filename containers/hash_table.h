@@ -142,14 +142,7 @@ public:
 template <typename Traits, template <typename> typename... Mixins>
 auto BaseHashTable<Traits, Mixins...>::operator[](const Key& key) -> Value& {
     std::lock_guard lock(m_mutex);
-    Pair target(key, Value{});
-    Pair* pair_found = m_data.find(target);
-    if (pair_found) {
-        return pair_found->value();
-    } else {
-        Pair* pair_inserted = m_data.insert(target, 0);
-        return pair_inserted->value();
-    }
+    return m_data.find_or_insert(Pair(key, Value{}), 0)->value();
 }
 
 template <typename Traits, template <typename> typename... Mixins>
