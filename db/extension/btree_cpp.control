@@ -1,0 +1,4 @@
+comment = 'Custom B-Tree Index Access Method backed by C++ BTree'
+default_version = '1.0'
+module_pathname = '$libdir/btree_cpp'
+relocatable = true

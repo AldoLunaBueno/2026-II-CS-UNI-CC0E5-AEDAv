@@ -5,8 +5,9 @@ SRCS       := main.cpp demos.cpp
 PR_OUT     := tmp/pr_comment.md
 PR_SCRIPT  := scripts/gen_pr_comment.sh
 DOCS_PORT  ?= 8000
+DB_COMPOSE := db/compose.yml
 
-.PHONY: all run pr docs clean
+.PHONY: all run pr docs clean db-up db-run db-down
 
 all: clean $(TARGET) run
 
@@ -30,3 +31,16 @@ docs:
 clean:
 	rm -rf $(TARGET) tmp build/docs
 	@clear 2>/dev/null || printf "\033c"
+
+db-up:
+	docker compose -f $(DB_COMPOSE) up -d --build --wait
+
+db-run:
+	docker compose -f $(DB_COMPOSE) exec -T postgres psql -U postgres -d aeda_indexes -v ON_ERROR_STOP=1 -f /scripts/01_hash.sql
+	docker compose -f $(DB_COMPOSE) exec -T postgres psql -U postgres -d aeda_indexes -v ON_ERROR_STOP=1 -f /scripts/02_btree.sql
+	docker compose -f $(DB_COMPOSE) exec -T postgres psql -U postgres -d aeda_indexes -v ON_ERROR_STOP=1 -f /scripts/03_gist.sql
+	docker compose -f $(DB_COMPOSE) exec -T postgres psql -U postgres -d aeda_indexes -v ON_ERROR_STOP=1 -f /scripts/04_btree_cpp.sql
+	docker compose -f $(DB_COMPOSE) exec -T postgres psql -U postgres -d aeda_indexes -v ON_ERROR_STOP=1 -f /scripts/05_hash_cpp.sql
+
+db-down:
+	docker compose -f $(DB_COMPOSE) down -v

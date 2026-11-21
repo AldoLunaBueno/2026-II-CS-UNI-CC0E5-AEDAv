@@ -1,0 +1,4 @@
+comment = 'Custom Hash Index Access Method backed by C++ HashTable'
+default_version = '1.0'
+module_pathname = '$libdir/hash_cpp'
+relocatable = true

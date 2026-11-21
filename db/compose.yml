@@ -1,0 +1,19 @@
+services:
+  postgres:
+    build:
+      context: ..
+      dockerfile: db/Dockerfile
+    container_name: aeda_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-aeda_indexes}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ./scripts:/scripts:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-aeda_indexes}"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
