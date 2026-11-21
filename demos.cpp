@@ -22,6 +22,7 @@
 #include "containers/trees/avl_tree.h"
 #include "containers/hash_table.h"
 #include "containers/trees/merkle_tree.h"
+#include "containers/BTree.h"
 #include "utilities/print_colored.h"
 #include "utilities/gotoxy.h"
 #include "utilities/render.h"
@@ -852,4 +853,19 @@ void DemoGotoxy() {
     cout << "Palabra '" << word << "' impresa con gotoxy(" << word_x << ", " << word_y << ")"
          << " dentro de la caja [" << box_x << ".." << (box_x + box_w - 1)
          << ", " << box_y << ".." << (box_y + box_h - 1) << "].\n\n";
+}
+
+void DemoBTree() {
+    cout << "========================================\n";
+    PrintColored(cout, "Pruebas para BTree (del profesor)", Color::Yellow);
+    cout << "========================================\n\n";
+
+    const char* keys1 = "D1XJ2xTg8zKL9AhijOPQcEowRSp0NbW567BUfCqrs4FdtYZakHIuvGV3eMylmn";
+    const int BTreeSize = 3;
+    BTree<char> bt(BTreeSize);
+    for (int i = 0; keys1[i]; i++) {
+        bt.Insert(keys1[i], i * i);
+    }
+    bt.Print(cout);
+    cout << endl;
 }

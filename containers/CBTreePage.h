@@ -13,6 +13,7 @@ template <typename keyType, typename ObjIDType>
 class BTree;
 
 #include <vector>
+#include <iostream>
 //#include "mybuffer.h"
 //#include "recfile.h"
 
@@ -148,7 +149,7 @@ int binary_search(Container& container, int first, int last, ObjType &object)
 }
 
 template <typename Container, typename ObjType>
-void insert_at(Container& container, ObjType &object, int pos)
+void insert_at(Container& container, const ObjType &object, int pos)
 {
        int size = container.size();
        for(int i = size-2 ; i >= pos ; i--)
@@ -429,7 +430,8 @@ void CBTreePage<keyType, ObjIDType>::SplitPageInto3(vector<ObjectInfo>& tmpKeys,
        // copy 1/3 elements to the first child
        pChild1->clear();
        int nKeys = (tmpKeys.size()-2)/3;
-       for( int i = 0; i < nKeys; i++ )
+       int i = 0;
+       for( ; i < nKeys; i++ )
        {
                pChild1->m_Keys    [i] = tmpKeys    [i];
                pChild1->m_SubPages[i] = tmpSubPages[i];
@@ -445,7 +447,8 @@ void CBTreePage<keyType, ObjIDType>::SplitPageInto3(vector<ObjectInfo>& tmpKeys,
        pChild2->clear();
        // copy 1/3 to the second child
        nKeys += (tmpKeys.size()-2)/3 + 1;
-       for(int j = 0; i < nKeys; i++, j++ )
+       int j = 0;
+       for( ; i < nKeys; i++, j++ )
        {
                pChild2->m_Keys    [j] = tmpKeys    [i];
                pChild2->m_SubPages[j] = tmpSubPages[i];
@@ -685,7 +688,8 @@ bt_ErrorCode CBTreePage<keyType, ObjIDType>::Merge(int pos)
 
        // Move 1/2 elements to pChild1
        int nKeys = pChild1->GetFreeCells();
-       for( int i = 0 ; i < nKeys ; i++ )
+       int i = 0;
+       for( ; i < nKeys ; i++ )
        {
                pChild1->m_Keys    [i] = tmpKeys    [i];
                pChild1->m_SubPages[i] = tmpSubPages[i];
@@ -740,7 +744,8 @@ bt_ErrorCode CBTreePage<keyType, ObjIDType>::MergeRoot()
        MovePage(pChild3, tmpKeys, tmpSubPages);
 
        clear();
-       for( int i = 0 ; i < nKeys ; i++ )
+       int i = 0;
+       for( ; i < nKeys ; i++ )
        {
                m_Keys    [i] = tmpKeys    [i];
                m_SubPages[i] = tmpSubPages[i];
@@ -817,7 +822,8 @@ template <typename keyType, typename ObjIDType>
 void CBTreePage<keyType, ObjIDType>::MovePage(BTPage *pChildPage, vector<ObjectInfo> &tmpKeys,vector<BTPage *> &tmpSubPages)
 {
        int nKeys = pChildPage->GetNumberOfKeys();
-       for( int i = 0; i < nKeys; i++ )
+       int i = 0;
+       for( ; i < nKeys; i++ )
        {
                tmpKeys    .push_back(pChildPage->m_Keys[i]);
                tmpSubPages.push_back(pChildPage->m_SubPages[i]);

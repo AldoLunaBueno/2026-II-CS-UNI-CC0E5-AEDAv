@@ -27,5 +27,7 @@ void DemoHashTable();
 void DemoMerkleTree();
 /** @brief Demostración de posicionamiento directo en consola con `gotoxy`. */
 void DemoGotoxy();
+/** @brief Demostración de árbol B (`BTree` del profesor). */
+void DemoBTree();
 
 #endif // __DEMOS_H__

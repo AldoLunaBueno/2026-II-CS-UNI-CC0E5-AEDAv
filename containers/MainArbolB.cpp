@@ -5,7 +5,7 @@
 #include <time.h>
 #include <stdlib.h>
 
-#include "btree.h"
+#include "BTree.h"
 #include <string>
 
 //const char * keys="CDAMPIWNBKEHOLJYQZFXVRTSGU";
@@ -15,7 +15,7 @@ const char * keys3 = "DYZakHIUwxVJ203ejOP9Qc8AdtuEop1XvTRghSNbW567BfiCqrs4FGMyzK
 
 // convertir main DemoBTree
 const int BTreeSize = 3;
-int main (int argc, char * argv)
+int main (int argc, char * argv[])
 {
        int result, i;
        BTree <char> bt (BTreeSize);

@@ -23,5 +23,6 @@ int main() {
     DemoHashTable();
     DemoMerkleTree();
     DemoGotoxy();
+    DemoBTree();
     return 0;
 }
