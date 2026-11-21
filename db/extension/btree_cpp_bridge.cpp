@@ -1,5 +1,6 @@
 #include "btree_cpp_bridge.h"
 #include "BTree.h"
+#include "../types.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -9,23 +10,23 @@ struct BTreeCppHandle {
     BTree<double, long> tree;
     std::vector<std::vector<BTreeCppTid>> buckets;
 
-    explicit BTreeCppHandle(int order) : tree(order, true) {}
+    explicit BTreeCppHandle(TX order) : tree(order, true) {}
 };
 
 namespace {
 
 struct RangeCollectCtx {
     BTreeCppHandle *handle;
-    int has_min;
+    TX has_min;
     double min_val;
-    int min_inclusive;
-    int has_max;
+    TX min_inclusive;
+    TX has_max;
     double max_val;
-    int max_inclusive;
+    TX max_inclusive;
     std::vector<BTreeCppTid> out;
 };
 
-void collect_if_in_range(BTree<double, long>::ObjectInfo &info, int /*level*/, void *pExtra) {
+void collect_if_in_range(BTree<double, long>::ObjectInfo &info, TX /*level*/, void *pExtra) {
     auto *ctx = static_cast<RangeCollectCtx *>(pExtra);
     double k = info.key;
 
@@ -38,7 +39,7 @@ void collect_if_in_range(BTree<double, long>::ObjectInfo &info, int /*level*/, v
             return;
     }
 
-    int bucket_id = static_cast<int>(info.ObjID);
+    TX bucket_id = static_cast<TX>(info.ObjID);
     if (bucket_id >= 0 && static_cast<size_t>(bucket_id) < ctx->handle->buckets.size()) {
         const auto &tids = ctx->handle->buckets[bucket_id];
         ctx->out.insert(ctx->out.end(), tids.begin(), tids.end());
@@ -49,7 +50,7 @@ void collect_if_in_range(BTree<double, long>::ObjectInfo &info, int /*level*/, v
 
 extern "C" {
 
-BTreeCppHandle *btree_cpp_create(int order) {
+BTreeCppHandle *btree_cpp_create(TX order) {
     return new BTreeCppHandle(order > 0 ? order : DEFAULT_BTREE_ORDER);
 }
 
@@ -69,13 +70,13 @@ void btree_cpp_insert_key(BTreeCppHandle *handle, double key, uint32_t block, ui
 
     long new_bucket = static_cast<long>(handle->buckets.size());
     handle->buckets.push_back({tid});
-    handle->tree.Insert(key, static_cast<int>(new_bucket));
+    handle->tree.Insert(key, static_cast<TX>(new_bucket));
 }
 
 BTreeCppResult btree_cpp_scan_range(
     BTreeCppHandle *handle,
-    int has_min, double min_val, int min_inclusive,
-    int has_max, double max_val, int max_inclusive
+    TX has_min, double min_val, TX min_inclusive,
+    TX has_max, double max_val, TX max_inclusive
 ) {
     BTreeCppResult res{nullptr, 0};
     if (!handle) return res;

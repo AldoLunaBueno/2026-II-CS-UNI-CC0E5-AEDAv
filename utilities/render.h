@@ -217,7 +217,7 @@ public:
             } else if (is_valley(*to_node, to_nbrs)) {
                 horizontal_at_from = false;
             } else {
-                int outgoing_right = 0;
+                TX outgoing_right = 0;
                 for (const auto& item_other_e : graph.edges) {
                     const auto& other_e = item_other_e.getValue();
                     if (other_e.from_id == from_node->id) {

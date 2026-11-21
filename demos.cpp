@@ -27,6 +27,7 @@
 #include "utilities/gotoxy.h"
 #include "utilities/render.h"
 #include "utilities/layouts.h"
+#include "utilities/spreadsheet_tui.h"
 #include "demos.h"
 using namespace std;
 
@@ -861,11 +862,57 @@ void DemoBTree() {
     cout << "========================================\n\n";
 
     const char* keys1 = "D1XJ2xTg8zKL9AhijOPQcEowRSp0NbW567BUfCqrs4FdtYZakHIuvGV3eMylmn";
-    const int BTreeSize = 3;
+    const TX BTreeSize = 3;
     BTree<char> bt(BTreeSize);
-    for (int i = 0; keys1[i]; i++) {
+    for (TX i = 0; keys1[i]; i++) {
         bt.Insert(keys1[i], i * i);
     }
     bt.Print(cout);
     cout << endl;
+}
+
+void DemoSpreadsheet() {
+    cout << "\n";
+    cout << styled(" █ Pruebas para Hoja de Calculo (Excel TUI Multi-Ventana) ").pure_black().bg_bright_yellow() << "\n\n";
+
+    SpreadsheetEngine engine;
+    SpreadsheetTUI tui(engine, cout);
+    // Si hay TTY ejecuta con pausa visual breve; en CI/redirección corre instantáneo
+    TX delay_ms = isatty(STDOUT_FILENO) ? 180 : 0;
+    tui.runAnimatedDemo(delay_ms);
+
+    // Verificar persistencia con los mixins Printable / Readable de HashTable
+    init_directories();
+    filesystem::path sheet_path = OUTPUT_DIR_PATH / "spreadsheet_test.txt";
+    {
+        ofstream ofs(sheet_path, ios::trunc);
+        ofs << engine.rawTable() << endl;
+    }
+
+    SpreadsheetEngine restored;
+    {
+        ifstream ifs(sheet_path);
+        ifs >> restored.rawTable();
+        restored.recalculateAll();
+    }
+
+    cout << "\n";
+    PrintColored(cout, "Verificacion de estado y persistencia (HashTable + BinaryTree PostOrder):", Color::Green);
+    cout << "- Formulas serializadas: " << restored.rawTable() << endl;
+    cout << "- Celda A1: valor = " << restored.getCell("A1").displayValue()
+         << " | detras (fx) = " << quoted(restored.getCell("A1").raw_expression) << endl;
+    cout << "- Celda B1: valor = " << restored.getCell("B1").displayValue()
+         << " | detras (fx) = " << quoted(restored.getCell("B1").raw_expression)
+         << " | PostOrder = " << restored.getCell("B1").postorder_rpn << endl;
+    cout << "- Celda D4: valor = " << restored.getCell("D4").displayValue()
+         << " | detras (fx) = " << quoted(restored.getCell("D4").raw_expression)
+         << " | PostOrder = " << restored.getCell("D4").postorder_rpn << endl;
+    cout << styled("Tip: Ejecuta 'make excel' o './main --excel' para abrir la TUI interactiva en vivo.").bright_cyan() << "\n\n";
+}
+
+void RunInteractiveSpreadsheet() {
+    SpreadsheetEngine engine;
+    //engine.loadProfessorDemo();
+    SpreadsheetTUI tui(engine, cout);
+    tui.runInteractive();
 }

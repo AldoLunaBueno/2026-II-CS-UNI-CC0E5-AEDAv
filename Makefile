@@ -7,7 +7,7 @@ PR_SCRIPT  := scripts/gen_pr_comment.sh
 DOCS_PORT  ?= 8000
 DB_COMPOSE := db/compose.yml
 
-.PHONY: all run pr docs clean db-up db-run db-down
+.PHONY: all run excel pr docs clean db-up db-run db-down
 
 all: clean $(TARGET) run
 
@@ -16,6 +16,9 @@ $(TARGET): $(SRCS)
 
 run: $(TARGET)
 	./$(TARGET)
+
+excel: $(TARGET)
+	./$(TARGET) --excel
 
 pr:
 	@bash $(PR_SCRIPT) README.md $(PR_OUT)

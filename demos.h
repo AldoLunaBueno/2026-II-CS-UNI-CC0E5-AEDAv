@@ -29,5 +29,9 @@ void DemoMerkleTree();
 void DemoGotoxy();
 /** @brief Demostración de árbol B (`BTree` del profesor). */
 void DemoBTree();
+/** @brief Demostración animada de hoja de cálculo multi-ventana (`HashTable` + `BinaryTree` AST + `gotoxy`). */
+void DemoSpreadsheet();
+/** @brief Inicia la interfaz TUI interactiva de 4 ventanas estilo Claude Code / Codex para la hoja de cálculo. */
+void RunInteractiveSpreadsheet();
 
 #endif // __DEMOS_H__

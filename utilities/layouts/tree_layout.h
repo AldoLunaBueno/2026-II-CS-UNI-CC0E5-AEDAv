@@ -162,7 +162,7 @@ protected:
 
     /** @brief Extrae recursivamente la topología del árbol binario y asigna roles semánticos. */
     template <typename NodePtr, typename NodeVec>
-    void extract_nodes(NodePtr node, TX d, TX& max_d, NodeVec& nodes, TX& next_id, TX parent_id = -1, int child_branch = 0) const;
+    void extract_nodes(NodePtr node, TX d, TX& max_d, NodeVec& nodes, TX& next_id, TX parent_id = -1, TX child_branch = 0) const;
 
     /** @brief Implementación de la Etapa 1: extrae topología y aristas del árbol sin formatear etiquetas aún. */
     template <typename Tree>
@@ -175,7 +175,7 @@ protected:
 
 template <typename Derived, typename Formatter>
 template <typename NodePtr, typename NodeVec>
-void TreeLayout<Derived, Formatter>::extract_nodes(NodePtr node, TX d, TX& max_d, NodeVec& nodes, TX& next_id, TX parent_id, int child_branch) const {
+void TreeLayout<Derived, Formatter>::extract_nodes(NodePtr node, TX d, TX& max_d, NodeVec& nodes, TX& next_id, TX parent_id, TX child_branch) const {
     if (!node) return;
     TX my_id = next_id++;
     if (d > max_d) max_d = d;
