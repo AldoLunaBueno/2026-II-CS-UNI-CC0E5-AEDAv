@@ -18,6 +18,7 @@
 #include <csignal>
 #include <filesystem>
 #include <iostream>
+#include <poll.h>
 #include <termios.h>
 #include <thread>
 #include <unistd.h>
@@ -152,6 +153,14 @@ public:
             if (ch == 4) break;
 
             if (ch == 19) { m_st.saveSheet(m_st.config.current_sheet); m_st.refreshSheetList(); renderAll(); continue; }
+            if (ch == 7)  { // Ctrl+G: Ir a celda o rango en el Name Box
+                m_st.namebox_editing = true;
+                m_st.namebox_buffer.clear();
+                m_st.mode = SpreadsheetFocusMode::GridNavigation;
+                m_st.status_banner = "Ir a celda o rango (ej. ZZ500 o A1:C5) y pulsa [Enter].";
+                renderAll();
+                continue;
+            }
             if (ch == 15) {
                 m_st.modal_open = !m_st.modal_open;
                 m_st.modal_new_mode = false;
@@ -161,11 +170,25 @@ public:
                 continue;
             }
             if (ch == '\033') {
-                if (texcel_tui::handleEscapeSequence(m_st, raw_term)) renderAll();
+                bool need_render = texcel_tui::handleEscapeSequence(m_st, raw_term);
+                // Coalescencia de ráfagas SGR Mouse Drag: drenar eventos ya encolados en stdin antes de renderizar
+                while (m_st.mouse_dragging || m_st.vscroll_dragging || m_st.hscroll_dragging) {
+                    struct pollfd pfd{STDIN_FILENO, POLLIN, 0};
+                    if (poll(&pfd, 1, 0) <= 0 || !(pfd.revents & POLLIN)) break;
+                    char next_ch = 0;
+                    if (read(STDIN_FILENO, &next_ch, 1) <= 0) break;
+                    if (next_ch == '\033') {
+                        need_render |= texcel_tui::handleEscapeSequence(m_st, raw_term);
+                    } else {
+                        break;
+                    }
+                }
+                if (need_render) renderAll();
                 continue;
             }
-            if (m_st.modal_open) { texcel_tui::handleModalKey(m_st, ch); renderAll(); continue; }
-            if (ch == '\t')      { texcel_tui::handleTabKey(m_st);         renderAll(); continue; }
+            if (m_st.modal_open)      { texcel_tui::handleModalKey(m_st, ch);   renderAll(); continue; }
+            if (m_st.namebox_editing) { texcel_tui::handleNameBoxKey(m_st, ch); renderAll(); continue; }
+            if (ch == '\t')           { texcel_tui::handleTabKey(m_st);         renderAll(); continue; }
 
             if (m_st.mode == SpreadsheetFocusMode::GridNavigation) running = texcel_tui::handleGridKey(m_st, ch);
             else running = texcel_tui::handleConsoleKey(m_st, ch);

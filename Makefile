@@ -3,12 +3,13 @@ CXXFLAGS   := -std=c++23
 TARGET     := main
 SRCS       := main.cpp demos.cpp
 HEADERS    := demos.h types.h $(wildcard texcel/*.h) $(wildcard texcel/helpers/*.h)
+TEST_SRCS  := $(wildcard texcel/tests/*.cpp)
 PR_OUT     := tmp/pr_comment.md
 PR_SCRIPT  := scripts/gen_pr_comment.sh
 DOCS_PORT  ?= 8000
 DB_COMPOSE := db/compose.yml
 
-.PHONY: all run texcel pr docs clean db-up db-run db-down
+.PHONY: all run texcel test pr docs clean db-up db-run db-down
 
 all: clean $(TARGET) run
 
@@ -20,6 +21,13 @@ run: $(TARGET)
 
 texcel: $(TARGET)
 	./$(TARGET) --texcel
+
+test: $(HEADERS) $(TEST_SRCS)
+	@for src in $(TEST_SRCS); do \
+		bin="/tmp/$$(basename $$src .cpp)"; \
+		echo "Running $$src..."; \
+		$(CXX) $(CXXFLAGS) "$$src" -o "$$bin" && "$$bin" && rm -f "$$bin" || exit 1; \
+	done
 
 pr:
 	@bash $(PR_SCRIPT) README.md $(PR_OUT)

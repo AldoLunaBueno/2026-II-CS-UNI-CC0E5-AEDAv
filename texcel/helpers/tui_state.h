@@ -13,6 +13,7 @@
 #include "../../types.h"
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -49,6 +50,7 @@ struct TuiState {
 
     static constexpr TX VISIBLE_ROWS = 10; // 1..10 por vista + 1 fila vacía antes de la leyenda
     static constexpr TX CELL_WIDTH   = 9;
+    static constexpr TX ROW_HEADER_W = 8;  // Ancho de la esquina superior izq. (A1:D10) y columna de filas
 
     SpreadsheetEngine&   engine;
     std::ostream&        os;
@@ -78,9 +80,18 @@ struct TuiState {
     std::string point_base;
 
     // Selección con ratón (SGR Mouse Tracking) confinada por ventana
-    bool mouse_dragging = false;
-    TX   drag_win       = 0;
+    bool mouse_dragging   = false;
+    bool fill_dragging    = false;
+    bool vscroll_dragging = false;
+    bool hscroll_dragging = false;
+    TX   drag_win         = 0;
+
+    // Name Box interactivo en esquina superior izquierda (clic = ir a celda/rango, doble clic = A1)
+    bool        namebox_editing = false;
+    std::string namebox_buffer;
+    std::chrono::steady_clock::time_point last_namebox_click{};
     bool has_cell_sel   = false;
+    bool has_fill_sel   = false;
     TX   sel_c0 = 0, sel_r0 = 0, sel_c1 = 0, sel_r1 = 0;
     bool has_text_sel   = false;
     TX   text_win       = 0;
@@ -93,6 +104,7 @@ struct TuiState {
     // Consola e historial
     std::string input_buffer;
     size_t      input_cursor = 0;
+    bool        return_to_grid_on_submit = false;
     std::string status_banner = "Usa [Tab] para alternar entre Matriz y Consola.";
     Vector<VectorAscTraits<std::string>> cmd_history;
     TX history_idx = -1;
@@ -217,7 +229,7 @@ struct TuiState {
     }
 
     bool screenToGridCell(TX mx, TX my, TX& out_col, TX& out_row, bool clamp_to_grid) const {
-        TX grid_x0 = LEFT_X + 7;
+        TX grid_x0 = LEFT_X + 2 + ROW_HEADER_W;
         TX grid_x1 = grid_x0 + visible_cols * (CELL_WIDTH + 1) - 1;
         TX grid_y0 = TOP_Y + 3;
         TX grid_y1 = TOP_Y + 3 + VISIBLE_ROWS - 1;
@@ -233,8 +245,8 @@ struct TuiState {
 
         TX rel_c = (mx - grid_x0) / (CELL_WIDTH + 1);
         TX rel_r = my - grid_y0;
-        out_col = std::clamp(scroll_col + rel_c, static_cast<TX>(0), static_cast<TX>(25));
-        out_row = std::clamp(scroll_row + rel_r, static_cast<TX>(0), static_cast<TX>(98));
+        out_col = std::clamp(scroll_col + rel_c, static_cast<TX>(0), CellCoord::MAX_COLS - 1);
+        out_row = std::clamp(scroll_row + rel_r, static_cast<TX>(0), CellCoord::MAX_ROWS - 1);
         return true;
     }
 
@@ -255,8 +267,8 @@ struct TuiState {
         right_w      = std::clamp((total_width * 38) / 100, static_cast<TX>(26), static_cast<TX>(68));
         left_w       = total_width - right_w - 1;
         right_x      = left_w + 1;
-        TX avail_grid = std::max(static_cast<TX>(14), left_w - 9);
-        visible_cols = std::clamp(avail_grid / (CELL_WIDTH + 1), static_cast<TX>(1), static_cast<TX>(26));
+        TX avail_grid = std::max(static_cast<TX>(14), left_w - (4 + ROW_HEADER_W));
+        visible_cols = std::clamp(avail_grid / (CELL_WIDTH + 1), static_cast<TX>(1), CellCoord::MAX_COLS);
         return changed;
     }
 
@@ -268,8 +280,96 @@ struct TuiState {
     }
 
     void clampScroll() {
-        scroll_col = std::clamp<TX>(scroll_col, 0, std::max<TX>(0, 26 - visible_cols));
-        scroll_row = std::clamp<TX>(scroll_row, 0, std::max<TX>(0, 99 - VISIBLE_ROWS));
+        scroll_col = std::clamp<TX>(scroll_col, 0, std::max<TX>(0, CellCoord::MAX_COLS - visible_cols));
+        scroll_row = std::clamp<TX>(scroll_row, 0, std::max<TX>(0, CellCoord::MAX_ROWS - VISIBLE_ROWS));
+    }
+
+    void clearSelectedCells() {
+        if (has_cell_sel) {
+            TX cmin, rmin, cmax, rmax;
+            normalizeCellRange(sel_c0, sel_r0, sel_c1, sel_r1, cmin, rmin, cmax, rmax);
+            engine.clearRange(cmin, rmin, cmax, rmax);
+            std::string r_str = CellCoord(cmin, rmin, true).toId() + ":" + CellCoord(cmax, rmax, true).toId();
+            has_cell_sel = false;
+            maybeAutoSave();
+            status_banner = "Rango " + r_str + " borrado.";
+        } else {
+            std::string cid = CellCoord(cursor_col, cursor_row, true).toId();
+            engine.setCell(cid, "");
+            maybeAutoSave();
+            status_banner = "Celda " + cid + " borrada.";
+        }
+    }
+
+    bool isNameBoxPos(TX mx, TX my) const {
+        return mx >= LEFT_X + 2 && mx < LEFT_X + 2 + ROW_HEADER_W && my == TOP_Y + 1;
+    }
+
+    void jumpToHome() {
+        cursor_col = 0;
+        cursor_row = 0;
+        scroll_col = 0;
+        scroll_row = 0;
+        has_cell_sel = false;
+        has_fill_sel = false;
+        point_mode = false;
+        status_banner = "Salto al inicio (A1).";
+    }
+
+    bool goToCellOrRange(const std::string& raw) {
+        std::string s = texcel_detail::trim(raw);
+        if (s.empty()) return false;
+        size_t colon = s.find(':');
+        if (colon != std::string::npos) {
+            CellCoord a = CellCoord::parse(s.substr(0, colon));
+            CellCoord b = CellCoord::parse(s.substr(colon + 1));
+            if (!a.valid || !b.valid) {
+                status_banner = "Rango invalido: " + s;
+                return false;
+            }
+            has_cell_sel = true;
+            has_fill_sel = false;
+            has_text_sel = false;
+            sel_c0 = a.col; sel_r0 = a.row;
+            sel_c1 = b.col; sel_r1 = b.row;
+            cursor_col = a.col;
+            cursor_row = a.row;
+            ensureCursorVisible();
+            status_banner = "Seleccionado rango " + a.toId() + ":" + b.toId();
+            return true;
+        }
+        CellCoord c = CellCoord::parse(s);
+        if (!c.valid) {
+            status_banner = "Celda invalida: " + s;
+            return false;
+        }
+        has_cell_sel = false;
+        has_fill_sel = false;
+        has_text_sel = false;
+        cursor_col = c.col;
+        cursor_row = c.row;
+        ensureCursorVisible();
+        status_banner = "Posicionada en " + c.toId();
+        return true;
+    }
+
+    void scrollVerticalToScreenY(TX my) {
+        TX track_y0 = TOP_Y + 3;
+        TX track_len = std::max<TX>(1, VISIBLE_ROWS - 1);
+        TX rel = std::clamp<TX>(my - track_y0, 0, track_len);
+        TX max_sr = std::max<TX>(0, CellCoord::MAX_ROWS - VISIBLE_ROWS);
+        scroll_row = (rel * max_sr) / track_len;
+        clampScroll();
+    }
+
+    void scrollHorizontalToScreenX(TX mx) {
+        TX track_x0 = LEFT_X + 2 + ROW_HEADER_W + 1;
+        TX track_x1 = LEFT_X + left_w - 2;
+        TX track_len = std::max<TX>(1, track_x1 - track_x0);
+        TX rel = std::clamp<TX>(mx - track_x0, 0, track_len);
+        TX max_sc = std::max<TX>(0, CellCoord::MAX_COLS - visible_cols);
+        scroll_col = (rel * max_sc) / track_len;
+        clampScroll();
     }
 
     void refreshSheetList() {

@@ -833,6 +833,135 @@ public:
         return p;
     }
 
+    /** @brief Limpia un rango rectangular de celdas y propaga dependencias. */
+    void clearRange(TX c0, TX r0, TX c1, TX r1) {
+        TX cmin = std::min(c0, c1), cmax = std::max(c0, c1);
+        TX rmin = std::min(r0, r1), rmax = std::max(r0, r1);
+        for (TX r = rmin; r <= rmax; ++r) {
+            for (TX c = cmin; c <= cmax; ++c) {
+                std::string cid = CellCoord(c, r, true).toId();
+                if (m_raw_table.contains(cid) && !m_raw_table[cid].empty()) {
+                    setCell(cid, "");
+                }
+            }
+        }
+    }
+
+    /**
+     * @brief Desplaza referencias relativas en una fórmula por `(dcol, drow)` respetando `$` absolutos y `"..."`.
+     */
+    static std::string shiftFormulaRefs(const std::string& expr, TX dcol, TX drow) {
+        std::string out;
+        out.reserve(expr.size() + 8);
+        bool in_quotes = false;
+
+        for (size_t i = 0; i < expr.size();) {
+            char ch = expr[i];
+            if (ch == '"') {
+                in_quotes = !in_quotes;
+                out.push_back(ch);
+                ++i;
+                continue;
+            }
+            if (in_quotes) {
+                out.push_back(ch);
+                ++i;
+                continue;
+            }
+
+            // Detectar token de celda opcionalmente con `$` (`$A$1`, `$A1`, `A$1`, `A1`)
+            bool prev_alnum = (i > 0 && std::isalnum(static_cast<unsigned char>(expr[i - 1])));
+            if (!prev_alnum && (ch == '$' || std::isalpha(static_cast<unsigned char>(ch)))) {
+                size_t p = i;
+                bool abs_col = false, abs_row = false;
+                if (expr[p] == '$') { abs_col = true; ++p; }
+                size_t col_start = p;
+                while (p < expr.size() && std::isalpha(static_cast<unsigned char>(expr[p]))) ++p;
+                if (p > col_start) {
+                    if (p < expr.size() && expr[p] == '$') { abs_row = true; ++p; }
+                    size_t row_start = p;
+                    while (p < expr.size() && std::isdigit(static_cast<unsigned char>(expr[p]))) ++p;
+                    bool next_is_paren = (p < expr.size() && expr[p] == '(');
+                    bool next_is_alpha = (p < expr.size() && std::isalpha(static_cast<unsigned char>(expr[p])));
+                    if (p > row_start && !next_is_paren && !next_is_alpha) {
+                        std::string col_part = expr.substr(col_start, (expr[col_start + (p - col_start)] == '$') ? 0 : 0);
+                        std::string raw_tok = expr.substr(i, p - i);
+                        CellCoord coord = CellCoord::parse(raw_tok);
+                        if (coord.valid) {
+                            TX nc = coord.col + (abs_col ? 0 : dcol);
+                            TX nr = coord.row + (abs_row ? 0 : drow);
+                            if (nc < 0 || nc >= CellCoord::MAX_COLS || nr < 0 || nr >= CellCoord::MAX_ROWS) {
+                                out += "#REF!";
+                            } else {
+                                if (abs_col) out.push_back('$');
+                                out += CellCoord::colToLabel(nc);
+                                if (abs_row) out.push_back('$');
+                                out += std::to_string(nr + 1);
+                            }
+                            i = p;
+                            continue;
+                        }
+                    }
+                }
+            }
+            out.push_back(ch);
+            ++i;
+        }
+        return out;
+    }
+
+    /**
+     * @brief Rellena el rango `(c0, r0)..(c1, r1)` propagando fórmulas relativas o series numéricas desde `(c0, r0)`.
+     */
+    TX autoFillRange(TX c0, TX r0, TX c1, TX r1) {
+        std::string src_id = CellCoord(c0, r0, true).toId();
+        if (!m_raw_table.contains(src_id) || m_raw_table[src_id].empty()) return 0;
+
+        SpreadsheetCell src_cell = getCell(src_id);
+        std::string src_raw = m_raw_table[src_id];
+        TX cmin = std::min(c0, c1), cmax = std::max(c0, c1);
+        TX rmin = std::min(r0, r1), rmax = std::max(r0, r1);
+
+        // Detectar serie aritmética si el origen y su vecino inmediato son números puros
+        bool is_series = false;
+        double series_base = 0.0, series_step = 0.0;
+        bool fill_vertical = (rmax - rmin) >= (cmax - cmin);
+        if (!src_cell.is_formula && !src_cell.is_text && isPureNumber(src_raw)) {
+            series_base = std::stod(src_raw);
+            TX nc = fill_vertical ? c0 : (c0 + (c1 >= c0 ? 1 : -1));
+            TX nr = fill_vertical ? (r0 + (r1 >= r0 ? 1 : -1)) : r0;
+            if (nc >= cmin && nc <= cmax && nr >= rmin && nr <= rmax) {
+                std::string next_id = CellCoord(nc, nr, true).toId();
+                if (m_raw_table.contains(next_id) && isPureNumber(m_raw_table[next_id])) {
+                    series_step = std::stod(m_raw_table[next_id]) - series_base;
+                    is_series = true;
+                }
+            }
+        }
+
+        TX filled = 0;
+        for (TX r = rmin; r <= rmax; ++r) {
+            for (TX c = cmin; c <= cmax; ++c) {
+                if (c == c0 && r == r0) continue;
+                std::string dst_id = CellCoord(c, r, true).toId();
+                TX dcol = c - c0;
+                TX drow = r - r0;
+
+                if (src_cell.is_formula) {
+                    std::string shifted = shiftFormulaRefs(src_raw, dcol, drow);
+                    setCell(dst_id, (!shifted.empty() && shifted[0] == '=') ? shifted : ("= " + shifted));
+                } else if (is_series) {
+                    TX step_idx = fill_vertical ? drow : dcol;
+                    setCell(dst_id, SpreadsheetCell::formatNumber(series_base + step_idx * series_step));
+                } else {
+                    setCell(dst_id, src_raw);
+                }
+                ++filled;
+            }
+        }
+        return filled;
+    }
+
     /** @brief Limpia toda la hoja de cálculo y el grafo `LinkedList` de dependencias. */
     void clear() {
         m_raw_table.clear();

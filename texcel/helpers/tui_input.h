@@ -10,6 +10,7 @@
 #include "tui_text.h"
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <sstream>
 #include <string>
 #include <termios.h>
@@ -92,7 +93,18 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
 
     auto finishDrag = [&]() {
         st.mouse_dragging = false;
-        if (st.drag_win == 1 && st.has_cell_sel) {
+        if (st.drag_win == 1 && st.fill_dragging) {
+            st.fill_dragging = false;
+            st.has_fill_sel = false;
+            TX cmin, rmin, cmax, rmax;
+            normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, cmin, rmin, cmax, rmax);
+            if (cmin != cmax || rmin != rmax) {
+                TX filled = st.engine.autoFillRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1);
+                st.maybeAutoSave();
+                std::string r_str = CellCoord(cmin, rmin, true).toId() + ":" + CellCoord(cmax, rmax, true).toId();
+                st.status_banner = "✔ Auto-Fill (" + std::to_string(filled) + " celdas) en " + r_str;
+            }
+        } else if (st.drag_win == 1 && st.has_cell_sel) {
             TX cmin, rmin, cmax, rmax;
             normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, cmin, rmin, cmax, rmax);
             if (cmin != cmax || rmin != rmax) {
@@ -103,7 +115,6 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
             }
         } else if (st.drag_win >= 2 && st.drag_win <= 4 && st.has_text_sel) {
             if (st.tx0 == st.tx1 && st.ty0 == st.ty1) {
-                // Clic simple sin arrastre: guarda el ancla para Shift+Clic pero no deja 1 carácter suelto sombreado
                 st.has_text_sel = false;
             } else {
                 st.status_banner = "Texto sombreado ([Ctrl+C] o Clic Der. para copiar).";
@@ -112,8 +123,10 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
         st.drag_win = 0;
     };
 
-    if (is_release && st.mouse_dragging) {
-        finishDrag();
+    if (is_release && (st.mouse_dragging || st.vscroll_dragging || st.hscroll_dragging)) {
+        st.vscroll_dragging = false;
+        st.hscroll_dragging = false;
+        if (st.mouse_dragging) finishDrag();
         return true;
     }
 
@@ -129,6 +142,8 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
     }
 
     if (is_drag) {
+        if (st.vscroll_dragging) { TX prev = st.scroll_row; st.scrollVerticalToScreenY(my);   return st.scroll_row != prev; }
+        if (st.hscroll_dragging) { TX prev = st.scroll_col; st.scrollHorizontalToScreenX(mx); return st.scroll_col != prev; }
         if (!st.mouse_dragging) return false;
         if (st.drag_win == 1) {
             TX gc = 0, gr = 0;
@@ -136,8 +151,6 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
             if (gc == st.sel_c1 && gr == st.sel_r1) return false;
             st.sel_c1 = gc;
             st.sel_r1 = gr;
-            st.cursor_col = gc;
-            st.cursor_row = gr;
             if (st.point_mode) {
                 TX cmin, rmin, cmax, rmax;
                 normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, cmin, rmin, cmax, rmax);
@@ -164,7 +177,41 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
 
     if ((btn & 3) != 0 || is_release) return false;
 
-    bool is_shift_click = ((btn & 4) != 0);
+    // 1. Clic o doble clic en el Cuadro de Nombres (esquina superior izquierda de la matriz)
+    if (st.isNameBoxPos(mx, my)) {
+        auto now = std::chrono::steady_clock::now();
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - st.last_namebox_click).count();
+        st.last_namebox_click = now;
+        if (ms > 0 && ms < 400) {
+            st.namebox_editing = false;
+            st.namebox_buffer.clear();
+            st.jumpToHome();
+        } else {
+            st.namebox_editing = true;
+            st.namebox_buffer.clear();
+            st.mode = SpreadsheetFocusMode::GridNavigation;
+            st.status_banner = "Ir a celda o rango (ej. ZZ500 o A1:C5) y pulsa [Enter].";
+        }
+        return true;
+    }
+    st.namebox_editing = false;
+
+    // 2. Clic en mini-scrollbar vertical u horizontal de la Matriz
+    if (mx == TuiState::LEFT_X + st.left_w - 1 &&
+        my >= TuiState::TOP_Y + 3 && my < TuiState::TOP_Y + 3 + TuiState::VISIBLE_ROWS) {
+        st.vscroll_dragging = true;
+        st.scrollVerticalToScreenY(my);
+        return true;
+    }
+    if (my == TuiState::TOP_Y + TuiState::TOP_H - 1 &&
+        mx >= TuiState::LEFT_X + 2 + TuiState::ROW_HEADER_W + 1 && mx <= TuiState::LEFT_X + st.left_w - 2) {
+        st.hscroll_dragging = true;
+        st.scrollHorizontalToScreenX(mx);
+        return true;
+    }
+
+    bool is_ctrl_click   = ((btn & 16) != 0);          // Ctrl + Clic/Arrastrar -> Auto-Fill
+    bool is_extend_click = ((btn & (4 | 8)) != 0);     // Shift o Alt + Clic -> extender selección
 
     // Mouse Down (botón izquierdo): ignorar si cae sobre cualquier barra de división
     TX gc = 0, gr = 0;
@@ -172,10 +219,34 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
         st.has_text_sel = false;
         st.drag_win = 1;
         st.mouse_dragging = true;
+
+        TX grid_x0 = TuiState::LEFT_X + 2 + TuiState::ROW_HEADER_W;
+        TX rel_x_in_cell = (mx - grid_x0) % (TuiState::CELL_WIDTH + 1);
+        bool on_active_corner = (gc == st.cursor_col && gr == st.cursor_row && rel_x_in_cell == TuiState::CELL_WIDTH);
+
+        if ((is_ctrl_click || on_active_corner) && !st.point_mode) {
+            // Auto-Fill interactivo: origen fijo en celda activa, extremo opuesto en (gc, gr) con rampa pequeña
+            st.fill_dragging = true;
+            st.has_fill_sel  = true;
+            st.has_cell_sel  = false;
+            st.sel_c0 = st.cursor_col;
+            st.sel_r0 = st.cursor_row;
+            st.sel_c1 = gc;
+            st.sel_r1 = gr;
+            st.mode = SpreadsheetFocusMode::GridNavigation;
+            st.input_buffer.clear();
+            st.input_cursor = 0;
+            st.status_banner = "Auto-Fill: arrastra hacia cualquier direccion y suelta para rellenar.";
+            return true;
+        }
+
+        st.fill_dragging = false;
+        st.has_fill_sel  = false;
+        bool had_sel = st.has_cell_sel;
         st.has_cell_sel = true;
-        if (is_shift_click) {
-            // Shift + Clic: extiende el rectángulo sombreado desde la celda activa hasta (gc, gr)
-            if (!st.has_cell_sel) {
+        if (is_extend_click) {
+            // Shift/Alt/Ctrl + Clic: extiende el rectángulo sombreado manteniendo fija la celda activa inicial
+            if (!had_sel) {
                 st.sel_c0 = st.cursor_col;
                 st.sel_r0 = st.cursor_row;
             }
@@ -184,9 +255,9 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
         } else {
             st.sel_c0 = st.sel_c1 = gc;
             st.sel_r0 = st.sel_r1 = gr;
+            st.cursor_col = gc;
+            st.cursor_row = gr;
         }
-        st.cursor_col = gc;
-        st.cursor_row = gr;
         if (st.point_mode) {
             TX cmin, rmin, cmax, rmax;
             normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, cmin, rmin, cmax, rmax);
@@ -209,7 +280,7 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
             st.mouse_dragging = true;
             st.has_text_sel = true;
             st.text_win = w;
-            if (is_shift_click && st.last_anchor_win == w) {
+            if (is_extend_click && st.last_anchor_win == w) {
                 st.tx0 = st.last_anchor_x;
                 st.ty0 = st.last_anchor_y;
                 st.tx1 = mx;
@@ -315,6 +386,8 @@ inline bool handleEscapeSequence(TuiState& st, termios& raw_term) {
     }
 
     if (n1 == 0) {
+        st.namebox_editing = false;
+        st.namebox_buffer.clear();
         st.has_cell_sel = false;
         st.has_text_sel = false;
         st.mouse_dragging = false;
@@ -340,28 +413,29 @@ inline bool handleEscapeSequence(TuiState& st, termios& raw_term) {
 
             if (is_shift_arrow) {
                 if (!st.has_cell_sel) {
-                    st.sel_c0 = st.cursor_col;
-                    st.sel_r0 = st.cursor_row;
+                    st.sel_c0 = st.sel_c1 = st.cursor_col;
+                    st.sel_r0 = st.sel_r1 = st.cursor_row;
                     st.has_cell_sel = true;
                 }
                 st.has_text_sel = false;
-            } else if (csi_params.empty() && (dir == 'A' || dir == 'B' || dir == 'C' || dir == 'D')) {
-                st.has_cell_sel = false;
-            }
-
-            if ((csi_params.empty() || is_shift_arrow) && dir == 'A' && st.cursor_row > 0) --st.cursor_row;
-            else if ((csi_params.empty() || is_shift_arrow) && dir == 'B' && st.cursor_row < 98) ++st.cursor_row;
-            else if ((csi_params.empty() || is_shift_arrow) && dir == 'C' && st.cursor_col < 25) ++st.cursor_col;
-            else if ((csi_params.empty() || is_shift_arrow) && dir == 'D' && st.cursor_col > 0) --st.cursor_col;
-            else if (csi_params == "3" && csi_final == '~' && !st.point_mode) {
-                std::string cid = CellCoord(st.cursor_col, st.cursor_row, true).toId();
-                st.engine.setCell(cid, "");
-                st.maybeAutoSave();
+                if (dir == 'A' && st.sel_r1 > 0) --st.sel_r1;
+                else if (dir == 'B' && st.sel_r1 < CellCoord::MAX_ROWS - 1) ++st.sel_r1;
+                else if (dir == 'C' && st.sel_c1 < CellCoord::MAX_COLS - 1) ++st.sel_c1;
+                else if (dir == 'D' && st.sel_c1 > 0) --st.sel_c1;
+            } else {
+                if (csi_params.empty() && (dir == 'A' || dir == 'B' || dir == 'C' || dir == 'D')) {
+                    st.has_cell_sel = false;
+                }
+                if (csi_params.empty() && dir == 'A' && st.cursor_row > 0) --st.cursor_row;
+                else if (csi_params.empty() && dir == 'B' && st.cursor_row < CellCoord::MAX_ROWS - 1) ++st.cursor_row;
+                else if (csi_params.empty() && dir == 'C' && st.cursor_col < CellCoord::MAX_COLS - 1) ++st.cursor_col;
+                else if (csi_params.empty() && dir == 'D' && st.cursor_col > 0) --st.cursor_col;
+                else if (csi_params == "3" && csi_final == '~' && !st.point_mode) {
+                    st.clearSelectedCells();
+                }
             }
 
             if (is_shift_arrow) {
-                st.sel_c1 = st.cursor_col;
-                st.sel_r1 = st.cursor_row;
                 TX cmin, rmin, cmax, rmax;
                 normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, cmin, rmin, cmax, rmax);
                 std::string r_str = CellCoord(cmin, rmin, true).toId() + ":" + CellCoord(cmax, rmax, true).toId();
@@ -455,6 +529,7 @@ inline void handleTabKey(TuiState& st) {
             st.cursor_row = st.target_row;
         }
         st.mode = SpreadsheetFocusMode::CommandConsole;
+        st.return_to_grid_on_submit = false;
         if (st.input_buffer.empty()) st.loadActiveCellIntoBuffer();
         st.input_cursor = st.input_buffer.size();
         st.status_banner = "Consola activa. Escribe = B1 + 4, 5, o [Ctrl+U] para limpiar";
@@ -519,26 +594,35 @@ inline bool handleGridKey(TuiState& st, char ch) {
             st.copyToClipboard(txt);
             st.status_banner = "✔ Copiado al portapapeles (Ctrl+C o Y).";
         }
+    } else if ((ch == 'f' || ch == 'F' || ch == '+') && st.has_cell_sel) {
+        TX filled = st.engine.autoFillRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1);
+        st.maybeAutoSave();
+        TX cmin, rmin, cmax, rmax;
+        normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, cmin, rmin, cmax, rmax);
+        std::string r_str = CellCoord(cmin, rmin, true).toId() + ":" + CellCoord(cmax, rmax, true).toId();
+        st.status_banner = "✔ Auto-Fill (" + std::to_string(filled) + " celdas) en " + r_str;
     } else if (ch == '=') {
         st.mode = SpreadsheetFocusMode::CommandConsole;
+        st.return_to_grid_on_submit = true;
         st.input_buffer = "= ";
         st.input_cursor = st.input_buffer.size();
         st.status_banner = "Editando formula en " + cid + " (pulsa [Tab] para Point Mode).";
     } else if (ch == '\n' || ch == '\r') {
         st.mode = SpreadsheetFocusMode::CommandConsole;
+        st.return_to_grid_on_submit = true;
         st.loadActiveCellIntoBuffer();
         st.status_banner = "Editando celda " + cid + " en vivo...";
     } else if (ch == ':') {
         st.mode = SpreadsheetFocusMode::CommandConsole;
+        st.return_to_grid_on_submit = false;
         st.input_buffer.clear();
         st.input_cursor = 0;
         st.status_banner = "Modo comando directo activado.";
     } else if (ch == 127 || ch == '\b') {
-        st.engine.setCell(cid, "");
-        st.maybeAutoSave();
-        st.status_banner = "Celda " + cid + " borrada.";
+        st.clearSelectedCells();
     } else if (std::isdigit(static_cast<unsigned char>(ch))) {
         st.mode = SpreadsheetFocusMode::CommandConsole;
+        st.return_to_grid_on_submit = true;
         st.input_buffer = std::string(1, ch);
         st.input_cursor = 1;
     }
@@ -553,6 +637,10 @@ inline bool handleConsoleKey(TuiState& st, char ch) {
         if (!handleCommandSubmit(st, st.input_buffer)) return false;
         st.input_buffer.clear();
         st.input_cursor = 0;
+        if (st.return_to_grid_on_submit) {
+            st.return_to_grid_on_submit = false;
+            st.mode = SpreadsheetFocusMode::GridNavigation;
+        }
     } else if (ch == 127 || ch == '\b') {
         if (st.input_cursor > 0 && st.input_cursor <= st.input_buffer.size()) {
             st.input_buffer.erase(st.input_cursor - 1, 1);
@@ -572,6 +660,22 @@ inline bool handleConsoleKey(TuiState& st, char ch) {
         }
     }
     return true;
+}
+
+inline void handleNameBoxKey(TuiState& st, char ch) {
+    if (ch == '\n' || ch == '\r') {
+        if (!st.namebox_buffer.empty()) {
+            st.goToCellOrRange(st.namebox_buffer);
+        }
+        st.namebox_editing = false;
+        st.namebox_buffer.clear();
+    } else if (ch == 127 || ch == '\b') {
+        if (!st.namebox_buffer.empty()) st.namebox_buffer.pop_back();
+    } else if (std::isalnum(static_cast<unsigned char>(ch)) || ch == ':' || ch == '$') {
+        if (st.namebox_buffer.size() < 16) {
+            st.namebox_buffer.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(ch))));
+        }
+    }
 }
 
 } // namespace texcel_tui

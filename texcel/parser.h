@@ -232,10 +232,13 @@ private:
             return new texcel_detail::AstNode(tok, 0);
         }
 
-        // Identificador: Celda (A1, B1, D4) o Función (SUM(A1:B3), AVG, MIN, MAX)
-        if (std::isalpha(static_cast<unsigned char>(c))) {
+        // Identificador: Celda (A1, $C$1, B1, D4) o Función (SUM(A1:B3), AVG, MIN, MAX)
+        auto isIdentChar = [](char ch) {
+            return std::isalnum(static_cast<unsigned char>(ch)) || ch == '$';
+        };
+        if (std::isalpha(static_cast<unsigned char>(c)) || c == '$') {
             size_t start = m_pos;
-            while (m_pos < m_src.size() && std::isalnum(static_cast<unsigned char>(m_src[m_pos]))) {
+            while (m_pos < m_src.size() && isIdentChar(m_src[m_pos])) {
                 ++m_pos;
             }
             std::string ident = texcel_detail::toUpper(m_src.substr(start, m_pos - start));
@@ -268,15 +271,15 @@ private:
                         // Detectar si el argumento es un rango A1:B2
                         size_t saved_pos = m_pos;
                         bool parsed_range = false;
-                        if (std::isalpha(static_cast<unsigned char>(peek()))) {
+                        if (std::isalpha(static_cast<unsigned char>(peek())) || peek() == '$') {
                             size_t p1 = m_pos;
-                            while (m_pos < m_src.size() && std::isalnum(static_cast<unsigned char>(m_src[m_pos]))) ++m_pos;
+                            while (m_pos < m_src.size() && isIdentChar(m_src[m_pos])) ++m_pos;
                             std::string s1 = texcel_detail::toUpper(m_src.substr(p1, m_pos - p1));
                             if (peek() == ':') {
                                 get();
                                 skipSpaces();
                                 size_t p2 = m_pos;
-                                while (m_pos < m_src.size() && std::isalnum(static_cast<unsigned char>(m_src[m_pos]))) ++m_pos;
+                                while (m_pos < m_src.size() && isIdentChar(m_src[m_pos])) ++m_pos;
                                 std::string s2 = texcel_detail::toUpper(m_src.substr(p2, m_pos - p2));
                                 CellCoord a = CellCoord::parse(s1);
                                 CellCoord b = CellCoord::parse(s2);
@@ -338,14 +341,14 @@ private:
                     while (true) {
                         skipSpaces();
                         size_t r1_start = m_pos;
-                        while (m_pos < m_src.size() && std::isalnum(static_cast<unsigned char>(m_src[m_pos]))) ++m_pos;
+                        while (m_pos < m_src.size() && isIdentChar(m_src[m_pos])) ++m_pos;
                         std::string c1_str = texcel_detail::toUpper(m_src.substr(r1_start, m_pos - r1_start));
                         std::string c2_str = c1_str;
                         if (peek() == ':') {
                             get();
                             skipSpaces();
                             size_t r2_start = m_pos;
-                            while (m_pos < m_src.size() && std::isalnum(static_cast<unsigned char>(m_src[m_pos]))) ++m_pos;
+                            while (m_pos < m_src.size() && isIdentChar(m_src[m_pos])) ++m_pos;
                             c2_str = texcel_detail::toUpper(m_src.substr(r2_start, m_pos - r2_start));
                         }
                         CellCoord a = CellCoord::parse(c1_str);
@@ -399,13 +402,13 @@ private:
                 }
 
                 size_t r1_start = m_pos;
-                while (m_pos < m_src.size() && std::isalnum(static_cast<unsigned char>(m_src[m_pos]))) ++m_pos;
+                while (m_pos < m_src.size() && isIdentChar(m_src[m_pos])) ++m_pos;
                 std::string c1_str = texcel_detail::toUpper(m_src.substr(r1_start, m_pos - r1_start));
                 if (peek() != ':') throw std::runtime_error("Se esperaba ':' en rango");
                 get(); // consume ':'
                 skipSpaces();
                 size_t r2_start = m_pos;
-                while (m_pos < m_src.size() && std::isalnum(static_cast<unsigned char>(m_src[m_pos]))) ++m_pos;
+                while (m_pos < m_src.size() && isIdentChar(m_src[m_pos])) ++m_pos;
                 std::string c2_str = texcel_detail::toUpper(m_src.substr(r2_start, m_pos - r2_start));
                 if (peek() != ')') throw std::runtime_error("Falta ')' en función");
                 get(); // consume ')'

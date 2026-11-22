@@ -172,21 +172,52 @@ inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
     auto dependents = st.engine.getCellDependents(active_id);
     const size_t inner_w = static_cast<size_t>(st.left_w - 4);
 
+    TX sel_cmin = 0, sel_rmin = 0, sel_cmax = 0, sel_rmax = 0;
+    bool any_rect_sel = st.has_cell_sel || st.has_fill_sel;
+    if (any_rect_sel) {
+        normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, sel_cmin, sel_rmin, sel_cmax, sel_rmax);
+    }
+    bool has_multi_sel = any_rect_sel && (sel_cmin != sel_cmax || sel_rmin != sel_rmax);
+
     {
         std::ostringstream hdr_ss;
-        hdr_ss << styled("Fila ").dim();
+        if (st.namebox_editing) {
+            std::string nb = st.namebox_buffer + "█";
+            if (visible_length(nb) > TuiState::ROW_HEADER_W) {
+                nb = fitWidth(nb, TuiState::ROW_HEADER_W);
+            }
+            hdr_ss << styled(fitWidth(nb, TuiState::ROW_HEADER_W)).pure_black().bg_bright_yellow().bold();
+        } else {
+            std::string corner_txt = has_multi_sel
+                ? (CellCoord(sel_cmin, sel_rmin, true).toId() + ":" + CellCoord(sel_cmax, sel_rmax, true).toId())
+                : active_id;
+            std::string corner_clipped = clipPlain(corner_txt, TuiState::ROW_HEADER_W);
+            size_t c_pad = (TuiState::ROW_HEADER_W > corner_clipped.size())
+                ? (TuiState::ROW_HEADER_W - corner_clipped.size()) : 0;
+            std::string corner_box = std::string(c_pad / 2, ' ') + corner_clipped + std::string(c_pad - c_pad / 2, ' ');
+            hdr_ss << styled(corner_box).bright_yellow().bold();
+        }
         for (TX c = 0; c < st.visible_cols; ++c) {
             TX col_idx = st.scroll_col + c;
             std::string hdr = alignCell(CellCoord::colToLabel(col_idx), TuiState::CELL_WIDTH, false);
             hdr_ss << styled("│").gray();
-            hdr_ss << (col_idx == st.cursor_col ? styled(hdr).bright_cyan().bold() : styled(hdr).white().bold());
+            bool col_in_sel = st.has_cell_sel && (col_idx >= sel_cmin && col_idx <= sel_cmax);
+            if (col_in_sel) {
+                hdr_ss << styled(hdr).bright_white().bg_blue().bold();
+            } else if (col_idx == st.cursor_col) {
+                hdr_ss << styled(hdr).bright_cyan().bold();
+            } else {
+                hdr_ss << styled(hdr).white().bold();
+            }
         }
         gotoxy(st.ros(), TuiState::LEFT_X + 2, TuiState::TOP_Y + 1);
         st.ros() << fitWidth(hdr_ss.str(), inner_w);
     }
 
     {
-        std::string sep_line = "─────";
+        std::string sep_line(TuiState::ROW_HEADER_W, '\0');
+        sep_line.clear();
+        for (TX k = 0; k < TuiState::ROW_HEADER_W; ++k) sep_line += "─";
         for (TX c = 0; c < st.visible_cols; ++c) {
             sep_line += (c == 0) ? "┼" : "─";
             for (TX k = 0; k < TuiState::CELL_WIDTH; ++k) sep_line += "─";
@@ -195,18 +226,20 @@ inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
         st.ros() << fitWidth(styled(sep_line).gray().str(), inner_w);
     }
 
-    TX sel_cmin = 0, sel_rmin = 0, sel_cmax = 0, sel_rmax = 0;
-    if (st.has_cell_sel) {
-        normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, sel_cmin, sel_rmin, sel_cmax, sel_rmax);
-    }
-
     for (TX r = 0; r < TuiState::VISIBLE_ROWS; ++r) {
         TX row_idx = st.scroll_row + r;
         std::ostringstream row_ss;
 
         std::ostringstream row_lbl;
-        row_lbl << std::setw(3) << (row_idx + 1) << "  ";
-        row_ss << (row_idx == st.cursor_row ? styled(row_lbl.str()).bright_cyan().bold() : styled(row_lbl.str()).gray());
+        row_lbl << std::setw(4) << (row_idx + 1) << "    ";
+        bool row_in_sel = st.has_cell_sel && (row_idx >= sel_rmin && row_idx <= sel_rmax);
+        if (row_in_sel) {
+            row_ss << styled(row_lbl.str()).bright_white().bg_blue().bold();
+        } else if (row_idx == st.cursor_row) {
+            row_ss << styled(row_lbl.str()).bright_cyan().bold();
+        } else {
+            row_ss << styled(row_lbl.str()).gray();
+        }
 
         for (TX c = 0; c < st.visible_cols; ++c) {
             TX col_idx = st.scroll_col + c;
@@ -217,6 +250,9 @@ inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
             bool is_target_cell = st.point_mode && (cid == preview_target_id);
             bool is_in_rect_sel = st.has_cell_sel &&
                                   (col_idx >= sel_cmin && col_idx <= sel_cmax && row_idx >= sel_rmin && row_idx <= sel_rmax);
+            bool is_in_fill_sel = st.has_fill_sel &&
+                                  (col_idx >= sel_cmin && col_idx <= sel_cmax && row_idx >= sel_rmin && row_idx <= sel_rmax);
+            bool is_fill_tip    = st.has_fill_sel && (col_idx == st.sel_c1 && row_idx == st.sel_r1);
             bool is_input_ref   = texcel_detail::containsStr(inputs, cid);
             bool is_dependent   = texcel_detail::containsStr(dependents, cid);
 
@@ -228,13 +264,21 @@ inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
             }
             std::string formatted = alignCell(val_text, TuiState::CELL_WIDTH, !cell.has_error && !is_text_disp);
 
+            if (is_fill_tip && formatted.size() >= 2) {
+                bool left = (st.sel_c1 < st.sel_c0);
+                bool up   = (st.sel_r1 < st.sel_r0);
+                std::string ramp = up ? (left ? "◤" : "◥") : (left ? "◣" : "◢");
+                if (left) formatted = ramp + formatted.substr(1);
+                else      formatted = formatted.substr(0, formatted.size() - 1) + ramp;
+            }
+
             row_ss << styled("│").gray();
-            if (is_in_rect_sel && !(is_cursor && st.sel_c0 == st.sel_c1 && st.sel_r0 == st.sel_r1)) {
+            if (is_cursor) {
+                row_ss << styled(formatted).pure_black().bg_bright_cyan().bold();
+            } else if (is_in_fill_sel) {
+                row_ss << styled(formatted).pure_black().bg_bright_green().bold();
+            } else if (is_in_rect_sel) {
                 row_ss << styled(formatted).bright_white().bg_blue().bold();
-            } else if (is_cursor) {
-                if (st.point_mode) row_ss << styled(formatted).pure_black().bg_bright_yellow().bold();
-                else if (is_focused) row_ss << styled(formatted).pure_black().bg_bright_cyan().bold();
-                else row_ss << styled(formatted).pure_black().bg_bright_green().bold();
             } else if (is_target_cell) {
                 row_ss << styled(formatted).pure_black().bg_bright_green().bold();
             } else if (is_input_ref) {
@@ -265,6 +309,37 @@ inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
         << styled(" ■ ").bright_magenta().bold() << styled("Afectada ").gray()
         << styled(" ■ ").bright_green().bold() << styled("Formula").gray();
     st.ros() << fitWidth(leg.str(), inner_w);
+
+    // Mini-scrollbar vertical sobre el borde derecho de la Matriz (2 filas de alto, bloque grueso)
+    TX v_thumb_h = 2;
+    TX max_sr = std::max<TX>(1, CellCoord::MAX_ROWS - TuiState::VISIBLE_ROWS);
+    TX v_thumb = (st.scroll_row * (TuiState::VISIBLE_ROWS - v_thumb_h)) / max_sr;
+    for (TX r = 0; r < TuiState::VISIBLE_ROWS; ++r) {
+        gotoxy(st.ros(), TuiState::LEFT_X + st.left_w - 1, TuiState::TOP_Y + 3 + r);
+        if (r >= v_thumb && r < v_thumb + v_thumb_h) {
+            st.ros() << styled("█").bright_cyan().bold();
+        } else {
+            st.ros() << styled("│").dim();
+        }
+    }
+
+    // Mini-scrollbar horizontal sobre el borde inferior de la Matriz (9 columnas de ancho, bloque grueso)
+    TX h_x0 = TuiState::LEFT_X + 2 + TuiState::ROW_HEADER_W + 1;
+    TX h_x1 = TuiState::LEFT_X + st.left_w - 2;
+    TX h_len = h_x1 - h_x0 + 1;
+    if (h_len >= 10) {
+        TX thumb_w = std::min<TX>(9, h_len / 2);
+        TX max_sc = std::max<TX>(1, CellCoord::MAX_COLS - st.visible_cols);
+        TX h_thumb = (st.scroll_col * (h_len - thumb_w)) / max_sc;
+        gotoxy(st.ros(), h_x0, TuiState::TOP_Y + TuiState::TOP_H - 1);
+        for (TX i = 0; i < h_len; ++i) {
+            if (i >= h_thumb && i < h_thumb + thumb_w) {
+                st.ros() << styled("▬").bright_cyan().bold();
+            } else {
+                st.ros() << (is_focused ? styled("─").bright_cyan().bold() : styled("─").gray());
+            }
+        }
+    }
 }
 
 inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
@@ -376,7 +451,7 @@ inline void renderCommandWindow(TuiState& st, const EvalPreview& preview) {
 
     const size_t box_inner = (inner_w > 2) ? (inner_w - 2) : 20;
     std::string prompt_label = active_id + " ❯ ";
-    const size_t prefix_len = prompt_label.size();
+    const size_t prefix_len = visible_length(prompt_label);
     const size_t text_slot = (box_inner > prefix_len + 1) ? (box_inner - prefix_len - 1) : 12;
 
     std::string prompt_prefix = is_focused

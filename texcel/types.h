@@ -21,6 +21,9 @@
  * @brief Coordenada 0-indexada `(col, row)` de una celda con conversión desde/hacia notación Excel (`A1`, `B1`, `D4`).
  */
 struct CellCoord {
+    static constexpr TX MAX_COLS = 702; /**< Columnas soportadas: `A..ZZ` (`702`). */
+    static constexpr TX MAX_ROWS = 999; /**< Filas soportadas: `1..999` (`999`). */
+
     TX col = 0; /**< Columna 0-indexada (`0 = A`, `1 = B`, ...). */
     TX row = 0; /**< Fila 0-indexada (`0 = fila 1`, `1 = fila 2`, ...). */
     bool valid = false;
@@ -48,11 +51,11 @@ struct CellCoord {
         return colToLabel(col) + std::to_string(row + 1);
     }
 
-    /** @brief Parsea una cadena como `"a1"` o `"D4"` en `CellCoord`. */
+    /** @brief Parsea una cadena como `"a1"`, `"AA12"` o `"$D$4"` en `CellCoord`. */
     static CellCoord parse(const std::string& raw) {
         std::string s;
         for (char c : raw) {
-            if (!std::isspace(static_cast<unsigned char>(c)))
+            if (!std::isspace(static_cast<unsigned char>(c)) && c != '$')
                 s += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
         }
         if (s.size() < 2) return {};
@@ -68,7 +71,7 @@ struct CellCoord {
             if (!std::isdigit(static_cast<unsigned char>(s[i]))) return {};
             row_val = row_val * 10 + (s[i] - '0');
         }
-        if (row_val <= 0 || col_val <= 0 || col_val > 26 || row_val > 99) return {};
+        if (row_val <= 0 || col_val <= 0 || col_val > MAX_COLS || row_val > MAX_ROWS) return {};
         return CellCoord(col_val - 1, row_val - 1, true);
     }
 };
