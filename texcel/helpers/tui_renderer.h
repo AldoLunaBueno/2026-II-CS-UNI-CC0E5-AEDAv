@@ -11,6 +11,7 @@
 #include "../../utilities/gotoxy.h"
 #include "../../utilities/ansi_style.h"
 #include "../../utilities/ansi_metrics.h"
+#include "../../utilities/clipped_graph_renderer.h"
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
@@ -360,9 +361,6 @@ inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
         ? (preview.valid ? preview.formatted_value : preview.error_msg)
         : (cell.raw_expression.empty() ? "(vacia)" : cell.displayValue());
     std::string rpn_str   = showing_preview ? preview.postorder_rpn : cell.postorder_rpn;
-    std::string root_lbl  = showing_preview ? preview.ast_root : cell.ast_root_label;
-    std::string left_lbl  = showing_preview ? preview.ast_left : cell.ast_left_label;
-    std::string right_lbl = showing_preview ? preview.ast_right : cell.ast_right_label;
 
     const size_t inner_w = static_cast<size_t>(st.right_w - 4);
     const size_t val_max = (inner_w > 14) ? (inner_w - 13) : 20;
@@ -406,32 +404,69 @@ inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
     putLine(4, styled("Depende de : ").gray().str() + styled(clipPlain(formatCellList(inputs), val_max)).bright_yellow().str());
     putLine(5, styled("Afecta a   : ").gray().str() + styled(clipPlain(formatCellList(deps), val_max)).bright_magenta().str());
 
-    std::string ast_hdr = "─── BinaryTree AST (Euler PostOrder) ";
+    std::string orient_tag = st.ast_horizontal ? "[H]" : "[V]";
+    std::string ast_hdr = "─── BinaryTree AST " + orient_tag + " ([O] rotar) ";
     while (visible_length(ast_hdr) < inner_w) ast_hdr += "─";
     putLine(6, styled(ast_hdr).gray().str());
 
     std::string rpn_disp = rpn_str.empty() ? "∅" : clipPlain(rpn_str, inner_w > 11 ? inner_w - 11 : 20);
     putLine(7, styled("PostOrder: ").gray().str() + styled(rpn_disp).bright_green().str());
 
-    putLine(8, "");
-    putLine(9, "");
-    putLine(10, "");
-    putLine(11, "");
-    putLine(12, "");
-    if (root_lbl.empty()) {
-        putLine(9,  styled("       (sin arbol de expresion)").dim().str());
-    } else if (left_lbl.empty() && right_lbl.empty()) {
-        putLine(9,  "             " + styled("[" + clipPlain(root_lbl, 12) + "]").bright_cyan().bold().str());
-        putLine(10, styled("          (Nodo hoja unico)").dim().str());
+    VisualGraph vg = (!is_txt || is_fx)
+        ? st.engine.buildAstVisualGraph(raw_fx, st.ast_horizontal)
+        : VisualGraph{};
+    st.ast_graph_w = vg.width;
+    st.ast_graph_h = vg.height;
+    st.clampAstScroll();
+
+    if (vg.nodes.empty() || vg.width <= 0 || vg.height <= 0) {
+        for (TX row = 0; row < TuiState::AST_VIEW_H; ++row) putLine(8 + row, "");
+        putLine(9, styled("       (sin arbol de expresion)").dim().str());
     } else {
-        putLine(8,  "               " + styled("(" + clipPlain(root_lbl, 6) + ")").bright_yellow().bold().str());
-        putLine(9,  styled("              ╭──┴──╮").gray().str());
-        std::string l_box = "[" + clipPlain(left_lbl, 12) + "]";
-        std::string r_box = "[" + clipPlain(right_lbl, 12) + "]";
-        putLine(10, "        " + styled(fitWidth(l_box, 13)).bright_cyan().str() + " " + styled(r_box).bright_green().str());
+        ClippedGraphRenderer ast_renderer(
+            st.ros(), static_cast<TX>(inner_w), TuiState::AST_VIEW_H,
+            st.ast_scroll_x, st.ast_scroll_y, 0, 0, true, ConsoleLineStyle::Rounded);
+        std::vector<std::string> ast_lines = ast_renderer.renderToLines(vg);
+        for (TX row = 0; row < TuiState::AST_VIEW_H; ++row) {
+            const std::string line = (row < static_cast<TX>(ast_lines.size()))
+                ? ast_lines[static_cast<size_t>(row)]
+                : std::string();
+            putLine(8 + row, line);
+        }
     }
 
-    putLine(13, styled("Contenedores: HashTable<AVL> + BinaryTree").dim().str());
+    // Scrollbars del navegador AST en los bordes de Ventana 2 cuando hay desbordamiento
+    if (vg.height > TuiState::AST_VIEW_H) {
+        TX v_thumb_h = std::min<TX>(2, TuiState::AST_VIEW_H);
+        TX max_sy = std::max<TX>(1, vg.height - TuiState::AST_VIEW_H);
+        TX v_thumb = (st.ast_scroll_y * (TuiState::AST_VIEW_H - v_thumb_h)) / max_sy;
+        for (TX r = 0; r < TuiState::AST_VIEW_H; ++r) {
+            gotoxy(st.ros(), st.right_x + st.right_w - 1, TuiState::TOP_Y + 8 + r);
+            if (r >= v_thumb && r < v_thumb + v_thumb_h) {
+                st.ros() << styled("█").bright_cyan().bold();
+            } else {
+                st.ros() << styled("│").dim();
+            }
+        }
+    }
+    if (vg.width > static_cast<TX>(inner_w)) {
+        TX h_x0 = st.right_x + 2;
+        TX h_x1 = st.right_x + st.right_w - 3;
+        TX h_len = h_x1 - h_x0 + 1;
+        if (h_len >= 6) {
+            TX thumb_w = std::min<TX>(9, std::max<TX>(3, h_len / 3));
+            TX max_sx = std::max<TX>(1, vg.width - static_cast<TX>(inner_w));
+            TX h_thumb = (st.ast_scroll_x * (h_len - thumb_w)) / max_sx;
+            gotoxy(st.ros(), h_x0, TuiState::TOP_Y + TuiState::TOP_H - 1);
+            for (TX i = 0; i < h_len; ++i) {
+                if (i >= h_thumb && i < h_thumb + thumb_w) {
+                    st.ros() << styled("▬").bright_cyan().bold();
+                } else {
+                    st.ros() << styled("─").gray();
+                }
+            }
+        }
+    }
 }
 
 inline void renderCommandWindow(TuiState& st, const EvalPreview& preview) {

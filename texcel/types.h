@@ -189,9 +189,6 @@ struct SpreadsheetCell {
     bool        has_error = false;
     std::string error_msg;     /**< `#CYCLE!`, `#DIV/0!`, `#SYNTAX!`, `#REF!`. */
     std::string postorder_rpn; /**< Secuencia en PostOrder generada por `BinaryTreeIterator`. */
-    std::string ast_root_label;/**< Etiqueta de la raíz del AST para el inspector visual. */
-    std::string ast_left_label;/**< Subárbol izquierdo resumido. */
-    std::string ast_right_label;/**< Subárbol derecho resumido. */
 
     auto operator<=>(const SpreadsheetCell& other) const {
         return id <=> other.id;
@@ -232,9 +229,6 @@ struct EvalPreview {
     std::string formatted_value;
     std::string error_msg;
     std::string postorder_rpn;
-    std::string ast_root;
-    std::string ast_left;
-    std::string ast_right;
     Vector<VectorAscTraits<std::string>> referenced_cells;
 };
 

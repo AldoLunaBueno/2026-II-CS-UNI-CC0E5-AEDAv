@@ -79,12 +79,24 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
     if (st.modal_open) return false;
 
     if (is_wheel) {
+        bool in_inspector = (mx >= st.right_x && mx < st.right_x + st.right_w &&
+                             my >= TuiState::TOP_Y && my < TuiState::TOP_Y + TuiState::TOP_H);
+        bool is_horizontal_mod = ((btn & 2) != 0) || ((btn & 4) != 0) ||
+                                 ((btn & 8) != 0) || ((btn & 16) != 0);
+        bool forward = ((btn & 1) != 0);
+        if (in_inspector) {
+            constexpr TX AST_V_STEP = 1, AST_H_STEP = 4;
+            bool scroll_h = is_horizontal_mod || (st.ast_graph_h <= TuiState::AST_VIEW_H && st.ast_graph_w > st.astViewWidth());
+            if (scroll_h) st.ast_scroll_x += forward ? AST_H_STEP : -AST_H_STEP;
+            else st.ast_scroll_y += forward ? AST_V_STEP : -AST_V_STEP;
+            st.clampAstScroll();
+            return true;
+        }
+
         constexpr TX V_STEP = 3, H_STEP = 2;
         bool on_col_header = (mx >= TuiState::LEFT_X + 2 && mx < TuiState::LEFT_X + st.left_w - 2 &&
                               (my == TuiState::TOP_Y + 1 || my == TuiState::TOP_Y + 2));
-        bool is_horizontal = on_col_header || ((btn & 2) != 0) || ((btn & 4) != 0) ||
-                             ((btn & 8) != 0) || ((btn & 16) != 0);
-        bool forward = ((btn & 1) != 0);
+        bool is_horizontal = on_col_header || is_horizontal_mod;
         if (is_horizontal) st.scroll_col += forward ? H_STEP : -H_STEP;
         else st.scroll_row += forward ? V_STEP : -V_STEP;
         st.clampScroll();
@@ -123,9 +135,12 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
         st.drag_win = 0;
     };
 
-    if (is_release && (st.mouse_dragging || st.vscroll_dragging || st.hscroll_dragging)) {
+    if (is_release && (st.mouse_dragging || st.vscroll_dragging || st.hscroll_dragging ||
+                       st.ast_vscroll_dragging || st.ast_hscroll_dragging)) {
         st.vscroll_dragging = false;
         st.hscroll_dragging = false;
+        st.ast_vscroll_dragging = false;
+        st.ast_hscroll_dragging = false;
         if (st.mouse_dragging) finishDrag();
         return true;
     }
@@ -144,6 +159,8 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
     if (is_drag) {
         if (st.vscroll_dragging) { TX prev = st.scroll_row; st.scrollVerticalToScreenY(my);   return st.scroll_row != prev; }
         if (st.hscroll_dragging) { TX prev = st.scroll_col; st.scrollHorizontalToScreenX(mx); return st.scroll_col != prev; }
+        if (st.ast_vscroll_dragging) { TX prev = st.ast_scroll_y; st.scrollAstVerticalToY(my);   return st.ast_scroll_y != prev; }
+        if (st.ast_hscroll_dragging) { TX prev = st.ast_scroll_x; st.scrollAstHorizontalToX(mx); return st.ast_scroll_x != prev; }
         if (!st.mouse_dragging) return false;
         if (st.drag_win == 1) {
             TX gc = 0, gr = 0;
@@ -210,6 +227,22 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
         return true;
     }
 
+    // 2b. Clic en mini-scrollbars del navegador AST (Ventana 2)
+    if (st.ast_graph_h > TuiState::AST_VIEW_H &&
+        mx == st.right_x + st.right_w - 1 &&
+        my >= TuiState::TOP_Y + 8 && my < TuiState::TOP_Y + 8 + TuiState::AST_VIEW_H) {
+        st.ast_vscroll_dragging = true;
+        st.scrollAstVerticalToY(my);
+        return true;
+    }
+    if (st.ast_graph_w > st.astViewWidth() &&
+        my == TuiState::TOP_Y + TuiState::TOP_H - 1 &&
+        mx >= st.right_x + 2 && mx <= st.right_x + st.right_w - 3) {
+        st.ast_hscroll_dragging = true;
+        st.scrollAstHorizontalToX(mx);
+        return true;
+    }
+
     bool is_ctrl_click   = ((btn & 16) != 0);          // Ctrl + Clic/Arrastrar -> Auto-Fill
     bool is_extend_click = ((btn & (4 | 8)) != 0);     // Shift o Alt + Clic -> extender selección
 
@@ -253,6 +286,7 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
             st.sel_c1 = gc;
             st.sel_r1 = gr;
         } else {
+            if (st.cursor_col != gc || st.cursor_row != gr) st.resetAstScroll();
             st.sel_c0 = st.sel_c1 = gc;
             st.sel_r0 = st.sel_r1 = gr;
             st.cursor_col = gc;
@@ -426,6 +460,7 @@ inline bool handleEscapeSequence(TuiState& st, termios& raw_term) {
                 if (csi_params.empty() && (dir == 'A' || dir == 'B' || dir == 'C' || dir == 'D')) {
                     st.has_cell_sel = false;
                 }
+                TX prev_c = st.cursor_col, prev_r = st.cursor_row;
                 if (csi_params.empty() && dir == 'A' && st.cursor_row > 0) --st.cursor_row;
                 else if (csi_params.empty() && dir == 'B' && st.cursor_row < CellCoord::MAX_ROWS - 1) ++st.cursor_row;
                 else if (csi_params.empty() && dir == 'C' && st.cursor_col < CellCoord::MAX_COLS - 1) ++st.cursor_col;
@@ -433,6 +468,7 @@ inline bool handleEscapeSequence(TuiState& st, termios& raw_term) {
                 else if (csi_params == "3" && csi_final == '~' && !st.point_mode) {
                     st.clearSelectedCells();
                 }
+                if (st.cursor_col != prev_c || st.cursor_row != prev_r) st.resetAstScroll();
             }
 
             if (is_shift_arrow) {
@@ -594,6 +630,10 @@ inline bool handleGridKey(TuiState& st, char ch) {
             st.copyToClipboard(txt);
             st.status_banner = "✔ Copiado al portapapeles (Ctrl+C o Y).";
         }
+    } else if (ch == 'o' || ch == 'O') {
+        st.ast_horizontal = !st.ast_horizontal;
+        st.resetAstScroll();
+        st.status_banner = std::string("Orientacion AST: ") + (st.ast_horizontal ? "Horizontal [H]." : "Vertical [V].");
     } else if ((ch == 'f' || ch == 'F' || ch == '+') && st.has_cell_sel) {
         TX filled = st.engine.autoFillRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1);
         st.maybeAutoSave();

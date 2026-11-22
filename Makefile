@@ -2,7 +2,7 @@ CXX        := g++
 CXXFLAGS   := -std=c++23
 TARGET     := main
 SRCS       := main.cpp demos.cpp
-HEADERS    := demos.h types.h $(wildcard texcel/*.h) $(wildcard texcel/helpers/*.h)
+HEADERS    := demos.h types.h $(wildcard texcel/*.h) $(wildcard texcel/helpers/*.h) utilities/clipped_graph_renderer.h
 TEST_SRCS  := $(wildcard texcel/tests/*.cpp)
 PR_OUT     := tmp/pr_comment.md
 PR_SCRIPT  := scripts/gen_pr_comment.sh

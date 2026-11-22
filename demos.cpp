@@ -26,6 +26,7 @@
 #include "utilities/print_colored.h"
 #include "utilities/gotoxy.h"
 #include "utilities/render.h"
+#include "utilities/clipped_graph_renderer.h"
 #include "utilities/layouts.h"
 #include "texcel/texcel.h"
 #include "demos.h"
@@ -610,6 +611,14 @@ void DemoBinaryTree() {
     
     cout << styled(" █ Pruebas para AVLTree ").pure_black().bg_bright_yellow() << "\n\n";
     TestBinaryTree<AVLTree>("avltree_test.txt");
+
+    cout << "\n" << styled(" █ Demo de ClippedGraphRenderer (Viewport Recortado 28x7) ").pure_black().bg_bright_yellow() << "\n\n";
+    BinaryTree<BinaryTreeAscTraits<TX>> clip_tree;
+    for (TX v : {50, 25, 75, 12, 37, 62, 88, 6, 18, 30, 42}) clip_tree.insert(v, v);
+    cout << "Viewport Vertical (scroll_x=6, scroll_y=1, 28x7):\n";
+    clip_tree.draw(VerticalTreeLayout{}, ClippedGraphRenderer(cout, 28, 7, 6, 1));
+    cout << "\nViewport Horizontal (scroll_x=0, scroll_y=2, 28x7):\n";
+    clip_tree.draw(HorizontalTreeLayout{}, ClippedGraphRenderer(cout, 28, 7, 0, 2));
 }
 
 void DemoHashTable() {

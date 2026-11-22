@@ -10,6 +10,9 @@
 #include "parser.h"
 #include "../containers/hash_table.h"
 #include "../containers/lists/linked_list.h"
+#include "../utilities/layouts/vertical_tree_layout.h"
+#include "../utilities/layouts/horizontal_tree_layout.h"
+#include "../utilities/ansi_style.h"
 
 /**
  * @class SpreadsheetEngine
@@ -371,13 +374,6 @@ private:
         return root->getValue().evaluated;
     }
 
-    static std::string summarizeSubtree(AstNode* node) {
-        if (!node) return "∅";
-        const AstToken& t = node->getValue();
-        if (!node->m_pChild[0] && !node->m_pChild[1]) return t.text;
-        return "(" + summarizeSubtree(node->m_pChild[0]) + " " + t.text + " " + summarizeSubtree(node->m_pChild[1]) + ")";
-    }
-
     CellEvalValue resolveCellValue(const std::string& cell_id, StringVec& visiting, std::string& out_err) {
         if (containsStr(visiting, cell_id)) {
             out_err = "#CYCLE!";
@@ -403,9 +399,6 @@ private:
             cell.has_error = false;
             cell.error_msg.clear();
             cell.postorder_rpn = "\"" + txt + "\"";
-            cell.ast_root_label = "\"" + txt + "\"";
-            cell.ast_left_label.clear();
-            cell.ast_right_label.clear();
             visiting.pop_back();
             return CellEvalValue{true, 0.0, txt};
         }
@@ -434,9 +427,6 @@ private:
             cell.has_error = false;
             cell.error_msg.clear();
             cell.postorder_rpn = "\"" + raw + "\"";
-            cell.ast_root_label = "\"" + raw + "\"";
-            cell.ast_left_label.clear();
-            cell.ast_right_label.clear();
             visiting.pop_back();
             return CellEvalValue{true, 0.0, raw};
         }
@@ -456,9 +446,6 @@ private:
         cell.raw_expression = raw;
         cell.is_formula = explicit_formula || (refs.size() > 0) || (ast && ast->m_pChild[0] != nullptr);
         cell.postorder_rpn = rpn;
-        cell.ast_root_label = ast ? ast->getValue().text : "";
-        cell.ast_left_label = (ast && ast->m_pChild[0]) ? summarizeSubtree(ast->m_pChild[0]) : "";
-        cell.ast_right_label = (ast && ast->m_pChild[1]) ? summarizeSubtree(ast->m_pChild[1]) : "";
 
         freeAst(ast);
         visiting.pop_back();
@@ -649,7 +636,7 @@ public:
 
         if (expr.empty()) {
             m_raw_table[cid] = "";
-            m_cells[cid] = SpreadsheetCell{cid, "", 0.0, "", false, false, false, "", "", "", "", ""};
+            m_cells[cid] = SpreadsheetCell{cid, "", 0.0, "", false, false, false, "", ""};
             StringVec cascaded = propagateFrom(cid);
             addLog("⌫ " + cid + " limpiada");
             return true;
@@ -787,7 +774,6 @@ public:
             p.is_text = true;
             p.formatted_value = p.expression.substr(1);
             p.postorder_rpn = "\"" + p.formatted_value + "\"";
-            p.ast_root = p.postorder_rpn;
             return p;
         }
 
@@ -801,7 +787,6 @@ public:
                 p.is_text = true;
                 p.formatted_value = p.expression;
                 p.postorder_rpn = "\"" + p.expression + "\"";
-                p.ast_root = p.postorder_rpn;
                 return p;
             }
             p.valid = false;
@@ -815,9 +800,6 @@ public:
         CellEvalValue eval_res = evaluateAstPostOrder(ast, visiting, rpn, err);
 
         p.postorder_rpn = rpn;
-        p.ast_root  = ast ? ast->getValue().text : "";
-        p.ast_left  = (ast && ast->m_pChild[0]) ? summarizeSubtree(ast->m_pChild[0]) : "";
-        p.ast_right = (ast && ast->m_pChild[1]) ? summarizeSubtree(ast->m_pChild[1]) : "";
         freeAst(ast);
 
         if (!err.empty()) {
@@ -831,6 +813,48 @@ public:
         p.value = eval_res.num;
         p.formatted_value = eval_res.asString();
         return p;
+    }
+
+    /**
+     * @brief Proyecta el AST completo de una expresión usando `VerticalTreeLayout` o `HorizontalTreeLayout`.
+     */
+    VisualGraph buildAstVisualGraph(const std::string& raw_expr, bool horizontal) const {
+        std::string expr = texcel_detail::trim(raw_expr);
+        if (expr.empty()) return {};
+        if (!expr.empty() && expr[0] == '=') expr = texcel_detail::trim(expr.substr(1));
+        if (expr.empty() || expr[0] == '"') return {};
+
+        AstNode* ast = nullptr;
+        try {
+            StringVec refs;
+            FormulaParser parser(expr, refs);
+            ast = parser.parse();
+        } catch (...) {
+            return {};
+        }
+        if (!ast) return {};
+
+        struct AstTreeView {
+            AstNode* m_root;
+            AstNode* getRoot() const { return m_root; }
+        };
+
+        auto fmt = [](const AstToken& tok, TreeRole role) -> std::string {
+            if (role == TreeRole::Root) return styled("[" + tok.text + "]").bright_yellow().bold().str();
+            if (role == TreeRole::Leaf) return styled(tok.text).bright_cyan().str();
+            return styled(tok.text).bright_green().bold().str();
+        };
+
+        VisualGraph vg;
+        if (horizontal) {
+            HorizontalTreeLayout<decltype(fmt)> layout(fmt, true);
+            vg = layout(AstTreeView{ast});
+        } else {
+            VerticalTreeLayout<decltype(fmt)> layout(fmt, 3, false);
+            vg = layout(AstTreeView{ast});
+        }
+        freeAst(ast);
+        return vg;
     }
 
     /** @brief Limpia un rango rectangular de celdas y propaga dependencias. */

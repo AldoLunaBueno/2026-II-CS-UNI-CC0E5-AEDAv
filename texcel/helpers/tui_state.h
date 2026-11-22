@@ -90,6 +90,16 @@ struct TuiState {
     bool        namebox_editing = false;
     std::string namebox_buffer;
     std::chrono::steady_clock::time_point last_namebox_click{};
+
+    // Navegador 2D del AST en el Inspector (Ventana 2)
+    static constexpr TX AST_VIEW_H = 6; // rel_y = 8..13
+    bool ast_horizontal       = false;
+    TX   ast_scroll_x         = 0;
+    TX   ast_scroll_y         = 0;
+    TX   ast_graph_w          = 0;
+    TX   ast_graph_h          = 0;
+    bool ast_vscroll_dragging = false;
+    bool ast_hscroll_dragging = false;
     bool has_cell_sel   = false;
     bool has_fill_sel   = false;
     TX   sel_c0 = 0, sel_r0 = 0, sel_c1 = 0, sel_r1 = 0;
@@ -370,6 +380,42 @@ struct TuiState {
         TX max_sc = std::max<TX>(0, CellCoord::MAX_COLS - visible_cols);
         scroll_col = (rel * max_sc) / track_len;
         clampScroll();
+    }
+
+    TX astViewWidth() const {
+        return std::max<TX>(1, right_w - 4);
+    }
+
+    void clampAstScroll() {
+        TX vw = astViewWidth();
+        TX max_x = std::max<TX>(0, ast_graph_w - vw);
+        TX max_y = std::max<TX>(0, ast_graph_h - AST_VIEW_H);
+        ast_scroll_x = std::clamp<TX>(ast_scroll_x, 0, max_x);
+        ast_scroll_y = std::clamp<TX>(ast_scroll_y, 0, max_y);
+    }
+
+    void resetAstScroll() {
+        ast_scroll_x = 0;
+        ast_scroll_y = 0;
+    }
+
+    void scrollAstVerticalToY(TX my) {
+        TX track_y0 = TOP_Y + 8;
+        TX track_len = std::max<TX>(1, AST_VIEW_H - 1);
+        TX rel = std::clamp<TX>(my - track_y0, 0, track_len);
+        TX max_sy = std::max<TX>(0, ast_graph_h - AST_VIEW_H);
+        ast_scroll_y = (rel * max_sy) / track_len;
+        clampAstScroll();
+    }
+
+    void scrollAstHorizontalToX(TX mx) {
+        TX track_x0 = right_x + 2;
+        TX track_x1 = right_x + right_w - 3;
+        TX track_len = std::max<TX>(1, track_x1 - track_x0);
+        TX rel = std::clamp<TX>(mx - track_x0, 0, track_len);
+        TX max_sx = std::max<TX>(0, ast_graph_w - astViewWidth());
+        ast_scroll_x = (rel * max_sx) / track_len;
+        clampAstScroll();
     }
 
     void refreshSheetList() {
