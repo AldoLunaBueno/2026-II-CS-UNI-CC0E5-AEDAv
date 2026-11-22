@@ -6,7 +6,7 @@
 
 ## 1. Arquitectura del Subproyecto
 
-El código fuente reside en [`texcel/`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/) siguiendo una arquitectura acíclica por capas:
+El código fuente reside en [`texcel/`](../texcel/) siguiendo una arquitectura acíclica por capas:
 
 ```mermaid
 flowchart TD
@@ -24,16 +24,16 @@ flowchart TD
 
 | Módulo | Responsabilidad |
 | :--- | :--- |
-| [`texcel/texcel.h`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/texcel.h) | Punto de entrada único del subproyecto para `main.cpp` y tests. |
-| [`texcel/types.h`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/types.h) | Coordenadas `CellCoord` (`A1..ZZ999`), tokens AST (`AstToken`), estado de celda (`SpreadsheetCell`) y vista previa (`EvalPreview`). |
-| [`texcel/parser.h`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/parser.h) | Parser de descenso recursivo (`FormulaParser`) que compila fórmulas en un `BinaryTreeNode<AstToken>`. |
-| [`texcel/engine.h`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/engine.h) | Motor reactivo (`SpreadsheetEngine`): tabla dispersa, evaluación PostOrder, grafo de dependencias, propagación, detección de ciclos y Auto-Fill. |
-| [`texcel/config.h`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/config.h) | Gestión de `.config` (`autosave`, hoja activa) y listado de archivos `.txl` en `output/sheets/`. |
-| [`texcel/clipboard.h`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/clipboard.h) | Copia al portapapeles mediante secuencia ANSI OSC 52 y utilidades nativas (`wl-copy`, `xsel`, `xclip`). |
-| [`texcel/tui.h`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/tui.h) | Bucle principal interactivo (`termios` raw, `SIGWINCH`, coalescencia de arrastre SGR) y modo demo animado. |
-| [`texcel/helpers/tui_state.h`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_state.h) | Estado de la UI, layout responsivo, scrollbars proporcionales, inserción de referencias en cursor y persistencia `.txl`. |
-| [`texcel/helpers/tui_renderer.h`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_renderer.h) | Renderizado ANSI de los 4 paneles, barras de desplazamiento, modal de hojas y resaltado de selecciones. |
-| [`texcel/helpers/tui_input.h`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_input.h) | Manejo de teclado, secuencias de escape, ratón SGR (clics, rangos, scrollbars, Auto-Fill) y modal. |
+| [`texcel/texcel.h`](../texcel/texcel.h) | Punto de entrada único del subproyecto para `main.cpp` y tests. |
+| [`texcel/types.h`](../texcel/types.h) | Coordenadas `CellCoord` (`A1..ZZ999`), tokens AST (`AstToken`), estado de celda (`SpreadsheetCell`) y vista previa (`EvalPreview`). |
+| [`texcel/parser.h`](../texcel/parser.h) | Parser de descenso recursivo (`FormulaParser`) que compila fórmulas en un `BinaryTreeNode<AstToken>`. |
+| [`texcel/engine.h`](../texcel/engine.h) | Motor reactivo (`SpreadsheetEngine`): tabla dispersa, evaluación PostOrder, grafo de dependencias, propagación, detección de ciclos y Auto-Fill. |
+| [`texcel/config.h`](../texcel/config.h) | Gestión de `.config` (`autosave`, hoja activa) y listado de archivos `.txl` en `output/sheets/`. |
+| [`texcel/clipboard.h`](../texcel/clipboard.h) | Copia al portapapeles mediante secuencia ANSI OSC 52 y utilidades nativas (`wl-copy`, `xsel`, `xclip`). |
+| [`texcel/tui.h`](../texcel/tui.h) | Bucle principal interactivo (`termios` raw, `SIGWINCH`, coalescencia de arrastre SGR) y modo demo animado. |
+| [`texcel/helpers/tui_state.h`](../texcel/helpers/tui_state.h) | Estado de la UI, layout responsivo, scrollbars proporcionales, inserción de referencias en cursor y persistencia `.txl`. |
+| [`texcel/helpers/tui_renderer.h`](../texcel/helpers/tui_renderer.h) | Renderizado ANSI de los 4 paneles, barras de desplazamiento, modal de hojas y resaltado de selecciones. |
+| [`texcel/helpers/tui_input.h`](../texcel/helpers/tui_input.h) | Manejo de teclado, secuencias de escape, ratón SGR (clics, rangos, scrollbars, Auto-Fill) y modal. |
 
 ---
 
@@ -133,7 +133,7 @@ make test-unit
 make test-e2e
 ```
 
-La suite de pruebas en [`texcel/tests/`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/tests/) cubre:
+La suite de pruebas en [`texcel/tests/`](../texcel/tests/) cubre:
 - **Unitarias (`texcel/tests/unit/`)**:
   - `test_eval_prepost.cpp`: evaluación PostOrder, precedencia, unarios, concatenación `&` y funciones.
   - `test_deps_persistence.cpp`: propagación reactiva, ciclos `#CYCLE!` y persistencia `.txl`.
@@ -150,31 +150,31 @@ Esta sección resume los mecanismos internos que hacen que el motor y la interfa
 
 ### 1. Cómo existen múltiples ventanas independientes en una terminal
 Texcel no usa `ncurses` ni librerías externas de ventanas; construye su propio sistema de ventanas directamente sobre secuencias ANSI:
-- **Pantalla alternativa y coordenadas absolutas (`gotoxy`):** [`SpreadsheetTUI::runInteractive`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/tui.h#L123) activa el buffer alternativo de la terminal (`\033[?1049h`) y desactiva el salto automático de línea (`\033[?7l`). A partir de ahí, [`renderAll`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_renderer.h#L668) dibuja cada panel (`renderGridWindow`, `renderInspectorWindow`, `renderCommandWindow`, `renderActivityWindow` y el modal `renderFileManagerModal`) saltando directamente a sus coordenadas `(x, y)` con `gotoxy(st.ros(), x, y)` y recortando cada fila a su ancho interno exacto con `fitWidth` para que ningún texto desborde hacia la ventana vecina.
-- **Partición geométrica responsiva (`SIGWINCH`):** [`TuiState::updateLayout`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_state.h#L279-L299) consulta `ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)` y divide el ancho total en un ~38% para la columna derecha (`right_w`, acotado a `[26, 68]`) y el resto para la matriz izquierda (`left_w`), recalculando cuántas columnas de celdas caben (`visible_cols`). Cuando el usuario cambia el tamaño de la terminal, la señal `SIGWINCH` activa el recálculo y redibuja todo.
-- **Recorte 2D del AST dentro de su ventana:** dentro de `renderInspectorWindow`, [`ClippedGraphRenderer`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_renderer.h#L441) actúa como un *viewport* que recorta la proyección del árbol (`VerticalTreeLayout` / `HorizontalTreeLayout`) al rectángulo visible de la Ventana 2 según `(ast_scroll_x, ast_scroll_y)`.
+- **Pantalla alternativa y coordenadas absolutas (`gotoxy`):** [`SpreadsheetTUI::runInteractive`](../texcel/tui.h#L123) activa el buffer alternativo de la terminal (`\033[?1049h`) y desactiva el salto automático de línea (`\033[?7l`). A partir de ahí, [`renderAll`](../texcel/helpers/tui_renderer.h#L668) dibuja cada panel (`renderGridWindow`, `renderInspectorWindow`, `renderCommandWindow`, `renderActivityWindow` y el modal `renderFileManagerModal`) saltando directamente a sus coordenadas `(x, y)` con `gotoxy(st.ros(), x, y)` y recortando cada fila a su ancho interno exacto con `fitWidth` para que ningún texto desborde hacia la ventana vecina.
+- **Partición geométrica responsiva (`SIGWINCH`):** [`TuiState::updateLayout`](../texcel/helpers/tui_state.h#L279-L299) consulta `ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)` y divide el ancho total en un ~38% para la columna derecha (`right_w`, acotado a `[26, 68]`) y el resto para la matriz izquierda (`left_w`), recalculando cuántas columnas de celdas caben (`visible_cols`). Cuando el usuario cambia el tamaño de la terminal, la señal `SIGWINCH` activa el recálculo y redibuja todo.
+- **Recorte 2D del AST dentro de su ventana:** dentro de `renderInspectorWindow`, [`ClippedGraphRenderer`](../texcel/helpers/tui_renderer.h#L441) actúa como un *viewport* que recorta la proyección del árbol (`VerticalTreeLayout` / `HorizontalTreeLayout`) al rectángulo visible de la Ventana 2 según `(ast_scroll_x, ast_scroll_y)`.
 - **Enrutamiento de ratón por panel:** cada evento SGR `(mx, my)` determina en qué rectángulo cayó (`drag_win`), manteniendo la selección de celdas (ventana 1) aislada de la selección de texto (ventanas 2–4).
 
 ### 2. Evaluación del AST sin pila externa con `Order::PrePostOrder`
-En lugar de usar recursión clásica sobre el árbol de sintaxis, [`evaluateAstPostOrder`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/engine.h#L184-L426) recorre `BinaryTreeNode<AstToken>` mediante `BinaryTreeIterator<AstToken, Order::PrePostOrder, Direction::Asc>`. Cada nodo se visita dos veces en el mismo bucle:
+En lugar de usar recursión clásica sobre el árbol de sintaxis, [`evaluateAstPostOrder`](../texcel/engine.h#L184-L426) recorre `BinaryTreeNode<AstToken>` mediante `BinaryTreeIterator<AstToken, Order::PrePostOrder, Direction::Asc>`. Cada nodo se visita dos veces en el mismo bucle:
 - **Bajada (`Phase::Pre`):** el nodo padre propaga hacia sus hijos el tipo esperado (`expected_type`: `Number` para aritmética/funciones numéricas, `Text` para `&` o `Any` para comparaciones e `IF`).
 - **Subida (`Phase::Post`):** los hijos ya evaluados dejan su resultado en `AstToken::evaluated`; el padre valida el tipo (`#VALUE!` si se intenta operar texto no numérico en contexto aritmético), calcula su propio resultado in-place y emite el token a la traza RPN (`postorder_rpn`).
 - **Adaptación de funciones no binarias al árbol binario:** `MIN`/`MAX` variádicos se pliegan en cadena como nodos `FuncBinary`, e `IF(cond, ver, fal)` se representa con `FuncIf` apuntando a la condición (`m_pChild[0]`) y a un nodo puente `IfBranches` (`m_pChild[1]`) que contiene ambas ramas. Así `freeAst` y `PrePostOrder` funcionan sin estructuras especiales.
 
 ### 3. Regla estricta de texto literal vs. fórmula
-En hojas con encabezados reales como `"PC1"`, `"PC2"` o fechas como `"2026-09-03"`, un parser permisivo interpretaría `"PC1"` como una referencia a la columna `PC`, fila `1`, o `"2026-09-03"` como una resta (`2014`). Por ello [`resolveCellValue`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/engine.h#L456-L470) y [`updateDependencies`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/engine.h#L532) solo invocan `FormulaParser` cuando la celda comienza con `=` (o es un número puro); cualquier otro contenido se preserva como texto literal.
+En hojas con encabezados reales como `"PC1"`, `"PC2"` o fechas como `"2026-09-03"`, un parser permisivo interpretaría `"PC1"` como una referencia a la columna `PC`, fila `1`, o `"2026-09-03"` como una resta (`2014`). Por ello [`resolveCellValue`](../texcel/engine.h#L456-L470) y [`updateDependencies`](../texcel/engine.h#L532) solo invocan `FormulaParser` cuando la celda comienza con `=` (o es un número puro); cualquier otro contenido se preserva como texto literal.
 
 ### 4. Coalescencia de ráfagas SGR Mouse Drag (arrastre sin lag)
-Al arrastrar el ratón sobre la matriz o sobre una barra de desplazamiento, la terminal envía decenas de secuencias `\033[<...M` por segundo. Si se redibujara toda la pantalla en cada evento, el renderizado quedaría rezagado detrás del puntero. En [`SpreadsheetTUI::runInteractive`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/tui.h#L173-L186), tras procesar una secuencia `\033` durante un arrastre (`mouse_dragging`, `vscroll_dragging` o `hscroll_dragging`), un bucle con `poll(..., 0)` drena todos los eventos de ratón ya encolados en `stdin` y solo llama a `renderAll()` una vez al vaciar la ráfaga.
+Al arrastrar el ratón sobre la matriz o sobre una barra de desplazamiento, la terminal envía decenas de secuencias `\033[<...M` por segundo. Si se redibujara toda la pantalla en cada evento, el renderizado quedaría rezagado detrás del puntero. En [`SpreadsheetTUI::runInteractive`](../texcel/tui.h#L173-L186), tras procesar una secuencia `\033` durante un arrastre (`mouse_dragging`, `vscroll_dragging` o `hscroll_dragging`), un bucle con `poll(..., 0)` drena todos los eventos de ratón ya encolados en `stdin` y solo llama a `renderAll()` una vez al vaciar la ráfaga.
 
 ### 5. Mini-scrollbars proporcionales en los bordes del panel
-Las barras de desplazamiento viven directamente sobre el marco del panel para no sacrificar celdas visibles ([`tui_renderer.h`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_renderer.h#L329-L360)):
+Las barras de desplazamiento viven directamente sobre el marco del panel para no sacrificar celdas visibles ([`tui_renderer.h`](../texcel/helpers/tui_renderer.h#L329-L360)):
 - La barra vertical usa un pulgar de 2 filas (`█`) y la horizontal un pulgar de hasta 9 columnas (`▄`), haciéndolas fáciles de agarrar con el ratón.
-- [`scrollVerticalToScreenY`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_state.h#L382) y [`scrollHorizontalToScreenX`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_state.h#L391) mapean la coordenada del puntero respecto al centro del pulgar y mantienen activo el arrastre incluso si el cursor se desvía vertical u horizontalmente fuera del borde mientras el botón sigue presionado.
+- [`scrollVerticalToScreenY`](../texcel/helpers/tui_state.h#L382) y [`scrollHorizontalToScreenX`](../texcel/helpers/tui_state.h#L391) mapean la coordenada del puntero respecto al centro del pulgar y mantienen activo el arrastre incluso si el cursor se desvía vertical u horizontalmente fuera del borde mientras el botón sigue presionado.
 
 ### 6. Inserción de referencias en el cursor y confirmación al cambiar de celda
-En Modo 2 (`CommandConsole`), [`insertOrReplaceRefAtCursor`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_state.h#L154) guarda el ancla (`ref_anchor_pos`, `ref_anchor_len`) de la referencia insertada al hacer clic o arrastrar en la matriz mientras se edita una fórmula (`=...`). Así, arrastrar para seleccionar `A1:C3` actualiza en vivo ese fragmento exacto dentro del buffer sin mover el resto de la fórmula. Si en cambio se está editando un valor no fórmula y se hace clic en otra celda, [`handleSgrMouse`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_input.h#L276-L279) confirma primero el valor pendiente en la celda anterior antes de cambiar el foco.
+En Modo 2 (`CommandConsole`), [`insertOrReplaceRefAtCursor`](../texcel/helpers/tui_state.h#L154) guarda el ancla (`ref_anchor_pos`, `ref_anchor_len`) de la referencia insertada al hacer clic o arrastrar en la matriz mientras se edita una fórmula (`=...`). Así, arrastrar para seleccionar `A1:C3` actualiza en vivo ese fragmento exacto dentro del buffer sin mover el resto de la fórmula. Si en cambio se está editando un valor no fórmula y se hace clic en otra celda, [`handleSgrMouse`](../texcel/helpers/tui_input.h#L276-L279) confirma primero el valor pendiente en la celda anterior antes de cambiar el foco.
 
 ### 7. Renderizado sin parpadeo, selección confinada y portapapeles
 - **Buffer de frame único:** `TuiState::ros()` acumula todas las secuencias ANSI del frame en memoria y las envía a `std::ostream` en un solo `flush`, evitando parpadeos al redimensionar (`SIGWINCH`) o arrastrar.
-- **Copia limpia entre ventanas:** al sombrear texto con el ratón en el Navegador AST, Inspector o Consola, [`stripDividerGlyphs`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_text.h#L51-L61) elimina los caracteres de borde (`│`, `─`, `╭`, etc.) antes de enviar el texto a [`TexcelClipboard::copy`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/clipboard.h#L37-L51) (vía OSC 52 y `wl-copy`/`xsel`/`xclip`).
+- **Copia limpia entre ventanas:** al sombrear texto con el ratón en el Navegador AST, Inspector o Consola, [`stripDividerGlyphs`](../texcel/helpers/tui_text.h#L51-L61) elimina los caracteres de borde (`│`, `─`, `╭`, etc.) antes de enviar el texto a [`TexcelClipboard::copy`](../texcel/clipboard.h#L37-L51) (vía OSC 52 y `wl-copy`/`xsel`/`xclip`).
