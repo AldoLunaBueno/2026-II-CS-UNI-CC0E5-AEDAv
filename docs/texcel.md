@@ -141,3 +141,33 @@ La suite de pruebas en [`texcel/tests/`](file:///home/aldolunab/repos/2026-II-CS
   - `test_tui_navigation.cpp`: Name Box, scrollbars, inserción de referencias en cursor, confirmación al hacer clic y modos de enfoque.
   - `test_tui_text.cpp`: utilidades de texto y truncado ANSI.
 - **End-to-End (`texcel/tests/e2e/test_tui_pty.py`)**: pruebas automatizadas sobre pseudoterminal (PTY) real verificando el flujo interactivo completo.
+
+---
+
+## 7. Detalles Clave de Implementación y Mecánicas TUI
+
+Esta sección resume los mecanismos internos que hacen que el motor y la interfaz en consola se sientan fluidos y predecibles.
+
+### 1. Evaluación del AST sin pila externa con `Order::PrePostOrder`
+En lugar de usar recursión clásica sobre el árbol de sintaxis, [`evaluateAstPostOrder`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/engine.h#L184-L426) recorre `BinaryTreeNode<AstToken>` mediante `BinaryTreeIterator<AstToken, Order::PrePostOrder, Direction::Asc>`. Cada nodo se visita dos veces en el mismo bucle:
+- **Bajada (`Phase::Pre`):** el nodo padre propaga hacia sus hijos el tipo esperado (`expected_type`: `Number` para aritmética/funciones numéricas, `Text` para `&` o `Any` para comparaciones e `IF`).
+- **Subida (`Phase::Post`):** los hijos ya evaluados dejan su resultado en `AstToken::evaluated`; el padre valida el tipo (`#VALUE!` si se intenta operar texto no numérico en contexto aritmético), calcula su propio resultado in-place y emite el token a la traza RPN (`postorder_rpn`).
+- **Adaptación de funciones no binarias al árbol binario:** `MIN`/`MAX` variádicos se pliegan en cadena como nodos `FuncBinary`, e `IF(cond, ver, fal)` se representa con `FuncIf` apuntando a la condición (`m_pChild[0]`) y a un nodo puente `IfBranches` (`m_pChild[1]`) que contiene ambas ramas. Así `freeAst` y `PrePostOrder` funcionan sin estructuras especiales.
+
+### 2. Regla estricta de texto literal vs. fórmula
+En hojas con encabezados reales como `"PC1"`, `"PC2"` o fechas como `"2026-09-03"`, un parser permisivo interpretaría `"PC1"` como una referencia a la columna `PC`, fila `1`, o `"2026-09-03"` como una resta (`2014`). Por ello [`resolveCellValue`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/engine.h#L456-L470) y [`updateDependencies`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/engine.h#L532) solo invocan `FormulaParser` cuando la celda comienza con `=` (o es un número puro); cualquier otro contenido se preserva como texto literal.
+
+### 3. Coalescencia de ráfagas SGR Mouse Drag (arrastre sin lag)
+Al arrastrar el ratón sobre la matriz o sobre una barra de desplazamiento, la terminal envía decenas de secuencias `\033[<...M` por segundo. Si se redibujara toda la pantalla en cada evento, el renderizado quedaría rezagado detrás del puntero. En [`SpreadsheetTUI::runInteractive`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/tui.h#L173-L186), tras procesar una secuencia `\033` durante un arrastre (`mouse_dragging`, `vscroll_dragging` o `hscroll_dragging`), un bucle con `poll(..., 0)` drena todos los eventos de ratón ya encolados en `stdin` y solo llama a `renderAll()` una vez al vaciar la ráfaga.
+
+### 4. Mini-scrollbars proporcionales en los bordes del panel
+Las barras de desplazamiento viven directamente sobre el marco del panel para no sacrificar celdas visibles ([`tui_renderer.h`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_renderer.h#L329-L360)):
+- La barra vertical usa un pulgar de 2 filas (`█`) y la horizontal un pulgar de hasta 9 columnas (`▄`), haciéndolas fáciles de agarrar con el ratón.
+- [`scrollVerticalToScreenY`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_state.h#L382) y [`scrollHorizontalToScreenX`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_state.h#L391) mapean la coordenada del puntero respecto al centro del pulgar y mantienen activo el arrastre incluso si el cursor se desvía vertical u horizontalmente fuera del borde mientras el botón sigue presionado.
+
+### 5. Inserción de referencias en el cursor y confirmación al cambiar de celda
+En Modo 2 (`CommandConsole`), [`insertOrReplaceRefAtCursor`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_state.h#L154) guarda el ancla (`ref_anchor_pos`, `ref_anchor_len`) de la referencia insertada al hacer clic o arrastrar en la matriz mientras se edita una fórmula (`=...`). Así, arrastrar para seleccionar `A1:C3` actualiza en vivo ese fragmento exacto dentro del buffer sin mover el resto de la fórmula. Si en cambio se está editando un valor no fórmula y se hace clic en otra celda, [`handleSgrMouse`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_input.h#L276-L279) confirma primero el valor pendiente en la celda anterior antes de cambiar el foco.
+
+### 6. Renderizado sin parpadeo, selección confinada y portapapeles
+- **Buffer de frame único:** `TuiState::ros()` acumula todas las secuencias ANSI del frame en memoria y las envía a `std::ostream` en un solo `flush`, evitando parpadeos al redimensionar (`SIGWINCH`) o arrastrar.
+- **Copia limpia entre ventanas:** al sombrear texto con el ratón en el Navegador AST, Inspector o Consola, [`stripDividerGlyphs`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/helpers/tui_text.h#L51-L61) elimina los caracteres de borde (`│`, `─`, `╭`, etc.) antes de enviar el texto a [`TexcelClipboard::copy`](file:///home/aldolunab/repos/2026-II-CS-UNI-CC0E5-AEDAv/texcel/clipboard.h#L37-L51) (vía OSC 52 y `wl-copy`/`xsel`/`xclip`).
