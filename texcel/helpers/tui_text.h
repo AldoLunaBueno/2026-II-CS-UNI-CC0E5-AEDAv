@@ -1,5 +1,6 @@
 /**
  * @file tui_text.h
+ * @ingroup texcel
  * @brief Utilidades puras de texto UTF-8, recorte ANSI y normalización de rangos para la TUI de Texcel.
  */
 

@@ -1,5 +1,6 @@
 /**
  * @file tui_state.h
+ * @ingroup texcel
  * @brief Estado compartido y helpers de geometría/persistencia para la TUI de Texcel.
  */
 

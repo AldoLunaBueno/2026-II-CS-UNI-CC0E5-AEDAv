@@ -1,5 +1,6 @@
 /**
  * @file tui_input.h
+ * @ingroup texcel
  * @brief Despachadores independientes de entrada (teclado, ratón SGR, modal, Point Mode y comandos) sobre `TuiState`.
  */
 

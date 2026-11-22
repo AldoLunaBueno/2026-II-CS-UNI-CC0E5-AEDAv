@@ -1,5 +1,6 @@
 /**
  * @file texcel.h
+ * @ingroup texcel
  * @brief Punto de entrada principal del subproyecto Texcel (hoja de cálculo TUI multi-ventana).
  */
 

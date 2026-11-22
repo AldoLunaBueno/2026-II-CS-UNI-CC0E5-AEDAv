@@ -1,6 +1,6 @@
 /**
  * @file tui.h
- * @ingroup visualization
+ * @ingroup texcel
  * @brief Orquestador de la interfaz multi-ventana en consola (TUI reactiva) para Texcel.
  *
  * Estructura acíclica: `tui.h` -> `helpers/{tui_state.h, tui_renderer.h, tui_input.h}` -> `engine.h`.

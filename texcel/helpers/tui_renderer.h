@@ -1,5 +1,6 @@
 /**
  * @file tui_renderer.h
+ * @ingroup texcel
  * @brief Funciones puras de renderizado 2D de las 4 ventanas y del modal flotante sobre `TuiState`.
  */
 

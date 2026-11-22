@@ -1,5 +1,6 @@
 /**
  * @file clipboard.h
+ * @ingroup texcel
  * @brief Utilidades de portapapeles (OSC 52 y herramientas nativas de Linux).
  */
 

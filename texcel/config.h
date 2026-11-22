@@ -1,5 +1,6 @@
 /**
  * @file config.h
+ * @ingroup texcel
  * @brief Configuración persistente y gestor de rutas de hojas (`output/sheets/`).
  */
 

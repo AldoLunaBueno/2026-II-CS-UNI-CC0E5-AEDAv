@@ -2,7 +2,8 @@ PROJECT_NAME           = "AEDAv"
 OUTPUT_DIRECTORY       = build/docs
 HTML_OUTPUT            = html
 
-INPUT                  = docs/mainpage.md docs/groups.dox containers utilities foreach.h types.h demos.h main.cpp
+INPUT                  = docs/mainpage.md docs/groups.dox containers utilities texcel foreach.h types.h demos.h main.cpp
+EXCLUDE                = texcel/tests
 USE_MDFILE_AS_MAINPAGE = docs/mainpage.md
 RECURSIVE              = YES
 FILE_PATTERNS          = *.h *.hpp *.cpp *.md *.dox

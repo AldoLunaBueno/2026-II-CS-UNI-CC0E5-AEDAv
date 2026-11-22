@@ -38,3 +38,8 @@
  * @defgroup demos Demostraciones y Punto de Entrada
  * @brief Suites de prueba, concurrencia y ejemplos interactivos en `main.cpp` y `demos.cpp`.
  */
+
+/**
+ * @defgroup texcel Texcel (Hoja de Cálculo TUI)
+ * @brief Motor reactivo de fórmulas (`HashTable`, `BinaryTree`, `LinkedList`), parser AST y TUI multi-ventana.
+ */
