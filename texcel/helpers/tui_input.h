@@ -1,83 +1,69 @@
 /**
  * @file tui_input.h
- * @brief Despachadores de entrada (teclado, ratón SGR, modal, Point Mode y comandos) para `SpreadsheetTUI`.
+ * @brief Despachadores independientes de entrada (teclado, ratón SGR, modal, Point Mode y comandos) sobre `TuiState`.
  */
 
 #ifndef __TEXCEL_HELPERS_TUI_INPUT_H__
 #define __TEXCEL_HELPERS_TUI_INPUT_H__
 
-inline std::string SpreadsheetTUI::formatCellForInput(const std::string& cid) {
-    SpreadsheetCell cur = m_engine.getCell(cid);
-    if (cur.raw_expression.empty()) return "";
-    if (cur.is_formula && cur.raw_expression[0] != '=') return "= " + cur.raw_expression;
-    return cur.raw_expression;
-}
+#include "tui_state.h"
+#include "tui_text.h"
+#include <algorithm>
+#include <cctype>
+#include <sstream>
+#include <string>
+#include <termios.h>
+#include <unistd.h>
 
-inline void SpreadsheetTUI::loadActiveCellIntoBuffer() {
-    std::string cid = CellCoord(m_cursor_col, m_cursor_row, true).toId();
-    m_input_buffer = formatCellForInput(cid);
-    m_input_cursor = m_input_buffer.size();
-}
+namespace texcel_tui {
 
-inline void SpreadsheetTUI::deleteSelectedModalSheet() {
-    if (m_modal_idx < 3) return;
-    TX fidx = m_modal_idx - 3;
-    if (fidx < static_cast<TX>(m_sheet_files.size())) {
-        std::string target = m_sheet_files[static_cast<size_t>(fidx)].getValue();
-        std::error_code ec;
-        std::filesystem::remove(sheetPath(target), ec);
-        m_engine.addLog("🗑 Eliminada hoja: " + target + TexcelConfig::SHEET_EXT);
-        refreshSheetList();
-    }
-}
-
-inline bool SpreadsheetTUI::handleCommandSubmit(const std::string& raw_cmd) {
+inline bool handleCommandSubmit(TuiState& st, const std::string& raw_cmd) {
     std::string cmd = texcel_detail::trim(raw_cmd);
     if (cmd.empty()) return true;
 
-    m_cmd_history.push_back(cmd);
-    m_history_idx = static_cast<TX>(m_cmd_history.size());
+    st.cmd_history.push_back(cmd);
+    st.history_idx = static_cast<TX>(st.cmd_history.size());
 
     std::string upper = texcel_detail::toUpper(cmd);
     if (upper == "QUIT" || upper == "EXIT" || upper == "Q") return false;
 
     if (upper == "CLEAR") {
-        m_engine.clear();
-        maybeAutoSave();
-        m_status_banner = "Hoja de calculo limpiada por completo.";
+        st.engine.clear();
+        st.maybeAutoSave();
+        st.status_banner = "Hoja de calculo limpiada por completo.";
         return true;
     }
     if (upper == "DEMO") {
-        m_engine.clear();
-        m_engine.loadProfessorDemo();
-        maybeAutoSave();
-        m_cursor_col = 3;
-        m_cursor_row = 3;
-        ensureCursorVisible();
-        m_status_banner = "Cargado ejemplo de clase: A1=5, B1=A1+4, D4=A1+B1";
+        st.engine.clear();
+        st.engine.loadProfessorDemo();
+        st.maybeAutoSave();
+        st.cursor_col = 3;
+        st.cursor_row = 3;
+        st.ensureCursorVisible();
+        st.status_banner = "Cargado ejemplo de clase: A1=5, B1=A1+4, D4=A1+B1";
         return true;
     }
-    if (upper == "SAVE") { saveSheet(m_current_sheet); return true; }
-    if (upper == "LOAD") { loadSheet(m_current_sheet); return true; }
+    if (upper == "SAVE") { st.saveSheet(st.config.current_sheet); return true; }
+    if (upper == "LOAD") { st.loadSheet(st.config.current_sheet); return true; }
 
-    std::string current_id = CellCoord(m_cursor_col, m_cursor_row, true).toId();
+    std::string current_id = CellCoord(st.cursor_col, st.cursor_row, true).toId();
     std::string assigned_id;
-    bool ok = m_engine.executeCommand(cmd, current_id, &assigned_id);
-    if (ok) maybeAutoSave();
+    bool ok = st.engine.executeCommand(cmd, current_id, &assigned_id);
+    if (ok) st.maybeAutoSave();
 
     CellCoord dest = CellCoord::parse(assigned_id);
     if (dest.valid) {
-        m_cursor_col = dest.col;
-        m_cursor_row = dest.row;
-        ensureCursorVisible();
+        st.cursor_col = dest.col;
+        st.cursor_row = dest.row;
+        st.ensureCursorVisible();
     }
-    m_status_banner = ok
-        ? ("Actualizada " + assigned_id + " = " + m_engine.getCell(assigned_id).displayValue())
+    st.status_banner = ok
+        ? ("Actualizada " + assigned_id + " = " + st.engine.getCell(assigned_id).displayValue())
         : ("Error al evaluar " + assigned_id + ": verifica sintaxis o ciclos.");
     return true;
 }
 
-inline bool SpreadsheetTUI::handleSgrMouse(const std::string& payload, char mc) {
+inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
     TX btn = 0, mx_1 = 1, my_1 = 1;
     char s1 = 0, s2 = 0;
     std::istringstream mss(payload);
@@ -89,139 +75,169 @@ inline bool SpreadsheetTUI::handleSgrMouse(const std::string& payload, char mc) 
     bool is_drag    = ((btn & 32) != 0);
     bool is_wheel   = ((btn & 64) != 0);
 
-    if (m_modal_open) return false;
+    if (st.modal_open) return false;
 
     if (is_wheel) {
         constexpr TX V_STEP = 3, H_STEP = 2;
-        bool on_col_header = (mx >= LEFT_X + 2 && mx < LEFT_X + m_left_w - 2 &&
-                              (my == TOP_Y + 1 || my == TOP_Y + 2));
+        bool on_col_header = (mx >= TuiState::LEFT_X + 2 && mx < TuiState::LEFT_X + st.left_w - 2 &&
+                              (my == TuiState::TOP_Y + 1 || my == TuiState::TOP_Y + 2));
         bool is_horizontal = on_col_header || ((btn & 2) != 0) || ((btn & 4) != 0) ||
                              ((btn & 8) != 0) || ((btn & 16) != 0);
         bool forward = ((btn & 1) != 0);
-        if (is_horizontal) m_scroll_col += forward ? H_STEP : -H_STEP;
-        else m_scroll_row += forward ? V_STEP : -V_STEP;
-        clampScroll();
+        if (is_horizontal) st.scroll_col += forward ? H_STEP : -H_STEP;
+        else st.scroll_row += forward ? V_STEP : -V_STEP;
+        st.clampScroll();
         return true;
     }
 
-    if (is_release && m_mouse_dragging) {
-        m_mouse_dragging = false;
-        if (m_drag_win == 1 && m_has_cell_sel) {
+    auto finishDrag = [&]() {
+        st.mouse_dragging = false;
+        if (st.drag_win == 1 && st.has_cell_sel) {
             TX cmin, rmin, cmax, rmax;
-            texcel_tui::normalizeCellRange(m_sel_c0, m_sel_r0, m_sel_c1, m_sel_r1, cmin, rmin, cmax, rmax);
+            normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, cmin, rmin, cmax, rmax);
             if (cmin != cmax || rmin != rmax) {
                 std::string r_str = CellCoord(cmin, rmin, true).toId() + ":" + CellCoord(cmax, rmax, true).toId();
-                m_status_banner = "Rango " + r_str + " seleccionado ([Ctrl+C] o [Y] para copiar).";
+                st.status_banner = "Rango " + r_str + " sombreado ([Ctrl+C], [Y] o Clic Der. para copiar).";
             } else {
-                m_has_cell_sel = false;
+                st.has_cell_sel = false;
             }
-        } else if (m_drag_win >= 2 && m_drag_win <= 4 && m_has_text_sel) {
-            m_status_banner = "Texto seleccionado ([Ctrl+C] para copiar).";
+        } else if (st.drag_win >= 2 && st.drag_win <= 4 && st.has_text_sel) {
+            if (st.tx0 == st.tx1 && st.ty0 == st.ty1) {
+                // Clic simple sin arrastre: guarda el ancla para Shift+Clic pero no deja 1 carácter suelto sombreado
+                st.has_text_sel = false;
+            } else {
+                st.status_banner = "Texto sombreado ([Ctrl+C] o Clic Der. para copiar).";
+            }
         }
-        m_drag_win = 0;
+        st.drag_win = 0;
+    };
+
+    if (is_release && st.mouse_dragging) {
+        finishDrag();
         return true;
+    }
+
+    // Clic derecho ((btn & 3) == 2): copiar lo sombreado al portapapeles
+    if ((btn & 3) == 2 && !is_drag && !is_release) {
+        std::string txt = st.extractCurrentSelectionText();
+        if (!txt.empty()) {
+            st.copyToClipboard(txt);
+            st.status_banner = "✔ Seleccion copiada al portapapeles (Clic derecho).";
+            return true;
+        }
+        return false;
+    }
+
+    if (is_drag) {
+        if (!st.mouse_dragging) return false;
+        if (st.drag_win == 1) {
+            TX gc = 0, gr = 0;
+            st.screenToGridCell(mx, my, gc, gr, true);
+            if (gc == st.sel_c1 && gr == st.sel_r1) return false;
+            st.sel_c1 = gc;
+            st.sel_r1 = gr;
+            st.cursor_col = gc;
+            st.cursor_row = gr;
+            if (st.point_mode) {
+                TX cmin, rmin, cmax, rmax;
+                normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, cmin, rmin, cmax, rmax);
+                std::string id0 = CellCoord(cmin, rmin, true).toId();
+                std::string id1 = CellCoord(cmax, rmax, true).toId();
+                st.input_buffer = st.point_base + ((id0 == id1) ? id0 : (id0 + ":" + id1));
+                st.input_cursor = st.input_buffer.size();
+            }
+            return true;
+        }
+        if (st.drag_win >= 2 && st.drag_win <= 4) {
+            TX wx0, wy0, wx1, wy1;
+            if (st.windowInnerBounds(st.drag_win, wx0, wy0, wx1, wy1)) {
+                TX nx = std::clamp(mx, wx0, wx1);
+                TX ny = std::clamp(my, wy0, wy1);
+                if (nx == st.tx1 && ny == st.ty1) return false;
+                st.tx1 = nx;
+                st.ty1 = ny;
+                return true;
+            }
+        }
+        return false;
     }
 
     if ((btn & 3) != 0 || is_release) return false;
 
-    if (!is_drag) {
-        m_has_cell_sel = false;
-        m_has_text_sel = false;
-        m_drag_win = 0;
+    bool is_shift_click = ((btn & 4) != 0);
 
-        TX gc = 0, gr = 0;
-        if (screenToGridCell(mx, my, gc, gr, false)) {
-            m_drag_win = 1;
-            m_mouse_dragging = true;
-            m_has_cell_sel = true;
-            m_sel_c0 = m_sel_c1 = gc;
-            m_sel_r0 = m_sel_r1 = gr;
-            m_cursor_col = gc;
-            m_cursor_row = gr;
-            if (m_point_mode) {
-                updatePointedCell();
-            } else {
-                m_mode = SpreadsheetFocusMode::GridNavigation;
-                m_input_buffer.clear();
-                m_input_cursor = 0;
+    // Mouse Down (botón izquierdo): ignorar si cae sobre cualquier barra de división
+    TX gc = 0, gr = 0;
+    if (st.screenToGridCell(mx, my, gc, gr, false)) {
+        st.has_text_sel = false;
+        st.drag_win = 1;
+        st.mouse_dragging = true;
+        st.has_cell_sel = true;
+        if (is_shift_click) {
+            // Shift + Clic: extiende el rectángulo sombreado desde la celda activa hasta (gc, gr)
+            if (!st.has_cell_sel) {
+                st.sel_c0 = st.cursor_col;
+                st.sel_r0 = st.cursor_row;
             }
-            return true;
+            st.sel_c1 = gc;
+            st.sel_r1 = gr;
+        } else {
+            st.sel_c0 = st.sel_c1 = gc;
+            st.sel_r0 = st.sel_r1 = gr;
         }
-
-        for (TX w = 2; w <= 4; ++w) {
-            TX wx0, wy0, wx1, wy1;
-            if (windowInnerBounds(w, wx0, wy0, wx1, wy1) &&
-                mx >= wx0 && mx <= wx1 && my >= wy0 && my <= wy1) {
-                m_drag_win = w;
-                m_mouse_dragging = true;
-                m_has_text_sel = true;
-                m_text_win = w;
-                m_tx0 = m_tx1 = mx;
-                m_ty0 = m_ty1 = my;
-                if (w == 3 && !m_point_mode) {
-                    m_mode = SpreadsheetFocusMode::CommandConsole;
-                    if (m_input_buffer.empty()) loadActiveCellIntoBuffer();
-                }
-                return true;
-            }
-        }
-        return true;
-    }
-
-    // Drag
-    if (!m_mouse_dragging) {
-        TX gc = 0, gr = 0;
-        if (screenToGridCell(mx, my, gc, gr, false)) {
-            m_drag_win = 1;
-            m_mouse_dragging = true;
-            m_has_cell_sel = true;
-            m_has_text_sel = false;
-            m_sel_c0 = m_sel_c1 = gc;
-            m_sel_r0 = m_sel_r1 = gr;
-        }
-    }
-    if (m_mouse_dragging && m_drag_win == 1) {
-        TX gc = 0, gr = 0;
-        screenToGridCell(mx, my, gc, gr, true);
-        if (gc == m_sel_c1 && gr == m_sel_r1) return false;
-        m_sel_c1 = gc;
-        m_sel_r1 = gr;
-        m_cursor_col = gc;
-        m_cursor_row = gr;
-        if (m_point_mode) {
+        st.cursor_col = gc;
+        st.cursor_row = gr;
+        if (st.point_mode) {
             TX cmin, rmin, cmax, rmax;
-            texcel_tui::normalizeCellRange(m_sel_c0, m_sel_r0, m_sel_c1, m_sel_r1, cmin, rmin, cmax, rmax);
+            normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, cmin, rmin, cmax, rmax);
             std::string id0 = CellCoord(cmin, rmin, true).toId();
             std::string id1 = CellCoord(cmax, rmax, true).toId();
-            m_input_buffer = m_point_base + ((id0 == id1) ? id0 : (id0 + ":" + id1));
-            m_input_cursor = m_input_buffer.size();
+            st.input_buffer = st.point_base + ((id0 == id1) ? id0 : (id0 + ":" + id1));
+            st.input_cursor = st.input_buffer.size();
+        } else {
+            st.mode = SpreadsheetFocusMode::GridNavigation;
+            st.input_buffer.clear();
+            st.input_cursor = 0;
         }
         return true;
     }
-    if (m_mouse_dragging && m_drag_win >= 2 && m_drag_win <= 4) {
-        TX wx0, wy0, wx1, wy1;
-        if (windowInnerBounds(m_drag_win, wx0, wy0, wx1, wy1)) {
-            TX nx = std::clamp(mx, wx0, wx1);
-            TX ny = std::clamp(my, wy0, wy1);
-            if (nx == m_tx1 && ny == m_ty1) return false;
-            m_tx1 = nx;
-            m_ty1 = ny;
+
+    for (TX w = 2; w <= 4; ++w) {
+        if (st.isSelectableWindowPos(w, mx, my)) {
+            st.has_cell_sel = false;
+            st.drag_win = w;
+            st.mouse_dragging = true;
+            st.has_text_sel = true;
+            st.text_win = w;
+            if (is_shift_click && st.last_anchor_win == w) {
+                st.tx0 = st.last_anchor_x;
+                st.ty0 = st.last_anchor_y;
+                st.tx1 = mx;
+                st.ty1 = my;
+            } else {
+                st.tx0 = st.tx1 = mx;
+                st.ty0 = st.ty1 = my;
+                st.last_anchor_win = w;
+                st.last_anchor_x = mx;
+                st.last_anchor_y = my;
+            }
+            if (w == 3 && !st.point_mode) {
+                st.mode = SpreadsheetFocusMode::CommandConsole;
+                if (st.input_buffer.empty()) st.loadActiveCellIntoBuffer();
+            }
             return true;
         }
     }
     return false;
 }
 
-inline bool SpreadsheetTUI::handleEscapeSequence(termios& raw_term) {
-    char seq[3] = {0, 0, 0};
+inline bool handleEscapeSequence(TuiState& st, termios& raw_term) {
+    char seq[2] = {0, 0};
     raw_term.c_cc[VMIN] = 0;
     raw_term.c_cc[VTIME] = 1;
     tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
     TX n1 = static_cast<TX>(read(STDIN_FILENO, &seq[0], 1));
     TX n2 = (n1 > 0) ? static_cast<TX>(read(STDIN_FILENO, &seq[1], 1)) : 0;
-    if (n2 > 0 && seq[1] >= '0' && seq[1] <= '9') {
-        (void)read(STDIN_FILENO, &seq[2], 1);
-    }
     raw_term.c_cc[VMIN] = 1;
     raw_term.c_cc[VTIME] = 0;
     tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
@@ -233,74 +249,146 @@ inline bool SpreadsheetTUI::handleEscapeSequence(termios& raw_term) {
             if (mc == 'M' || mc == 'm') break;
             payload.push_back(mc);
         }
-        return handleSgrMouse(payload, mc);
+        return handleSgrMouse(st, payload, mc);
     }
 
-    if (m_modal_open) {
+    // Si es una secuencia CSI con parámetros numéricos (ej. \033[3~, \033[1;2A, \033[200~ Bracketed Paste)
+    std::string csi_params;
+    char csi_final = seq[1];
+    if (n2 > 0 && seq[0] == '[' && seq[1] >= '0' && seq[1] <= '9') {
+        csi_params.push_back(seq[1]);
+        csi_final = 0;
+        char ch = 0;
+        while (read(STDIN_FILENO, &ch, 1) > 0) {
+            if (ch >= '@' && ch <= '~') {
+                csi_final = ch;
+                break;
+            }
+            csi_params.push_back(ch);
+        }
+    }
+
+    // Bracketed Paste Mode (\033[200~ ... \033[201~):
+    // En VS Code el clic derecho intenta pegar el portapapeles en stdin; lo interceptamos aquí
+    // para que jamás mueva la celda activa por la matriz, y en Modo 1 lo convertimos en Copiar.
+    if (seq[0] == '[' && csi_params == "200" && csi_final == '~') {
+        std::string pasted;
+        char pch = 0;
+        while (read(STDIN_FILENO, &pch, 1) > 0) {
+            pasted.push_back(pch);
+            if (pasted.size() >= 6 && pasted.ends_with("\033[201~")) {
+                pasted.resize(pasted.size() - 6);
+                break;
+            }
+        }
+        bool has_external_sel = st.has_cell_sel || (st.has_text_sel && st.text_win != 3);
+        if (!st.modal_open && (has_external_sel || st.mode != SpreadsheetFocusMode::CommandConsole)) {
+            std::string txt = st.extractCurrentSelectionText();
+            if (!txt.empty()) {
+                st.copyToClipboard(txt);
+                st.status_banner = "✔ Seleccion copiada al portapapeles.";
+            }
+        } else if (st.mode == SpreadsheetFocusMode::CommandConsole && !st.modal_open) {
+            for (char c : pasted) {
+                if (c == '\n' || c == '\r') break;
+                if (std::isprint(static_cast<unsigned char>(c))) {
+                    st.input_cursor = std::min(st.input_cursor, st.input_buffer.size());
+                    st.input_buffer.insert(st.input_cursor, 1, c);
+                    ++st.input_cursor;
+                }
+            }
+        }
+        return true;
+    }
+
+    if (st.modal_open) {
         if (n1 == 0) {
-            if (m_modal_new_mode) { m_modal_new_mode = false; m_modal_new_name.clear(); }
-            else m_modal_open = false;
-        } else if (seq[0] == '[' && !m_modal_new_mode) {
-            TX max_idx = 2 + static_cast<TX>(m_sheet_files.size());
-            if (seq[1] == 'A' && m_modal_idx > 0) --m_modal_idx;
-            else if (seq[1] == 'B' && m_modal_idx < max_idx) ++m_modal_idx;
-            else if (seq[1] == '3' && seq[2] == '~') deleteSelectedModalSheet();
+            if (st.modal_new_mode) { st.modal_new_mode = false; st.modal_new_name.clear(); }
+            else st.modal_open = false;
+        } else if (seq[0] == '[' && !st.modal_new_mode) {
+            TX max_idx = 2 + static_cast<TX>(st.config.sheet_files.size());
+            if (csi_final == 'A' && st.modal_idx > 0) --st.modal_idx;
+            else if (csi_final == 'B' && st.modal_idx < max_idx) ++st.modal_idx;
+            else if (csi_params == "3" && csi_final == '~') st.deleteSelectedModalSheet();
         }
         return true;
     }
 
     if (n1 == 0) {
-        m_has_cell_sel = false;
-        m_has_text_sel = false;
-        m_mouse_dragging = false;
-        m_os << "\033[?1000h\033[?1002h\033[?1006h" << std::flush;
-        if (m_point_mode) {
-            m_point_mode = false;
-            m_cursor_col = m_target_col;
-            m_cursor_row = m_target_row;
-            ensureCursorVisible();
+        st.has_cell_sel = false;
+        st.has_text_sel = false;
+        st.mouse_dragging = false;
+        st.os << "\033[?2004h\033[?1003l\033[?1000h\033[?1002h\033[?1006h" << std::flush;
+        if (st.point_mode) {
+            st.point_mode = false;
+            st.cursor_col = st.target_col;
+            st.cursor_row = st.target_row;
+            st.ensureCursorVisible();
         }
-        m_input_buffer.clear();
-        m_input_cursor = 0;
-        m_mode = SpreadsheetFocusMode::GridNavigation;
-        m_status_banner = "Modo Navegacion activo (usa flechas para moverte).";
+        st.input_buffer.clear();
+        st.input_cursor = 0;
+        st.mode = SpreadsheetFocusMode::GridNavigation;
+        st.status_banner = "Modo Navegacion activo (usa flechas para moverte).";
         return true;
     }
 
     if (seq[0] == '[') {
-        if (m_mode == SpreadsheetFocusMode::GridNavigation) {
-            if (seq[1] == 'A' || seq[1] == 'B' || seq[1] == 'C' || seq[1] == 'D') m_has_cell_sel = false;
-            if (seq[1] == 'A' && m_cursor_row > 0) --m_cursor_row;
-            else if (seq[1] == 'B' && m_cursor_row < 98) ++m_cursor_row;
-            else if (seq[1] == 'C' && m_cursor_col < 25) ++m_cursor_col;
-            else if (seq[1] == 'D' && m_cursor_col > 0) --m_cursor_col;
-            else if (seq[1] == '3' && seq[2] == '~' && !m_point_mode) {
-                std::string cid = CellCoord(m_cursor_col, m_cursor_row, true).toId();
-                m_engine.setCell(cid, "");
-                maybeAutoSave();
+        if (st.mode == SpreadsheetFocusMode::GridNavigation) {
+            bool is_shift_arrow = (csi_params == "1;2" &&
+                                   (csi_final == 'A' || csi_final == 'B' || csi_final == 'C' || csi_final == 'D'));
+            char dir = csi_final;
+
+            if (is_shift_arrow) {
+                if (!st.has_cell_sel) {
+                    st.sel_c0 = st.cursor_col;
+                    st.sel_r0 = st.cursor_row;
+                    st.has_cell_sel = true;
+                }
+                st.has_text_sel = false;
+            } else if (csi_params.empty() && (dir == 'A' || dir == 'B' || dir == 'C' || dir == 'D')) {
+                st.has_cell_sel = false;
             }
-            ensureCursorVisible();
-            if (m_point_mode) updatePointedCell();
+
+            if ((csi_params.empty() || is_shift_arrow) && dir == 'A' && st.cursor_row > 0) --st.cursor_row;
+            else if ((csi_params.empty() || is_shift_arrow) && dir == 'B' && st.cursor_row < 98) ++st.cursor_row;
+            else if ((csi_params.empty() || is_shift_arrow) && dir == 'C' && st.cursor_col < 25) ++st.cursor_col;
+            else if ((csi_params.empty() || is_shift_arrow) && dir == 'D' && st.cursor_col > 0) --st.cursor_col;
+            else if (csi_params == "3" && csi_final == '~' && !st.point_mode) {
+                std::string cid = CellCoord(st.cursor_col, st.cursor_row, true).toId();
+                st.engine.setCell(cid, "");
+                st.maybeAutoSave();
+            }
+
+            if (is_shift_arrow) {
+                st.sel_c1 = st.cursor_col;
+                st.sel_r1 = st.cursor_row;
+                TX cmin, rmin, cmax, rmax;
+                normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, cmin, rmin, cmax, rmax);
+                std::string r_str = CellCoord(cmin, rmin, true).toId() + ":" + CellCoord(cmax, rmax, true).toId();
+                st.status_banner = "Rango " + r_str + " sombreado ([Ctrl+C] o [Y] para copiar).";
+            }
+            st.ensureCursorVisible();
+            if (st.point_mode) st.updatePointedCell();
         } else {
-            if (seq[1] == 'D') { if (m_input_cursor > 0) --m_input_cursor; }
-            else if (seq[1] == 'C') { if (m_input_cursor < m_input_buffer.size()) ++m_input_cursor; }
-            else if (seq[1] == 'H' || (seq[1] == '1' && seq[2] == '~')) m_input_cursor = 0;
-            else if (seq[1] == 'F' || (seq[1] == '4' && seq[2] == '~')) m_input_cursor = m_input_buffer.size();
-            else if (seq[1] == '3' && seq[2] == '~') {
-                if (m_input_cursor < m_input_buffer.size()) m_input_buffer.erase(m_input_cursor, 1);
-            } else if (seq[1] == 'A' && m_cmd_history.size() > 0) {
-                if (m_history_idx > 0) --m_history_idx;
-                m_input_buffer = m_cmd_history[static_cast<size_t>(m_history_idx)].getValue();
-                m_input_cursor = m_input_buffer.size();
-            } else if (seq[1] == 'B') {
-                if (m_history_idx + 1 < static_cast<TX>(m_cmd_history.size())) {
-                    ++m_history_idx;
-                    m_input_buffer = m_cmd_history[static_cast<size_t>(m_history_idx)].getValue();
-                    m_input_cursor = m_input_buffer.size();
+            if (csi_params.empty() && csi_final == 'D') { if (st.input_cursor > 0) --st.input_cursor; }
+            else if (csi_params.empty() && csi_final == 'C') { if (st.input_cursor < st.input_buffer.size()) ++st.input_cursor; }
+            else if (csi_final == 'H' || (csi_params == "1" && csi_final == '~')) st.input_cursor = 0;
+            else if (csi_final == 'F' || (csi_params == "4" && csi_final == '~')) st.input_cursor = st.input_buffer.size();
+            else if (csi_params == "3" && csi_final == '~') {
+                if (st.input_cursor < st.input_buffer.size()) st.input_buffer.erase(st.input_cursor, 1);
+            } else if (csi_params.empty() && csi_final == 'A' && st.cmd_history.size() > 0) {
+                if (st.history_idx > 0) --st.history_idx;
+                st.input_buffer = st.cmd_history[static_cast<size_t>(st.history_idx)].getValue();
+                st.input_cursor = st.input_buffer.size();
+            } else if (csi_params.empty() && csi_final == 'B') {
+                if (st.history_idx + 1 < static_cast<TX>(st.cmd_history.size())) {
+                    ++st.history_idx;
+                    st.input_buffer = st.cmd_history[static_cast<size_t>(st.history_idx)].getValue();
+                    st.input_cursor = st.input_buffer.size();
                 } else {
-                    m_history_idx = static_cast<TX>(m_cmd_history.size());
-                    m_input_buffer.clear();
-                    m_input_cursor = 0;
+                    st.history_idx = static_cast<TX>(st.cmd_history.size());
+                    st.input_buffer.clear();
+                    st.input_cursor = 0;
                 }
             }
         }
@@ -308,189 +396,184 @@ inline bool SpreadsheetTUI::handleEscapeSequence(termios& raw_term) {
     return true;
 }
 
-inline void SpreadsheetTUI::handleModalKey(char ch) {
-    if (m_modal_new_mode) {
+inline void handleModalKey(TuiState& st, char ch) {
+    if (st.modal_new_mode) {
         if (ch == '\n' || ch == '\r') {
-            if (!m_modal_new_name.empty()) {
-                m_engine.clear();
-                m_current_sheet = m_modal_new_name;
-                saveSheet(m_current_sheet);
-                refreshSheetList();
-                m_modal_new_mode = false;
-                m_modal_new_name.clear();
-                m_modal_open = false;
+            if (!st.modal_new_name.empty()) {
+                st.engine.clear();
+                st.config.current_sheet = st.modal_new_name;
+                st.saveSheet(st.config.current_sheet);
+                st.refreshSheetList();
+                st.modal_new_mode = false;
+                st.modal_new_name.clear();
+                st.modal_open = false;
             }
         } else if (ch == 127 || ch == '\b') {
-            if (!m_modal_new_name.empty()) m_modal_new_name.pop_back();
+            if (!st.modal_new_name.empty()) st.modal_new_name.pop_back();
         } else if (std::isalnum(static_cast<unsigned char>(ch)) || ch == '_' || ch == '-') {
-            if (m_modal_new_name.size() < 24) m_modal_new_name.push_back(ch);
+            if (st.modal_new_name.size() < 24) st.modal_new_name.push_back(ch);
         }
         return;
     }
 
     auto executeModalItem = [&](TX idx) {
         if (idx == 0) {
-            m_autosave = !m_autosave;
-            saveConfig();
-            m_engine.addLog(std::string("⚙ Autoguardado: ") + (m_autosave ? "ON" : "OFF"));
-            m_status_banner = std::string("Autoguardado ") + (m_autosave ? "activado." : "desactivado.");
-            if (m_autosave) saveSheet(m_current_sheet, true);
+            st.config.autosave = !st.config.autosave;
+            st.config.saveConfig();
+            st.engine.addLog(std::string("⚙ Autoguardado: ") + (st.config.autosave ? "ON" : "OFF"));
+            st.status_banner = std::string("Autoguardado ") + (st.config.autosave ? "activado." : "desactivado.");
+            if (st.config.autosave) st.saveSheet(st.config.current_sheet, true);
         } else if (idx == 1) {
-            saveSheet(m_current_sheet);
-            refreshSheetList();
-            m_modal_open = false;
+            st.saveSheet(st.config.current_sheet);
+            st.refreshSheetList();
+            st.modal_open = false;
         } else if (idx == 2) {
-            m_modal_new_mode = true;
-            m_modal_new_name.clear();
+            st.modal_new_mode = true;
+            st.modal_new_name.clear();
         } else if (idx >= 3) {
             TX fidx = idx - 3;
-            if (fidx < static_cast<TX>(m_sheet_files.size())) {
-                loadSheet(m_sheet_files[static_cast<size_t>(fidx)].getValue());
-                m_modal_open = false;
+            if (fidx < static_cast<TX>(st.config.sheet_files.size())) {
+                st.loadSheet(st.config.sheet_files[static_cast<size_t>(fidx)].getValue());
+                st.modal_open = false;
             }
         }
     };
 
-    if (ch == '\n' || ch == '\r' || ch == ' ') executeModalItem(m_modal_idx);
+    if (ch == '\n' || ch == '\r' || ch == ' ') executeModalItem(st.modal_idx);
     else if (ch == 'a' || ch == 'A') executeModalItem(0);
     else if (ch == 's' || ch == 'S') executeModalItem(1);
     else if (ch == 'n' || ch == 'N') executeModalItem(2);
-    else if (ch == 127 || ch == '\b') deleteSelectedModalSheet();
-    else if (ch == 'q' || ch == 'Q') m_modal_open = false;
+    else if (ch == 127 || ch == '\b') st.deleteSelectedModalSheet();
+    else if (ch == 'q' || ch == 'Q') st.modal_open = false;
 }
 
-inline void SpreadsheetTUI::handleTabKey() {
-    if (m_mode == SpreadsheetFocusMode::GridNavigation) {
-        if (m_point_mode) {
-            m_point_mode = false;
-            m_cursor_col = m_target_col;
-            m_cursor_row = m_target_row;
+inline void handleTabKey(TuiState& st) {
+    if (st.mode == SpreadsheetFocusMode::GridNavigation) {
+        if (st.point_mode) {
+            st.point_mode = false;
+            st.cursor_col = st.target_col;
+            st.cursor_row = st.target_row;
         }
-        m_mode = SpreadsheetFocusMode::CommandConsole;
-        if (m_input_buffer.empty()) loadActiveCellIntoBuffer();
-        m_input_cursor = m_input_buffer.size();
-        m_status_banner = "Consola activa. Escribe = B1 + 4, 5, o [Ctrl+U] para limpiar";
+        st.mode = SpreadsheetFocusMode::CommandConsole;
+        if (st.input_buffer.empty()) st.loadActiveCellIntoBuffer();
+        st.input_cursor = st.input_buffer.size();
+        st.status_banner = "Consola activa. Escribe = B1 + 4, 5, o [Ctrl+U] para limpiar";
     } else {
-        if (isFormulaBuffer(m_input_buffer) && canAcceptPointRef(m_input_buffer)) {
-            m_point_mode = true;
-            m_target_col = m_cursor_col;
-            m_target_row = m_cursor_row;
-            if (!m_input_buffer.empty() && m_input_buffer.back() != ' ' &&
-                m_input_buffer.back() != '(' && m_input_buffer.back() != ':') {
-                m_input_buffer.push_back(' ');
+        if (TuiState::isFormulaBuffer(st.input_buffer) && TuiState::canAcceptPointRef(st.input_buffer)) {
+            st.point_mode = true;
+            st.target_col = st.cursor_col;
+            st.target_row = st.cursor_row;
+            if (!st.input_buffer.empty() && st.input_buffer.back() != ' ' &&
+                st.input_buffer.back() != '(' && st.input_buffer.back() != ':') {
+                st.input_buffer.push_back(' ');
             }
-            m_point_base = m_input_buffer;
-            m_status_banner = "Point Mode activo: mueve con flechas para apuntar una celda.";
+            st.point_base = st.input_buffer;
+            st.status_banner = "Point Mode activo: mueve con flechas para apuntar una celda.";
         } else {
-            m_point_mode = false;
+            st.point_mode = false;
         }
-        m_mode = SpreadsheetFocusMode::GridNavigation;
-        if (!m_point_mode) {
-            m_input_buffer.clear();
-            m_input_cursor = 0;
-            m_status_banner = "Foco en Hoja de Calculo. Muevete con flechas o pulsa Enter.";
+        st.mode = SpreadsheetFocusMode::GridNavigation;
+        if (!st.point_mode) {
+            st.input_buffer.clear();
+            st.input_cursor = 0;
+            st.status_banner = "Foco en Hoja de Calculo. Muevete con flechas o pulsa Enter.";
         }
     }
 }
 
-inline bool SpreadsheetTUI::handlePointModeKey(char ch) {
+inline bool handlePointModeKey(TuiState& st, char ch) {
     if (ch == '\n' || ch == '\r') {
-        m_point_mode = false;
-        m_cursor_col = m_target_col;
-        m_cursor_row = m_target_row;
-        if (!handleCommandSubmit(m_input_buffer)) return false;
-        m_input_buffer.clear();
-        m_input_cursor = 0;
+        st.point_mode = false;
+        st.cursor_col = st.target_col;
+        st.cursor_row = st.target_row;
+        if (!handleCommandSubmit(st, st.input_buffer)) return false;
+        st.input_buffer.clear();
+        st.input_cursor = 0;
     } else if (ch == '+' || ch == '-' || ch == '*' || ch == '/' || ch == '^' ||
                ch == '(' || ch == ')' || ch == ':' || ch == ',') {
-        if (ch == ':' || ch == ')' || ch == ',') m_input_buffer.push_back(ch);
-        else { m_input_buffer += " "; m_input_buffer.push_back(ch); m_input_buffer += " "; }
-        m_point_base = m_input_buffer;
+        if (ch == ':' || ch == ')' || ch == ',') st.input_buffer.push_back(ch);
+        else { st.input_buffer += " "; st.input_buffer.push_back(ch); st.input_buffer += " "; }
+        st.point_base = st.input_buffer;
         if (ch == ')') {
-            m_point_mode = false;
-            m_cursor_col = m_target_col;
-            m_cursor_row = m_target_row;
-            m_mode = SpreadsheetFocusMode::CommandConsole;
-            m_input_cursor = m_input_buffer.size();
+            st.point_mode = false;
+            st.cursor_col = st.target_col;
+            st.cursor_row = st.target_row;
+            st.mode = SpreadsheetFocusMode::CommandConsole;
+            st.input_cursor = st.input_buffer.size();
         }
     } else if (ch == 127 || ch == '\b') {
-        m_input_buffer = m_point_base;
-    } else if (ch == 'w' || ch == 'k') { if (m_cursor_row > 0) { --m_cursor_row; updatePointedCell(); } }
-    else if (ch == 's' || ch == 'j') { if (m_cursor_row < 98) { ++m_cursor_row; updatePointedCell(); } }
-    else if (ch == 'a' || ch == 'h') { if (m_cursor_col > 0) { --m_cursor_col; updatePointedCell(); } }
-    else if (ch == 'd' || ch == 'l') { if (m_cursor_col < 25) { ++m_cursor_col; updatePointedCell(); } }
+        st.input_buffer = st.point_base;
+    }
     return true;
 }
 
-inline bool SpreadsheetTUI::handleGridKey(char ch) {
-    if (m_point_mode) return handlePointModeKey(ch);
+inline bool handleGridKey(TuiState& st, char ch) {
+    if (st.point_mode) return handlePointModeKey(st, ch);
 
-    std::string cid = CellCoord(m_cursor_col, m_cursor_row, true).toId();
+    std::string cid = CellCoord(st.cursor_col, st.cursor_row, true).toId();
     if (ch == 'q' || ch == 'Q') return false;
 
     if (ch == 'y' || ch == 'Y') {
-        std::string txt = extractCurrentSelectionText();
+        std::string txt = st.extractCurrentSelectionText();
         if (!txt.empty()) {
-            copyToClipboardOsc52(txt);
-            m_status_banner = "✔ Copiado al portapapeles (Ctrl+C o Y).";
+            st.copyToClipboard(txt);
+            st.status_banner = "✔ Copiado al portapapeles (Ctrl+C o Y).";
         }
     } else if (ch == '=') {
-        m_mode = SpreadsheetFocusMode::CommandConsole;
-        m_input_buffer = "= ";
-        m_input_cursor = m_input_buffer.size();
-        m_status_banner = "Editando formula en " + cid + " (pulsa [Tab] para Point Mode).";
+        st.mode = SpreadsheetFocusMode::CommandConsole;
+        st.input_buffer = "= ";
+        st.input_cursor = st.input_buffer.size();
+        st.status_banner = "Editando formula en " + cid + " (pulsa [Tab] para Point Mode).";
     } else if (ch == '\n' || ch == '\r') {
-        m_mode = SpreadsheetFocusMode::CommandConsole;
-        loadActiveCellIntoBuffer();
-        m_status_banner = "Editando celda " + cid + " en vivo...";
+        st.mode = SpreadsheetFocusMode::CommandConsole;
+        st.loadActiveCellIntoBuffer();
+        st.status_banner = "Editando celda " + cid + " en vivo...";
     } else if (ch == ':') {
-        m_mode = SpreadsheetFocusMode::CommandConsole;
-        m_input_buffer.clear();
-        m_input_cursor = 0;
-        m_status_banner = "Modo comando directo activado.";
+        st.mode = SpreadsheetFocusMode::CommandConsole;
+        st.input_buffer.clear();
+        st.input_cursor = 0;
+        st.status_banner = "Modo comando directo activado.";
     } else if (ch == 127 || ch == '\b') {
-        m_engine.setCell(cid, "");
-        maybeAutoSave();
-        m_status_banner = "Celda " + cid + " borrada.";
-    } else if (ch == 'w' || ch == 'k') { m_has_cell_sel = false; if (m_cursor_row > 0) --m_cursor_row; ensureCursorVisible(); }
-    else if (ch == 's' || ch == 'j')   { m_has_cell_sel = false; if (m_cursor_row < 98) ++m_cursor_row; ensureCursorVisible(); }
-    else if (ch == 'a' || ch == 'h')   { m_has_cell_sel = false; if (m_cursor_col > 0) --m_cursor_col; ensureCursorVisible(); }
-    else if (ch == 'd' || ch == 'l')   { m_has_cell_sel = false; if (m_cursor_col < 25) ++m_cursor_col; ensureCursorVisible(); }
-    else if (std::isdigit(static_cast<unsigned char>(ch))) {
-        m_mode = SpreadsheetFocusMode::CommandConsole;
-        m_input_buffer = std::string(1, ch);
-        m_input_cursor = 1;
+        st.engine.setCell(cid, "");
+        st.maybeAutoSave();
+        st.status_banner = "Celda " + cid + " borrada.";
+    } else if (std::isdigit(static_cast<unsigned char>(ch))) {
+        st.mode = SpreadsheetFocusMode::CommandConsole;
+        st.input_buffer = std::string(1, ch);
+        st.input_cursor = 1;
     }
     return true;
 }
 
-inline bool SpreadsheetTUI::handleConsoleKey(char ch) {
+inline bool handleConsoleKey(TuiState& st, char ch) {
     if (ch == 21) { // Ctrl+U
-        m_input_buffer.clear();
-        m_input_cursor = 0;
+        st.input_buffer.clear();
+        st.input_cursor = 0;
     } else if (ch == '\n' || ch == '\r') {
-        if (!handleCommandSubmit(m_input_buffer)) return false;
-        m_input_buffer.clear();
-        m_input_cursor = 0;
+        if (!handleCommandSubmit(st, st.input_buffer)) return false;
+        st.input_buffer.clear();
+        st.input_cursor = 0;
     } else if (ch == 127 || ch == '\b') {
-        if (m_input_cursor > 0 && m_input_cursor <= m_input_buffer.size()) {
-            m_input_buffer.erase(m_input_cursor - 1, 1);
-            --m_input_cursor;
+        if (st.input_cursor > 0 && st.input_cursor <= st.input_buffer.size()) {
+            st.input_buffer.erase(st.input_cursor - 1, 1);
+            --st.input_cursor;
         }
     } else if (std::isprint(static_cast<unsigned char>(ch))) {
-        m_input_cursor = std::min(m_input_cursor, m_input_buffer.size());
-        m_input_buffer.insert(m_input_cursor, 1, ch);
-        ++m_input_cursor;
-        size_t eq = m_input_buffer.find('=');
+        st.input_cursor = std::min(st.input_cursor, st.input_buffer.size());
+        st.input_buffer.insert(st.input_cursor, 1, ch);
+        ++st.input_cursor;
+        size_t eq = st.input_buffer.find('=');
         if (eq != std::string::npos) {
-            CellCoord target = CellCoord::parse(m_input_buffer.substr(0, eq));
+            CellCoord target = CellCoord::parse(st.input_buffer.substr(0, eq));
             if (target.valid) {
-                m_cursor_col = target.col;
-                m_cursor_row = target.row;
+                st.cursor_col = target.col;
+                st.cursor_row = target.row;
             }
         }
     }
     return true;
 }
+
+} // namespace texcel_tui
 
 #endif // __TEXCEL_HELPERS_TUI_INPUT_H__

@@ -35,6 +35,31 @@ inline std::string utf8Slice(const std::string& str, size_t cp_from, size_t cp_t
     return res;
 }
 
+/** @brief Indica si un codepoint UTF-8 es una barra o trazo de división (`│`, `─`, `╭`, `╮`, `╰`, `╯`, `┼`, `┴`, `┬`, `├`, `┤`). */
+inline bool isDividerGlyph(const std::string& glyph) {
+    return glyph == "│" || glyph == "─" || glyph == "╭" || glyph == "╮" ||
+           glyph == "╰" || glyph == "╯" || glyph == "┼" || glyph == "┴" ||
+           glyph == "┬" || glyph == "├" || glyph == "┤" || glyph == "╱" || glyph == "╲";
+}
+
+/** @brief Obtiene el codepoint UTF-8 en la columna visual `cp_idx` (0-indexada). */
+inline std::string utf8At(const std::string& str, size_t cp_idx) {
+    return utf8Slice(str, cp_idx, cp_idx + 1);
+}
+
+/** @brief Filtra barras de división de un fragmento UTF-8 al copiar texto de una ventana. */
+inline std::string stripDividerGlyphs(const std::string& str) {
+    std::string out;
+    size_t i = 0;
+    while (i < str.size()) {
+        size_t len = std::min(utf8CharLen(static_cast<unsigned char>(str[i])), str.size() - i);
+        std::string g = str.substr(i, len);
+        if (!isDividerGlyph(g)) out += g;
+        i += len;
+    }
+    return out;
+}
+
 /** @brief Elimina secuencias de escape ANSI CSI/SGR dejando solo texto plano. */
 inline std::string stripAnsi(const std::string& s) {
     std::string out;
