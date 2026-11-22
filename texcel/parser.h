@@ -40,7 +40,7 @@ public:
         if (m_pos < m_src.size() && m_src[m_pos] == '=') ++m_pos;
         skipSpaces();
         if (m_pos >= m_src.size()) throw std::runtime_error("Expresión vacía");
-        texcel_detail::AstNode* root = parseConcat();
+        texcel_detail::AstNode* root = parseComparison();
         skipSpaces();
         if (m_pos < m_src.size()) {
             texcel_detail::freeAst(root);
@@ -50,6 +50,43 @@ public:
     }
 
 private:
+    // Comparison := Concat { ('=' | '<>' | '!=' | '<=' | '>=' | '<' | '>') Concat }
+    texcel_detail::AstNode* parseComparison() {
+        texcel_detail::AstNode* left = parseConcat();
+        while (true) {
+            skipSpaces();
+            if (m_pos >= m_src.size()) break;
+            std::string op_str;
+            char op_code = 0;
+            if (m_src.compare(m_pos, 2, "<>") == 0 || m_src.compare(m_pos, 2, "!=") == 0) {
+                op_str = "<>"; op_code = '!'; m_pos += 2;
+            } else if (m_src.compare(m_pos, 2, "<=") == 0) {
+                op_str = "<="; op_code = 'L'; m_pos += 2;
+            } else if (m_src.compare(m_pos, 2, ">=") == 0) {
+                op_str = ">="; op_code = 'G'; m_pos += 2;
+            } else if (m_src[m_pos] == '=' || m_src[m_pos] == '<' || m_src[m_pos] == '>') {
+                op_code = m_src[m_pos++];
+                op_str = std::string(1, op_code);
+            } else {
+                break;
+            }
+
+            texcel_detail::AstNode* right = nullptr;
+            try {
+                right = parseConcat();
+            } catch (...) {
+                texcel_detail::freeAst(left);
+                throw;
+            }
+            AstToken tok;
+            tok.kind = AstNodeKind::BinaryOp;
+            tok.op = op_code;
+            tok.text = op_str;
+            left = texcel_detail::makeBinaryNode(tok, left, right);
+        }
+        return left;
+    }
+
     // Concat := Expr { '&' Expr }
     texcel_detail::AstNode* parseConcat() {
         texcel_detail::AstNode* left = parseExpr();
@@ -175,7 +212,7 @@ private:
         char c = peek();
         if (c == '(') {
             get();
-            texcel_detail::AstNode* inside = parseConcat();
+            texcel_detail::AstNode* inside = parseComparison();
             if (peek() != ')') {
                 texcel_detail::freeAst(inside);
                 throw std::runtime_error("Falta ')'");
@@ -401,38 +438,111 @@ private:
                     return new texcel_detail::AstNode(tok, 0);
                 }
 
-                size_t r1_start = m_pos;
-                while (m_pos < m_src.size() && isIdentChar(m_src[m_pos])) ++m_pos;
-                std::string c1_str = texcel_detail::toUpper(m_src.substr(r1_start, m_pos - r1_start));
-                if (peek() != ':') throw std::runtime_error("Se esperaba ':' en rango");
-                get(); // consume ':'
-                skipSpaces();
-                size_t r2_start = m_pos;
-                while (m_pos < m_src.size() && isIdentChar(m_src[m_pos])) ++m_pos;
-                std::string c2_str = texcel_detail::toUpper(m_src.substr(r2_start, m_pos - r2_start));
-                if (peek() != ')') throw std::runtime_error("Falta ')' en función");
-                get(); // consume ')'
-
-                CellCoord a = CellCoord::parse(c1_str);
-                CellCoord b = CellCoord::parse(c2_str);
-                if (!a.valid || !b.valid) throw std::runtime_error("Rango inválido");
-                if (ident != "SUM" && ident != "AVG" && ident != "MIN" && ident != "MAX")
-                    throw std::runtime_error("Función desconocida");
-
-                TX c_min = std::min(a.col, b.col), c_max = std::max(a.col, b.col);
-                TX r_min = std::min(a.row, b.row), r_max = std::max(a.row, b.row);
-                for (TX r = r_min; r <= r_max; ++r) {
-                    for (TX col = c_min; col <= c_max; ++col) {
-                        texcel_detail::addUniqueStr(m_refs, CellCoord(col, r, true).toId());
+                if (ident == "IF") {
+                    texcel_detail::AstNode* cond_node = nullptr;
+                    texcel_detail::AstNode* true_node = nullptr;
+                    texcel_detail::AstNode* false_node = nullptr;
+                    try {
+                        cond_node = parseComparison();
+                        if (peek() != ',') throw std::runtime_error("Se esperaba ',' tras condición en IF");
+                        get();
+                        true_node = parseComparison();
+                        if (peek() != ',') throw std::runtime_error("Se esperaba ',' tras rama verdadera en IF");
+                        get();
+                        false_node = parseComparison();
+                        if (peek() != ')') throw std::runtime_error("Falta ')' en IF");
+                        get();
+                    } catch (...) {
+                        texcel_detail::freeAst(cond_node);
+                        texcel_detail::freeAst(true_node);
+                        texcel_detail::freeAst(false_node);
+                        throw;
                     }
+                    AstToken br_tok;
+                    br_tok.kind = AstNodeKind::IfBranches;
+                    br_tok.text = "?:";
+                    texcel_detail::AstNode* br_node = texcel_detail::makeBinaryNode(br_tok, true_node, false_node);
+
+                    AstToken if_tok;
+                    if_tok.kind = AstNodeKind::FuncIf;
+                    if_tok.func_name = "IF";
+                    if_tok.text = "IF";
+                    return texcel_detail::makeBinaryNode(if_tok, cond_node, br_node);
                 }
 
+                // Intentar primero sintaxis de rango <Celda>:<Celda>) para SUM/AVG/MIN/MAX
+                size_t saved_pos = m_pos;
+                size_t saved_refs = m_refs.size();
+                bool parsed_as_range = false;
+                if (ident == "SUM" || ident == "AVG" || ident == "MIN" || ident == "MAX") {
+                    skipSpaces();
+                    size_t r1_start = m_pos;
+                    while (m_pos < m_src.size() && isIdentChar(m_src[m_pos])) ++m_pos;
+                    std::string c1_str = texcel_detail::toUpper(m_src.substr(r1_start, m_pos - r1_start));
+                    if (peek() == ':') {
+                        get();
+                        skipSpaces();
+                        size_t r2_start = m_pos;
+                        while (m_pos < m_src.size() && isIdentChar(m_src[m_pos])) ++m_pos;
+                        std::string c2_str = texcel_detail::toUpper(m_src.substr(r2_start, m_pos - r2_start));
+                        if (peek() == ')') {
+                            get();
+                            CellCoord a = CellCoord::parse(c1_str);
+                            CellCoord b = CellCoord::parse(c2_str);
+                            if (!a.valid || !b.valid) throw std::runtime_error("Rango inválido");
+                            TX c_min = std::min(a.col, b.col), c_max = std::max(a.col, b.col);
+                            TX r_min = std::min(a.row, b.row), r_max = std::max(a.row, b.row);
+                            for (TX r = r_min; r <= r_max; ++r) {
+                                for (TX col = c_min; col <= c_max; ++col) {
+                                    texcel_detail::addUniqueStr(m_refs, CellCoord(col, r, true).toId());
+                                }
+                            }
+                            AstToken tok;
+                            tok.kind = AstNodeKind::FuncRange;
+                            tok.func_name = ident;
+                            tok.range_start = a.toId();
+                            tok.range_end = b.toId();
+                            tok.text = ident + "(" + a.toId() + ":" + b.toId() + ")";
+                            return new texcel_detail::AstNode(tok, 0);
+                        }
+                    }
+                }
+                if (!parsed_as_range) {
+                    m_pos = saved_pos;
+                    while (m_refs.size() > saved_refs) m_refs.pop_back();
+                }
+
+                // MIN / MAX escalar o variádico sobre expresiones: MIN(e1, e2, ...) / MAX(e1, e2, ...)
+                if (ident == "MIN" || ident == "MAX") {
+                    texcel_detail::AstNode* acc = nullptr;
+                    try {
+                        acc = parseComparison();
+                        while (peek() == ',') {
+                            get();
+                            texcel_detail::AstNode* nxt = parseComparison();
+                            AstToken tok;
+                            tok.kind = AstNodeKind::FuncBinary;
+                            tok.func_name = ident;
+                            tok.text = ident;
+                            acc = texcel_detail::makeBinaryNode(tok, acc, nxt);
+                        }
+                        if (peek() != ')') throw std::runtime_error("Falta ')' en " + ident);
+                        get();
+                    } catch (...) {
+                        texcel_detail::freeAst(acc);
+                        throw;
+                    }
+                    return acc;
+                }
+
+                throw std::runtime_error("Función desconocida: " + ident);
+            }
+
+            if (ident == "TRUE" || ident == "FALSE") {
                 AstToken tok;
-                tok.kind = AstNodeKind::FuncRange;
-                tok.func_name = ident;
-                tok.range_start = a.toId();
-                tok.range_end = b.toId();
-                tok.text = ident + "(" + a.toId() + ":" + b.toId() + ")";
+                tok.kind = AstNodeKind::StringLiteral;
+                tok.func_name = (ident == "TRUE") ? "True" : "False";
+                tok.text = "\"" + tok.func_name + "\"";
                 return new texcel_detail::AstNode(tok, 0);
             }
 

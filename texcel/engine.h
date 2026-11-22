@@ -196,9 +196,15 @@ private:
             // 1. Fase Pre (enter): propagar tipo esperado hacia los hijos
             if (it.phase() == Phase::Pre) {
                 if (tok.kind == AstNodeKind::BinaryOp) {
-                    ExpectedType child_exp = (tok.op == '&') ? ExpectedType::Text : ExpectedType::Number;
+                    ExpectedType child_exp = ExpectedType::Any;
+                    if (tok.op == '&') child_exp = ExpectedType::Text;
+                    else if (tok.op == '+' || tok.op == '-' || tok.op == '*' || tok.op == '/' || tok.op == '^')
+                        child_exp = ExpectedType::Number;
                     if (node.m_pChild[0]) node.m_pChild[0]->value().expected_type = child_exp;
                     if (node.m_pChild[1]) node.m_pChild[1]->value().expected_type = child_exp;
+                } else if (tok.kind == AstNodeKind::FuncBinary) {
+                    if (node.m_pChild[0]) node.m_pChild[0]->value().expected_type = ExpectedType::Number;
+                    if (node.m_pChild[1]) node.m_pChild[1]->value().expected_type = ExpectedType::Number;
                 }
                 continue;
             }
@@ -331,6 +337,26 @@ private:
 
                 if (tok.op == '&') {
                     tok.evaluated = CellEvalValue{true, 0.0, lhs.asString() + rhs.asString()};
+                } else if (tok.op == '=' || tok.op == '!' || tok.op == '<' || tok.op == '>' || tok.op == 'L' || tok.op == 'G') {
+                    bool cmp_res = false;
+                    if (!lhs.is_text && !rhs.is_text) {
+                        double lnum = lhs.num, rnum = rhs.num;
+                        if (tok.op == '=') cmp_res = std::abs(lnum - rnum) < 1e-9;
+                        else if (tok.op == '!') cmp_res = std::abs(lnum - rnum) >= 1e-9;
+                        else if (tok.op == '<') cmp_res = lnum < rnum - 1e-9;
+                        else if (tok.op == '>') cmp_res = lnum > rnum + 1e-9;
+                        else if (tok.op == 'L') cmp_res = lnum <= rnum + 1e-9;
+                        else if (tok.op == 'G') cmp_res = lnum >= rnum - 1e-9;
+                    } else {
+                        std::string ls = lhs.asString(), rs = rhs.asString();
+                        if (tok.op == '=') cmp_res = (ls == rs);
+                        else if (tok.op == '!') cmp_res = (ls != rs);
+                        else if (tok.op == '<') cmp_res = (ls < rs);
+                        else if (tok.op == '>') cmp_res = (ls > rs);
+                        else if (tok.op == 'L') cmp_res = (ls <= rs);
+                        else if (tok.op == 'G') cmp_res = (ls >= rs);
+                    }
+                    tok.evaluated = CellEvalValue{false, cmp_res ? 1.0 : 0.0, ""};
                 } else {
                     double lnum = lhs.asNumber();
                     double rnum = rhs.asNumber();
@@ -354,6 +380,30 @@ private:
                     }
                     tok.evaluated = CellEvalValue{false, res, ""};
                 }
+            } else if (tok.kind == AstNodeKind::FuncBinary) {
+                if (!node.m_pChild[0] || !node.m_pChild[1]) {
+                    out_err = "#SYNTAX!";
+                    out_rpn = rpn_ss.str();
+                    return {};
+                }
+                double lnum = node.m_pChild[0]->getValue().evaluated.asNumber();
+                double rnum = node.m_pChild[1]->getValue().evaluated.asNumber();
+                double res = (tok.func_name == "MIN") ? std::min(lnum, rnum) : std::max(lnum, rnum);
+                tok.evaluated = CellEvalValue{false, res, ""};
+            } else if (tok.kind == AstNodeKind::IfBranches) {
+                // Contenedor binario para las ramas (verdadero, falso) de FuncIf
+            } else if (tok.kind == AstNodeKind::FuncIf) {
+                if (!node.m_pChild[0] || !node.m_pChild[1] ||
+                    !node.m_pChild[1]->m_pChild[0] || !node.m_pChild[1]->m_pChild[1]) {
+                    out_err = "#SYNTAX!";
+                    out_rpn = rpn_ss.str();
+                    return {};
+                }
+                const CellEvalValue& cond = node.m_pChild[0]->getValue().evaluated;
+                bool truthy = (!cond.is_text && std::abs(cond.num) > 1e-9) ||
+                              (cond.is_text && toUpper(cond.text) == "TRUE");
+                tok.evaluated = truthy ? node.m_pChild[1]->m_pChild[0]->getValue().evaluated
+                                       : node.m_pChild[1]->m_pChild[1]->getValue().evaluated;
             }
 
             // Validación de tipo propagado en Phase::Pre (ej. `"Hola" + 5` -> `#VALUE!`)
@@ -404,19 +454,7 @@ private:
         }
 
         bool explicit_formula = (!raw.empty() && raw[0] == '=');
-        StringVec refs;
-        AstNode* ast = nullptr;
-        bool parse_ok = false;
-        try {
-            FormulaParser parser(raw, refs);
-            ast = parser.parse();
-            parse_ok = true;
-        } catch (...) {
-            parse_ok = false;
-        }
-
-        // Caso 2: No empieza con '=' y no es fórmula válida -> Texto literal (ej. "Producto", "Hola")
-        if (!parse_ok && !explicit_formula && !isPureNumber(raw)) {
+        if (!explicit_formula && !isPureNumber(raw)) {
             SpreadsheetCell& cell = m_cells[cell_id];
             cell.id = cell_id;
             cell.raw_expression = raw;
@@ -429,6 +467,17 @@ private:
             cell.postorder_rpn = "\"" + raw + "\"";
             visiting.pop_back();
             return CellEvalValue{true, 0.0, raw};
+        }
+
+        StringVec refs;
+        AstNode* ast = nullptr;
+        bool parse_ok = false;
+        try {
+            FormulaParser parser(raw, refs);
+            ast = parser.parse();
+            parse_ok = true;
+        } catch (...) {
+            parse_ok = false;
         }
 
         if (!parse_ok) {
@@ -480,7 +529,7 @@ private:
             m_inputs[cid].clear();
         }
 
-        if (expr.empty()) return;
+        if (expr.empty() || expr[0] != '=') return;
 
         // 2. Parsear nueva expresión para obtener referencias y suscribir `cid` en cada `DepList`
         StringVec new_refs;

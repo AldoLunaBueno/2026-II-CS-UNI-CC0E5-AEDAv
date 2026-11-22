@@ -24,6 +24,7 @@
   - [4. Diccionario Asociativo (HashTable) y Persistencia](#4-diccionario-asociativo-hashtable-y-persistencia)
   - [5. Árbol de Merkle: Construcción, Mutación y Verificación de Pruebas](#5-árbol-de-merkle-construcción-mutación-y-verificación-de-pruebas)
   - [6. Personalización Visual de Contenedores con Layouts y Estilos ANSI](#6-personalización-visual-de-contenedores-con-layouts-y-estilos-ansi)
+- [🧮 IV. Texcel — Hoja de Cálculo Reactiva en Consola](#-iv-texcel--hoja-de-cálculo-reactiva-en-consola)
 
 
 
@@ -1313,3 +1314,20 @@ mtree.draw(
     ConsoleGraphRenderer(std::cout)
 );
 ```
+
+---
+
+## 🧮 IV. Texcel — Hoja de Cálculo Reactiva en Consola
+
+**Texcel** (`texcel/`) aplica los contenedores, iteradores y layouts 2D del repositorio (`HashTable`, `BinaryTree`, `LinkedList`, `Vector`, `VerticalTreeLayout`/`HorizontalTreeLayout` y `ClippedGraphRenderer`) en una hoja de cálculo TUI multi-ventana con:
+
+- Matriz dispersa (`A1..ZZ999`) con soporte de ratón SGR, *Name Box*, mini-scrollbars proporcionales y *Auto-Fill*.
+- Compilación de fórmulas a `BinaryTreeNode<AstToken>` y evaluación in-place en `Order::PrePostOrder` (`+`, `-`, `*`, `/`, `^`, `&`, comparaciones, `SUM`, `AVG`, `MIN`, `MAX`, `IF`, `COUNTIF`/`COUNTIFS`).
+- Navegador AST en tiempo real, Inspector de dependencias, *Live Preview*, persistencia `.txl` y representación visual `■`/`□` para booleanos.
+
+```bash
+make texcel   # Ejecutar Texcel en modo interactivo
+make test     # Ejecutar suite de pruebas unitarias y E2E (PTY)
+```
+
+Consulta la documentación completa en [docs/texcel.md](docs/texcel.md).

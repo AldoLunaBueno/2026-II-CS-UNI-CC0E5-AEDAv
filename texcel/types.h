@@ -86,7 +86,10 @@ enum class AstNodeKind : TX {
     BinaryOp      = 2, /**< Operador binario (`+`, `-`, `*`, `/`, `^`, `&`). */
     FuncRange     = 3, /**< Función agregada sobre rango (`SUM`, `AVG`, `MIN`, `MAX`). */
     StringLiteral = 4, /**< Literal de texto entre comillas (ej. `"Total: "`). */
-    FuncCountIfs  = 5  /**< Conteo condicional (`COUNTIF`, `COUNTIFS`). */
+    FuncCountIfs  = 5, /**< Conteo condicional (`COUNTIF`, `COUNTIFS`). */
+    FuncBinary    = 6, /**< Función binaria/variádica sobre expresiones (`MIN(a, b)`, `MAX(a, b)`). */
+    FuncIf        = 7, /**< Condicional `IF(cond, ver, fal)` (`m_pChild[0] = cond`, `m_pChild[1] = IfBranches`). */
+    IfBranches    = 8  /**< Par de ramas `(ver, fal)` para `FuncIf`. */
 };
 
 /** @brief Par `(rango, expresión_criterio)` para `COUNTIF` / `COUNTIFS`. */

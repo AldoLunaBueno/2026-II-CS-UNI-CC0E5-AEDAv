@@ -47,6 +47,29 @@ int main() {
     e.setCell("H2", "= H1 + 1");
     assert(e.getCell("H2").displayValue() == "#CYCLE!");
 
+    // MIN/MAX escalar/variadico, IF, comparaciones (=, <>, <, >) y TRUE en COUNTIFS
+    e.setCell("J1", "= MIN(20, MAX(0, 25))");
+    e.setCell("J2", "= MIN(20, MAX(0, -5))");
+    e.setCell("J3", "= MAX(1, 0, 7, 3)");
+    assert(e.getCell("J1").displayValue() == "20");
+    assert(e.getCell("J2").displayValue() == "0");
+    assert(e.getCell("J3").displayValue() == "7");
+
+    e.setCell("K1", "= IF(A1 = 5, 100, 0)");
+    e.setCell("K2", "= IF(A1 <> 5, 100, \"Vacio\")");
+    e.setCell("K3", "= IF(0 = 1, \"No\", \"\")");
+    assert(e.getCell("K1").displayValue() == "100");
+    assert(e.getCell("K2").displayValue() == "Vacio");
+    assert(e.getCell("K3").displayValue() == "");
+
+    // Patron de calificacion con 2 filas de referencia (CORTE, TIPO) y TRUE
+    e.setCell("P1", "PC1"); e.setCell("Q1", "PC1"); e.setCell("R1", "PC1");
+    e.setCell("P2", "A");   e.setCell("Q2", "T");   e.setCell("R2", "CT");
+    e.setCell("P5", "True"); e.setCell("Q5", "True"); e.setCell("R5", "True");
+    e.setCell("E4", "PC1");
+    e.setCell("E5", "=IF(COUNTIFS($P$1:$R$1, E$4, $P$2:$R$2, \"<>\")=0, \"\", MIN(20, MAX(0, 4 * COUNTIFS($P5:$R5, TRUE, $P$1:$R$1, E$4, $P$2:$R$2, \"A\") / MAX(1, COUNTIFS($P$1:$R$1, E$4, $P$2:$R$2, \"A\")) + 16 * COUNTIFS($P5:$R5, TRUE, $P$1:$R$1, E$4, $P$2:$R$2, \"T\") / MAX(1, COUNTIFS($P$1:$R$1, E$4, $P$2:$R$2, \"T\")) - 3 * COUNTIFS($P5:$R5, TRUE, $P$1:$R$1, E$4, $P$2:$R$2, \"CT\"))))");
+    assert(e.getCell("E5").displayValue() == "17");
+
     std::cout << "[PASS] test_eval_prepost\n";
     return 0;
 }

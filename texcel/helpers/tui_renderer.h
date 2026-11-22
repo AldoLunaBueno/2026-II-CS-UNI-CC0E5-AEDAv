@@ -263,6 +263,17 @@ inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
                 val_text = preview.formatted_value;
                 is_text_disp = preview.is_text;
             }
+            bool is_bool_true = false, is_bool_false = false;
+            if (!cell.has_error && is_text_disp) {
+                std::string upper_val = texcel_detail::toUpper(val_text);
+                if (upper_val == "TRUE") {
+                    val_text = "■";
+                    is_bool_true = true;
+                } else if (upper_val == "FALSE") {
+                    val_text = "□";
+                    is_bool_false = true;
+                }
+            }
             std::string formatted = alignCell(val_text, TuiState::CELL_WIDTH, !cell.has_error && !is_text_disp);
 
             if (is_fill_tip && formatted.size() >= 2) {
@@ -288,6 +299,10 @@ inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
                 row_ss << styled(formatted).bright_magenta().bold().underline();
             } else if (cell.has_error) {
                 row_ss << styled(formatted).bright_red().bold();
+            } else if (is_bool_true) {
+                row_ss << styled(formatted).bright_green().bold();
+            } else if (is_bool_false) {
+                row_ss << styled(formatted).dim();
             } else if (cell.is_formula) {
                 row_ss << styled(formatted).bright_green().bold();
             } else if (!val_text.empty()) {
