@@ -115,6 +115,9 @@ struct TuiState {
     std::string input_buffer;
     size_t      input_cursor = 0;
     bool        return_to_grid_on_submit = false;
+    bool        console_ref_inserting = false;
+    size_t      console_ref_pos = 0;
+    size_t      console_ref_len = 0;
     std::string status_banner = "Usa [Tab] para alternar entre Matriz y Consola.";
     Vector<VectorAscTraits<std::string>> cmd_history;
     TX history_idx = -1;
@@ -144,6 +147,19 @@ struct TuiState {
     void updatePointedCell() {
         if (!point_mode) return;
         input_buffer = point_base + CellCoord(cursor_col, cursor_row, true).toId();
+        input_cursor = input_buffer.size();
+    }
+
+    /** @brief Inserta o reemplaza en vivo una referencia (`A1` o `A1:C3`) justo en `input_cursor` de la Consola. */
+    void insertOrReplaceRefAtCursor(const std::string& ref) {
+        if (!console_ref_inserting) {
+            console_ref_inserting = true;
+            console_ref_pos = std::min(input_cursor, input_buffer.size());
+            console_ref_len = 0;
+        }
+        input_buffer.replace(console_ref_pos, console_ref_len, ref);
+        console_ref_len = ref.size();
+        input_cursor = console_ref_pos + console_ref_len;
     }
 
     void copyToClipboard(const std::string& text) {

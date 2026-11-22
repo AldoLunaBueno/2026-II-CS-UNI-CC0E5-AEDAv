@@ -3,13 +3,14 @@ CXXFLAGS   := -std=c++23
 TARGET     := main
 SRCS       := main.cpp demos.cpp
 HEADERS    := demos.h types.h $(wildcard texcel/*.h) $(wildcard texcel/helpers/*.h) utilities/clipped_graph_renderer.h
-TEST_SRCS  := $(wildcard texcel/tests/*.cpp)
+TEST_SRCS  := $(wildcard texcel/tests/unit/*.cpp)
+E2E_SRCS   := $(wildcard texcel/tests/e2e/*.py)
 PR_OUT     := tmp/pr_comment.md
 PR_SCRIPT  := scripts/gen_pr_comment.sh
 DOCS_PORT  ?= 8000
 DB_COMPOSE := db/compose.yml
 
-.PHONY: all run texcel test pr docs clean db-up db-run db-down
+.PHONY: all run texcel test test-unit test-e2e pr docs clean db-up db-run db-down
 
 all: clean $(TARGET) run
 
@@ -22,11 +23,19 @@ run: $(TARGET)
 texcel: $(TARGET)
 	./$(TARGET) --texcel
 
-test: $(HEADERS) $(TEST_SRCS)
+test: test-unit test-e2e
+
+test-unit: $(HEADERS) $(TEST_SRCS)
 	@for src in $(TEST_SRCS); do \
 		bin="/tmp/$$(basename $$src .cpp)"; \
 		echo "Running $$src..."; \
 		$(CXX) $(CXXFLAGS) "$$src" -o "$$bin" && "$$bin" && rm -f "$$bin" || exit 1; \
+	done
+
+test-e2e: $(TARGET) $(E2E_SRCS)
+	@for src in $(E2E_SRCS); do \
+		echo "Running $$src..."; \
+		python3 "$$src" "./$(TARGET)" || exit 1; \
 	done
 
 pr:

@@ -116,6 +116,9 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
                 std::string r_str = CellCoord(cmin, rmin, true).toId() + ":" + CellCoord(cmax, rmax, true).toId();
                 st.status_banner = "✔ Auto-Fill (" + std::to_string(filled) + " celdas) en " + r_str;
             }
+        } else if (st.drag_win == 1 && st.console_ref_inserting) {
+            st.console_ref_inserting = false;
+            st.has_cell_sel = false;
         } else if (st.drag_win == 1 && st.has_cell_sel) {
             TX cmin, rmin, cmax, rmax;
             normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, cmin, rmin, cmax, rmax);
@@ -168,13 +171,18 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
             if (gc == st.sel_c1 && gr == st.sel_r1) return false;
             st.sel_c1 = gc;
             st.sel_r1 = gr;
-            if (st.point_mode) {
+            if (st.console_ref_inserting || st.point_mode) {
                 TX cmin, rmin, cmax, rmax;
                 normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, cmin, rmin, cmax, rmax);
                 std::string id0 = CellCoord(cmin, rmin, true).toId();
                 std::string id1 = CellCoord(cmax, rmax, true).toId();
-                st.input_buffer = st.point_base + ((id0 == id1) ? id0 : (id0 + ":" + id1));
-                st.input_cursor = st.input_buffer.size();
+                std::string ref = (id0 == id1) ? id0 : (id0 + ":" + id1);
+                if (st.console_ref_inserting) {
+                    st.insertOrReplaceRefAtCursor(ref);
+                } else {
+                    st.input_buffer = st.point_base + ref;
+                    st.input_cursor = st.input_buffer.size();
+                }
             }
             return true;
         }
@@ -249,6 +257,27 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
     // Mouse Down (botón izquierdo): ignorar si cae sobre cualquier barra de división
     TX gc = 0, gr = 0;
     if (st.screenToGridCell(mx, my, gc, gr, false)) {
+        // Si estamos en Consola editando una fórmula, clic/arrastre en la matriz inserta la celda/rango en `input_cursor`
+        if (st.mode == SpreadsheetFocusMode::CommandConsole && !st.point_mode &&
+            !is_ctrl_click && TuiState::isFormulaBuffer(st.input_buffer)) {
+            st.has_text_sel = false;
+            st.has_fill_sel = false;
+            st.drag_win = 1;
+            st.mouse_dragging = true;
+            st.has_cell_sel = true;
+            st.sel_c0 = st.sel_c1 = gc;
+            st.sel_r0 = st.sel_r1 = gr;
+            st.console_ref_inserting = false;
+            st.insertOrReplaceRefAtCursor(CellCoord(gc, gr, true).toId());
+            st.status_banner = "Referencia insertada en cursor (arrastra para rango).";
+            return true;
+        }
+
+        // Si estaba en Consola editando un valor (no fórmula), confirmarlo en la celda activa antes de cambiar
+        if (st.mode == SpreadsheetFocusMode::CommandConsole && !st.point_mode && !st.input_buffer.empty()) {
+            handleCommandSubmit(st, st.input_buffer);
+        }
+
         st.has_text_sel = false;
         st.drag_win = 1;
         st.mouse_dragging = true;
