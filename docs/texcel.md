@@ -26,7 +26,7 @@ flowchart TD
 | :--- | :--- |
 | [`texcel/texcel.h`](../texcel/texcel.h) | Punto de entrada único del subproyecto para `main.cpp` y tests. |
 | [`texcel/types.h`](../texcel/types.h) | Coordenadas `CellCoord` (`A1..ZZ999`), tokens AST (`AstToken`), estado de celda (`SpreadsheetCell`) y vista previa (`EvalPreview`). |
-| [`texcel/parser.h`](../texcel/parser.h) | Parser de descenso recursivo (`FormulaParser`) que compila fórmulas en un `BinaryTreeNode<AstToken>`. |
+| [`texcel/parser.h`](../texcel/parser.h) | Parser por Precedence Climbing (`FormulaParser`) con RAII (`AstPtr`) que compila fórmulas en un `BinaryTreeNode<AstToken>`. |
 | [`texcel/engine.h`](../texcel/engine.h) | Motor reactivo (`SpreadsheetEngine`): tabla dispersa, evaluación PostOrder, grafo de dependencias, propagación, detección de ciclos y Auto-Fill. |
 | [`texcel/config.h`](../texcel/config.h) | Gestión de `.config` (`autosave`, hoja activa) y listado de archivos `.txl` en `output/sheets/`. |
 | [`texcel/clipboard.h`](../texcel/clipboard.h) | Copia al portapapeles mediante secuencia ANSI OSC 52 y utilidades nativas (`wl-copy`, `xsel`, `xclip`). |
@@ -52,11 +52,10 @@ flowchart TD
   - Concatenación de texto: `&` (ej. `= "Total: " & A1`).
   - Comparación: `=`, `<>`, `!=`, `<`, `<=`, `>`, `>=` (sobre números o texto).
 - **Referencias**: relativas (`A1`), mixtas (`$A1`, `A$1`) y absolutas (`$A$1`), preservando los anclajes `$` al usar Auto-Fill.
-- **Funciones de rango**:
-  - `SUM(rango)`, `AVG(rango)`, `MIN(rango)`, `MAX(rango)`
-- **Funciones escalares / variádicas y condicionales**:
-  - `MIN(e1, e2, ...)` y `MAX(e1, e2, ...)` sobre expresiones arbitrarias (ej. `MIN(20, MAX(0, nota))`).
-  - `IF(condición, valor_verdadero, valor_falso)` (representado en el AST binario mediante `FuncIf` + `IfBranches`).
+- **Funciones de rango, escalares y variádicas**:
+  - `SUM(...)`, `AVG(...)`, `MIN(...)`, `MAX(...)` y `CONCAT(...)`: aceptan rangos (`A1:B2`), expresiones escalares o combinaciones de ambos (ej. `MIN(20, MAX(0, nota))`, `SUM(A1:A3, 10)`).
+- **Funciones condicionales**:
+  - `IF(condición, valor_verdadero, valor_falso)` (representado en el AST binario mediante `FuncCall` + espina `ArgPair`).
   - `COUNTIF(rango, criterio)` y `COUNTIFS(r1, c1, r2, c2, ...)` — soporta criterios numéricos, referencias dinámicas (`E$4`), literales (`TRUE`), texto y comparadores (`>`, `>=`, `<`, `<=`, `=`, `<>`).
 
 ---
@@ -155,11 +154,11 @@ Texcel no usa `ncurses` ni librerías externas de ventanas; construye su propio 
 - **Recorte 2D del AST dentro de su ventana:** dentro de `renderInspectorWindow`, [`ClippedGraphRenderer`](../texcel/helpers/tui_renderer.h#L441) actúa como un *viewport* que recorta la proyección del árbol (`VerticalTreeLayout` / `HorizontalTreeLayout`) al rectángulo visible de la Ventana 2 según `(ast_scroll_x, ast_scroll_y)`.
 - **Enrutamiento de ratón por panel:** cada evento SGR `(mx, my)` determina en qué rectángulo cayó (`drag_win`), manteniendo la selección de celdas (ventana 1) aislada de la selección de texto (ventanas 2–4).
 
-### 2. Evaluación del AST sin pila externa con `Order::PrePostOrder`
-En lugar de usar recursión clásica sobre el árbol de sintaxis, [`evaluateAstPostOrder`](../texcel/engine.h#L184-L426) recorre `BinaryTreeNode<AstToken>` mediante `BinaryTreeIterator<AstToken, Order::PrePostOrder, Direction::Asc>`. Cada nodo se visita dos veces en el mismo bucle:
-- **Bajada (`Phase::Pre`):** el nodo padre propaga hacia sus hijos el tipo esperado (`expected_type`: `Number` para aritmética/funciones numéricas, `Text` para `&` o `Any` para comparaciones e `IF`).
-- **Subida (`Phase::Post`):** los hijos ya evaluados dejan su resultado en `AstToken::evaluated`; el padre valida el tipo (`#VALUE!` si se intenta operar texto no numérico en contexto aritmético), calcula su propio resultado in-place y emite el token a la traza RPN (`postorder_rpn`).
-- **Adaptación de funciones no binarias al árbol binario:** `MIN`/`MAX` variádicos se pliegan en cadena como nodos `FuncBinary`, e `IF(cond, ver, fal)` se representa con `FuncIf` apuntando a la condición (`m_pChild[0]`) y a un nodo puente `IfBranches` (`m_pChild[1]`) que contiene ambas ramas. Así `freeAst` y `PrePostOrder` funcionan sin estructuras especiales.
+### 2. Parser por Precedence Climbing y evaluación del AST con `Order::PrePostOrder`
+- **Parser compacto y RAII ([`texcel/parser.h`](../texcel/parser.h)):** en lugar de una cascada de funciones por nivel de precedencia, [`parseBinary`](../texcel/parser.h#L112-L127) usa *Precedence Climbing* sobre la tabla declarativa [`BINARY_OPS`](../texcel/parser.h#L31-L39) y punteros inteligentes `AstPtr` (`std::unique_ptr` con `freeAst`) para evitar fugas ante errores de sintaxis. `parsePrimary` reconoce `CellRef` (`A1`) y `CellRange` (`A1:B2`) en un único punto, y todas las funciones (`SUM`, `AVG`, `MIN`, `MAX`, `CONCAT`, `IF`, `COUNTIF`, `COUNTIFS`) se parsean uniformemente con [`parseFunctionCall`](../texcel/parser.h#L142-L194) formando un nodo `FuncCall` con una espina binaria de `ArgPair` (`,`).
+- **Evaluación in-place sin pila externa ([`evaluateAstPostOrder`](../texcel/engine.h#L184-L416)):** recorre `BinaryTreeNode<AstToken>` mediante `BinaryTreeIterator<AstToken, Order::PrePostOrder, Direction::Asc>`, visitando cada nodo dos veces:
+  - **Bajada (`Phase::Pre`):** el operador padre propaga hacia sus hijos el tipo esperado (`expected_type`: `Number` para aritmética, `Text` para `&` o `Any` para comparaciones y funciones).
+  - **Subida (`Phase::Post`):** los hijos dejan su resultado en `AstToken::evaluated`; el padre valida tipos (`#VALUE!`), evalúa su resultado in-place (incluidos los criterios de `COUNTIF`/`COUNTIFS`, sin re-parsear texto en tiempo de evaluación) y emite la traza RPN (`postorder_rpn`).
 
 ### 3. Regla estricta de texto literal vs. fórmula
 En hojas con encabezados reales como `"PC1"`, `"PC2"` o fechas como `"2026-09-03"`, un parser permisivo interpretaría `"PC1"` como una referencia a la columna `PC`, fila `1`, o `"2026-09-03"` como una resta (`2014`). Por ello [`resolveCellValue`](../texcel/engine.h#L456-L470) y [`updateDependencies`](../texcel/engine.h#L532) solo invocan `FormulaParser` cuando la celda comienza con `=` (o es un número puro); cualquier otro contenido se preserva como texto literal.
