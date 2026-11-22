@@ -110,6 +110,22 @@ inline std::string fitWidth(const std::string& s, size_t width) {
     return out;
 }
 
+/** @brief Repite un glifo UTF-8 `count` veces. */
+inline std::string repeatGlyph(const std::string& glyph, size_t count) {
+    std::string out;
+    out.reserve(glyph.size() * count);
+    for (size_t i = 0; i < count; ++i) out += glyph;
+    return out;
+}
+
+/** @brief Construye un encabezado de sección `─── <title> ────...` ajustado a `width` columnas visibles. */
+inline std::string makeSectionHeader(const std::string& title, size_t width) {
+    std::string s = "─── " + title + " ";
+    size_t v = visible_length(s);
+    if (v < width) s += repeatGlyph("─", width - v);
+    return s;
+}
+
 /** @brief Trunca texto plano a `max_len` bytes añadiendo `~` si se recorta. */
 inline std::string clipPlain(const std::string& s, size_t max_len) {
     if (s.size() <= max_len) return s;

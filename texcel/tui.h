@@ -140,11 +140,7 @@ public:
 
             if (ch == 3) {
                 if (m_st.has_cell_sel || m_st.has_text_sel) {
-                    std::string txt = m_st.extractCurrentSelectionText();
-                    if (!txt.empty()) {
-                        m_st.copyToClipboard(txt);
-                        m_st.status_banner = "✔ Seleccion copiada al portapapeles.";
-                    }
+                    m_st.copySelectionToClipboard();
                     renderAll();
                     continue;
                 }
@@ -172,7 +168,7 @@ public:
             if (ch == '\033') {
                 bool need_render = texcel_tui::handleEscapeSequence(m_st, raw_term);
                 // Coalescencia de ráfagas SGR Mouse Drag: drenar eventos ya encolados en stdin antes de renderizar
-                while (m_st.mouse_dragging || m_st.vscroll_dragging || m_st.hscroll_dragging) {
+                while (m_st.isAnyDragging()) {
                     struct pollfd pfd{STDIN_FILENO, POLLIN, 0};
                     if (poll(&pfd, 1, 0) <= 0 || !(pfd.revents & POLLIN)) break;
                     char next_ch = 0;

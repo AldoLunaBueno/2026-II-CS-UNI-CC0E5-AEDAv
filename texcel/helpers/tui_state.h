@@ -138,17 +138,52 @@ struct TuiState {
 
     static bool canAcceptPointRef(const std::string& s) {
         size_t i = s.size();
-        while (i > 0 && std::isspace(static_cast<unsigned char>(s[i - 1]))) --i;
+        while (i > 0 && texcel_detail::isChar<std::isspace>(s[i - 1])) --i;
         if (i == 0) return false;
         char last = s[i - 1];
-        return last == '=' || last == '+' || last == '-' || last == '*' ||
-               last == '/' || last == '^' || last == '(' || last == ':' || last == ',';
+        return texcel_detail::isBinaryOpChar(last) || last == '(' || last == ':' || last == ',';
+    }
+
+    /** @brief Reemplaza el contenido del buffer de entrada y ubica el cursor al final (o lo limpia si `s` está vacío). */
+    void setInput(const std::string& s = "") {
+        input_buffer = s;
+        input_cursor = input_buffer.size();
+    }
+
+    /** @brief Inserta un carácter en `input_cursor` respetando los límites del buffer. */
+    void insertInputChar(char ch) {
+        input_cursor = std::min(input_cursor, input_buffer.size());
+        input_buffer.insert(input_cursor, 1, ch);
+        ++input_cursor;
     }
 
     void updatePointedCell() {
         if (!point_mode) return;
-        input_buffer = point_base + CellCoord(cursor_col, cursor_row, true).toId();
-        input_cursor = input_buffer.size();
+        setInput(point_base + CellCoord(cursor_col, cursor_row, true).toId());
+    }
+
+    /** @brief Indica si hay un arrastre activo de cualquier scrollbar. */
+    bool isScrollDragging() const {
+        return vscroll_dragging || hscroll_dragging || ast_vscroll_dragging || ast_hscroll_dragging;
+    }
+
+    /** @brief Indica si hay algún arrastre activo (celda, texto o scrollbar). */
+    bool isAnyDragging() const {
+        return mouse_dragging || isScrollDragging();
+    }
+
+    /** @brief Limpia todas las banderas de arrastre de scrollbars. */
+    void clearScrollDragging() {
+        vscroll_dragging = hscroll_dragging = ast_vscroll_dragging = ast_hscroll_dragging = false;
+    }
+
+    /** @brief Sale de Point Mode restaurando el cursor en la celda objetivo. */
+    void exitPointMode(bool ensure_visible = false) {
+        if (!point_mode) return;
+        point_mode = false;
+        cursor_col = target_col;
+        cursor_row = target_row;
+        if (ensure_visible) ensureCursorVisible();
     }
 
     /** @brief Inserta o reemplaza en vivo una referencia (`A1` o `A1:C3`) justo en `input_cursor` de la Consola. */
@@ -165,6 +200,37 @@ struct TuiState {
 
     void copyToClipboard(const std::string& text) {
         TexcelClipboard::copy(os, text);
+    }
+
+    /** @brief Copia la selección actual al portapapeles y actualiza `status_banner` si había texto. */
+    bool copySelectionToClipboard(const std::string& banner = "✔ Seleccion copiada al portapapeles.") {
+        std::string txt = extractCurrentSelectionText();
+        if (txt.empty()) return false;
+        copyToClipboard(txt);
+        status_banner = banner;
+        return true;
+    }
+
+    /** @brief Retorna el ID de la celda activa (o la celda objetivo si está en Point Mode). */
+    std::string activeCellId() const {
+        return CellCoord(point_mode ? target_col : cursor_col,
+                         point_mode ? target_row : cursor_row, true).toId();
+    }
+
+    /** @brief Formatea el rango seleccionado normalizado (`A1:C3`, o `A1` si `collapse_single` y es 1 celda). */
+    std::string selectedRangeStr(bool collapse_single = false) const {
+        TX cmin, rmin, cmax, rmax;
+        normalizeCellRange(sel_c0, sel_r0, sel_c1, sel_r1, cmin, rmin, cmax, rmax);
+        std::string id0 = CellCoord(cmin, rmin, true).toId();
+        std::string id1 = CellCoord(cmax, rmax, true).toId();
+        return (collapse_single && id0 == id1) ? id0 : (id0 + ":" + id1);
+    }
+
+    /** @brief Ejecuta Auto-Fill sobre la selección rectangular actual, autoguarda y actualiza el banner. */
+    void applySelectionAutoFill() {
+        TX filled = engine.autoFillRange(sel_c0, sel_r0, sel_c1, sel_r1);
+        maybeAutoSave();
+        status_banner = "✔ Auto-Fill (" + std::to_string(filled) + " celdas) en " + selectedRangeStr();
     }
 
     std::string formatCellForInput(const std::string& cid) {
@@ -313,10 +379,8 @@ struct TuiState {
 
     void clearSelectedCells() {
         if (has_cell_sel) {
-            TX cmin, rmin, cmax, rmax;
-            normalizeCellRange(sel_c0, sel_r0, sel_c1, sel_r1, cmin, rmin, cmax, rmax);
-            engine.clearRange(cmin, rmin, cmax, rmax);
-            std::string r_str = CellCoord(cmin, rmin, true).toId() + ":" + CellCoord(cmax, rmax, true).toId();
+            std::string r_str = selectedRangeStr();
+            engine.clearRange(sel_c0, sel_r0, sel_c1, sel_r1);
             has_cell_sel = false;
             maybeAutoSave();
             status_banner = "Rango " + r_str + " borrado.";
@@ -380,22 +444,20 @@ struct TuiState {
         return true;
     }
 
+    static TX mapScrollTrack(TX pos, TX track_0, TX track_len, TX max_scroll) {
+        TX len = std::max<TX>(1, track_len);
+        TX rel = std::clamp<TX>(pos - track_0, 0, len);
+        return (rel * std::max<TX>(0, max_scroll)) / len;
+    }
+
     void scrollVerticalToScreenY(TX my) {
-        TX track_y0 = TOP_Y + 3;
-        TX track_len = std::max<TX>(1, VISIBLE_ROWS - 1);
-        TX rel = std::clamp<TX>(my - track_y0, 0, track_len);
-        TX max_sr = std::max<TX>(0, CellCoord::MAX_ROWS - VISIBLE_ROWS);
-        scroll_row = (rel * max_sr) / track_len;
+        scroll_row = mapScrollTrack(my, TOP_Y + 3, VISIBLE_ROWS - 1, CellCoord::MAX_ROWS - VISIBLE_ROWS);
         clampScroll();
     }
 
     void scrollHorizontalToScreenX(TX mx) {
         TX track_x0 = LEFT_X + 2 + ROW_HEADER_W + 1;
-        TX track_x1 = LEFT_X + left_w - 2;
-        TX track_len = std::max<TX>(1, track_x1 - track_x0);
-        TX rel = std::clamp<TX>(mx - track_x0, 0, track_len);
-        TX max_sc = std::max<TX>(0, CellCoord::MAX_COLS - visible_cols);
-        scroll_col = (rel * max_sc) / track_len;
+        scroll_col = mapScrollTrack(mx, track_x0, (LEFT_X + left_w - 2) - track_x0, CellCoord::MAX_COLS - visible_cols);
         clampScroll();
     }
 
@@ -417,21 +479,13 @@ struct TuiState {
     }
 
     void scrollAstVerticalToY(TX my) {
-        TX track_y0 = TOP_Y + 8;
-        TX track_len = std::max<TX>(1, AST_VIEW_H - 1);
-        TX rel = std::clamp<TX>(my - track_y0, 0, track_len);
-        TX max_sy = std::max<TX>(0, ast_graph_h - AST_VIEW_H);
-        ast_scroll_y = (rel * max_sy) / track_len;
+        ast_scroll_y = mapScrollTrack(my, TOP_Y + 8, AST_VIEW_H - 1, ast_graph_h - AST_VIEW_H);
         clampAstScroll();
     }
 
     void scrollAstHorizontalToX(TX mx) {
         TX track_x0 = right_x + 2;
-        TX track_x1 = right_x + right_w - 3;
-        TX track_len = std::max<TX>(1, track_x1 - track_x0);
-        TX rel = std::clamp<TX>(mx - track_x0, 0, track_len);
-        TX max_sx = std::max<TX>(0, ast_graph_w - astViewWidth());
-        ast_scroll_x = (rel * max_sx) / track_len;
+        ast_scroll_x = mapScrollTrack(mx, track_x0, (right_x + right_w - 3) - track_x0, ast_graph_w - astViewWidth());
         clampAstScroll();
     }
 

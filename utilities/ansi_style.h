@@ -149,6 +149,12 @@ public:
     StyledBuilder& hex(std::string_view h)    { RgbColor c = Fg::Hex(h); return rgb(c.r, c.g, c.b); }
     StyledBuilder& bg_hex(std::string_view h) { RgbColor c = Bg::Hex(h); return bg_rgb(c.r, c.g, c.b); }
 
+    // Estilos compuestos de insignia (Badge)
+    StyledBuilder& badge_cyan()   { return pure_black().bg_bright_cyan().bold(); }
+    StyledBuilder& badge_green()  { return pure_black().bg_bright_green().bold(); }
+    StyledBuilder& badge_yellow() { return pure_black().bg_bright_yellow().bold(); }
+    StyledBuilder& badge_blue()   { return bright_white().bg_blue().bold(); }
+
     // Modificadores por enum / struct
     template <typename M>
     StyledBuilder& add(const M& mod) { return append(to_sgr_code(mod)); }
