@@ -27,7 +27,7 @@ public:
     using DepList     = LinkedList<LinkedListAscTraits<std::string>>;
     using DepGraph    = BaseHashTable<HashTableTraits<std::string, DepList>, Callable>;
     using AstNode     = BinaryTreeNode<AstToken>;
-    using PostIter    = BinaryTreeIterator<AstToken, Order::PostOrder, Direction::Asc>;
+    using PrePostIter = BinaryTreeIterator<AstToken, Order::PrePostOrder, Direction::Asc>;
     using RawTable    = HashTable<HashTableTraits<std::string, std::string>>;
     using CellTable   = BaseHashTable<HashTableTraits<std::string, SpreadsheetCell>, Callable>;
 
@@ -172,34 +172,50 @@ private:
     }
 
     /**
-     * @brief Evalúa un árbol `BinaryTreeNode<AstToken>` recorriéndolo con `BinaryTreeIterator` en `Order::PostOrder`.
+     * @brief Evalúa un árbol `BinaryTreeNode<AstToken>` in-place sin pila externa mediante `Order::PrePostOrder`.
+     *
+     * - En `Phase::Pre` (bajando): propaga `expected_type` (aritmético vs texto) desde operadores hacia sus hijos.
+     * - En `Phase::Post` (subiendo): evalúa hojas, valida tipos (`#VALUE!`) y combina `m_pChild[0]` y `m_pChild[1]`
+     *   guardando el resultado directamente en cada nodo del árbol.
      */
     CellEvalValue evaluateAstPostOrder(AstNode* root,
                                        StringVec& visiting,
                                        std::string& out_rpn,
                                        std::string& out_err) {
         if (!root) return {};
-        ValueVec stack;
         std::ostringstream rpn_ss;
         bool first = true;
 
-        for (PostIter it(root), end(nullptr); it != end; ++it) {
-            const AstToken& tok = (*it).getValue();
+        for (PrePostIter it(root), end(nullptr); it != end; ++it) {
+            AstNode& node = *it;
+            AstToken& tok = node.value();
+
+            // 1. Fase Pre (enter): propagar tipo esperado hacia los hijos
+            if (it.phase() == Phase::Pre) {
+                if (tok.kind == AstNodeKind::BinaryOp) {
+                    ExpectedType child_exp = (tok.op == '&') ? ExpectedType::Text : ExpectedType::Number;
+                    if (node.m_pChild[0]) node.m_pChild[0]->value().expected_type = child_exp;
+                    if (node.m_pChild[1]) node.m_pChild[1]->value().expected_type = child_exp;
+                }
+                continue;
+            }
+
+            // 2. Fase Post (exit): emitir RPN, evaluar in-place y validar tipo
             if (!first) rpn_ss << " ";
             rpn_ss << "[" << tok.text << "]";
             first = false;
 
             if (tok.kind == AstNodeKind::Number) {
-                stack.push_back(CellEvalValue{false, tok.number, ""});
+                tok.evaluated = CellEvalValue{false, tok.number, ""};
             } else if (tok.kind == AstNodeKind::StringLiteral) {
-                stack.push_back(CellEvalValue{true, 0.0, tok.func_name});
+                tok.evaluated = CellEvalValue{true, 0.0, tok.func_name};
             } else if (tok.kind == AstNodeKind::CellRef) {
                 CellEvalValue ref_val = resolveCellValue(tok.text, visiting, out_err);
                 if (!out_err.empty()) {
                     out_rpn = rpn_ss.str();
                     return {};
                 }
-                stack.push_back(ref_val);
+                tok.evaluated = ref_val;
             } else if (tok.kind == AstNodeKind::FuncRange) {
                 CellCoord a = CellCoord::parse(tok.range_start);
                 CellCoord b = CellCoord::parse(tok.range_end);
@@ -225,10 +241,10 @@ private:
                         }
                     }
                 }
-                if (tok.func_name == "SUM") stack.push_back(CellEvalValue{false, acc, ""});
-                else if (tok.func_name == "AVG") stack.push_back(CellEvalValue{false, count > 0 ? acc / count : 0.0, ""});
-                else if (tok.func_name == "MIN") stack.push_back(CellEvalValue{false, mn, ""});
-                else if (tok.func_name == "MAX") stack.push_back(CellEvalValue{false, mx, ""});
+                if (tok.func_name == "SUM") tok.evaluated = CellEvalValue{false, acc, ""};
+                else if (tok.func_name == "AVG") tok.evaluated = CellEvalValue{false, count > 0 ? acc / count : 0.0, ""};
+                else if (tok.func_name == "MIN") tok.evaluated = CellEvalValue{false, mn, ""};
+                else if (tok.func_name == "MAX") tok.evaluated = CellEvalValue{false, mx, ""};
             } else if (tok.kind == AstNodeKind::FuncCountIfs) {
                 const size_t n_conds = tok.cond_pairs.size();
                 if (n_conds == 0) {
@@ -237,7 +253,6 @@ private:
                     return {};
                 }
 
-                // Validar dimensiones iguales en todos los rangos y evaluar criterios
                 TX base_cols = 0, base_rows = 0;
                 ValueVec crit_vals;
                 for (size_t k = 0; k < n_conds; ++k) {
@@ -301,20 +316,18 @@ private:
                         if (all_match) ++matched;
                     }
                 }
-                stack.push_back(CellEvalValue{false, static_cast<double>(matched), ""});
+                tok.evaluated = CellEvalValue{false, static_cast<double>(matched), ""};
             } else if (tok.kind == AstNodeKind::BinaryOp) {
-                if (stack.size() < 2) {
+                if (!node.m_pChild[0] || !node.m_pChild[1]) {
                     out_err = "#SYNTAX!";
                     out_rpn = rpn_ss.str();
                     return {};
                 }
-                CellEvalValue rhs = stack.back().getValue();
-                stack.pop_back();
-                CellEvalValue lhs = stack.back().getValue();
-                stack.pop_back();
+                const CellEvalValue& lhs = node.m_pChild[0]->getValue().evaluated;
+                const CellEvalValue& rhs = node.m_pChild[1]->getValue().evaluated;
 
                 if (tok.op == '&') {
-                    stack.push_back(CellEvalValue{true, 0.0, lhs.asString() + rhs.asString()});
+                    tok.evaluated = CellEvalValue{true, 0.0, lhs.asString() + rhs.asString()};
                 } else {
                     double lnum = lhs.asNumber();
                     double rnum = rhs.asNumber();
@@ -336,17 +349,26 @@ private:
                             out_err = "#OP!";
                             return {};
                     }
-                    stack.push_back(CellEvalValue{false, res, ""});
+                    tok.evaluated = CellEvalValue{false, res, ""};
+                }
+            }
+
+            // Validación de tipo propagado en Phase::Pre (ej. `"Hola" + 5` -> `#VALUE!`)
+            if (tok.expected_type == ExpectedType::Number && tok.evaluated.is_text) {
+                if (tok.evaluated.text.empty()) {
+                    tok.evaluated = CellEvalValue{false, 0.0, ""};
+                } else if (isPureNumber(tok.evaluated.text)) {
+                    tok.evaluated = CellEvalValue{false, std::stod(tok.evaluated.text), ""};
+                } else {
+                    out_err = "#VALUE!";
+                    out_rpn = rpn_ss.str();
+                    return {};
                 }
             }
         }
 
         out_rpn = rpn_ss.str();
-        if (stack.size() != 1) {
-            out_err = "#SYNTAX!";
-            return {};
-        }
-        return stack.back().getValue();
+        return root->getValue().evaluated;
     }
 
     static std::string summarizeSubtree(AstNode* node) {

@@ -104,6 +104,9 @@ public:
         }
     }
     
+    /** @brief Retorna la fase actual (`Phase::Pre`, `Phase::In`, `Phase::Post`) del recorrido de Euler. */
+    TX phase() const { return m_phase; }
+
     /** @brief Avanza al siguiente nodo/fase válido según `Ord`. */
     MySelf &operator++();
 

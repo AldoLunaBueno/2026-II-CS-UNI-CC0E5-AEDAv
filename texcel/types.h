@@ -101,19 +101,64 @@ struct RangeCriteriaPair {
     }
 };
 
+/** @brief Formatea un valor numérico de forma compacta (sin ceros decimales sobrantes). */
+inline std::string formatCellNumber(double v) {
+    if (std::isnan(v) || std::isinf(v)) return "#NUM!";
+    if (std::abs(v - std::round(v)) < 1e-9) {
+        return std::to_string(static_cast<long long>(std::round(v)));
+    }
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(2) << v;
+    std::string s = oss.str();
+    while (s.size() > 1 && s.back() == '0') s.pop_back();
+    if (!s.empty() && s.back() == '.') s.pop_back();
+    return s;
+}
+
+/**
+ * @enum ExpectedType
+ * @brief Tipo esperado propagado desde el nodo padre hacia sus hijos durante `Phase::Pre`.
+ */
+enum class ExpectedType : TX {
+    Any    = 0, /**< Sin restricción (raíz o contexto libre). */
+    Number = 1, /**< Contexto aritmético (`+`, `-`, `*`, `/`, `^`): texto no numérico produce `#VALUE!`. */
+    Text   = 2  /**< Contexto textual (`&`, `CONCAT`). */
+};
+
+/**
+ * @struct CellEvalValue
+ * @brief Valor polimórfico (numérico o texto) almacenado in-place en cada nodo del AST.
+ */
+struct CellEvalValue {
+    bool        is_text = false;
+    double      num = 0.0;
+    std::string text;
+
+    auto operator<=>(const CellEvalValue&) const = default;
+
+    std::string asString() const {
+        return is_text ? text : formatCellNumber(num);
+    }
+    double asNumber() const {
+        return is_text ? 0.0 : num;
+    }
+};
+
 /**
  * @struct AstToken
- * @brief Nodo almacenado dentro de `BinaryTreeNode<AstToken>` para evaluación en `Order::PostOrder`.
+ * @brief Nodo almacenado dentro de `BinaryTreeNode<AstToken>` para evaluación in-place en `Order::PrePostOrder`.
  */
 struct AstToken {
-    AstNodeKind kind = AstNodeKind::Number;
-    std::string text;       /**< Representación textual (`"A1"`, `"+"`, `"4"`, `"SUM(A1:B2)"`). */
-    double      number = 0; /**< Valor numérico cuando `kind == AstNodeKind::Number`. */
-    char        op = 0;     /**< Operador cuando `kind == AstNodeKind::BinaryOp`. */
-    std::string func_name;  /**< Nombre de función o contenido de `StringLiteral`. */
-    std::string range_start;/**< Inicio de rango (`A1`). */
-    std::string range_end;  /**< Fin de rango (`B2`). */
+    AstNodeKind   kind = AstNodeKind::Number;
+    std::string   text;       /**< Representación textual (`"A1"`, `"+"`, `"4"`, `"SUM(A1:B2)"`). */
+    double        number = 0; /**< Valor numérico cuando `kind == AstNodeKind::Number`. */
+    char          op = 0;     /**< Operador cuando `kind == AstNodeKind::BinaryOp`. */
+    std::string   func_name;  /**< Nombre de función o contenido de `StringLiteral`. */
+    std::string   range_start;/**< Inicio de rango (`A1`). */
+    std::string   range_end;  /**< Fin de rango (`B2`). */
     Vector<VectorAscTraits<RangeCriteriaPair>> cond_pairs; /**< Pares rango-criterio para `COUNTIF`/`COUNTIFS`. */
+    ExpectedType  expected_type = ExpectedType::Any;       /**< Propagado hacia abajo en `Phase::Pre`. */
+    CellEvalValue evaluated;                               /**< Resultado calculado hacia arriba en `Phase::Post`. */
 
     auto operator<=>(const AstToken& other) const {
         return text <=> other.text;
@@ -151,16 +196,7 @@ struct SpreadsheetCell {
 
     /** @brief Formatea el valor numérico de forma compacta (sin ceros decimales sobrantes). */
     static std::string formatNumber(double v) {
-        if (std::isnan(v) || std::isinf(v)) return "#NUM!";
-        if (std::abs(v - std::round(v)) < 1e-9) {
-            return std::to_string(static_cast<long long>(std::round(v)));
-        }
-        std::ostringstream oss;
-        oss << std::fixed << std::setprecision(2) << v;
-        std::string s = oss.str();
-        while (s.size() > 1 && s.back() == '0') s.pop_back();
-        if (!s.empty() && s.back() == '.') s.pop_back();
-        return s;
+        return formatCellNumber(v);
     }
 
     /** @brief Texto que debe mostrarse dentro de la celda en la matriz. */
@@ -176,25 +212,6 @@ struct SpreadsheetCell {
     }
     friend std::istream& operator>>(std::istream& is, SpreadsheetCell& c) {
         return is >> c.raw_expression;
-    }
-};
-
-/**
- * @struct CellEvalValue
- * @brief Valor polimórfico (numérico o texto) usado en la pila de evaluación PostOrder.
- */
-struct CellEvalValue {
-    bool        is_text = false;
-    double      num = 0.0;
-    std::string text;
-
-    auto operator<=>(const CellEvalValue&) const = default;
-
-    std::string asString() const {
-        return is_text ? text : SpreadsheetCell::formatNumber(num);
-    }
-    double asNumber() const {
-        return is_text ? 0.0 : num;
     }
 };
 
