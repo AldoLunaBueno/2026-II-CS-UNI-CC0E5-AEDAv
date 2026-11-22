@@ -1,5 +1,6 @@
 /**
  * @file engine.h
+ * @ingroup texcel
  * @brief Motor de hoja de cálculo reactiva (`HashTable` + `BinaryTree` PostOrder + `LinkedList`).
  */
 
@@ -202,9 +203,6 @@ private:
                         child_exp = ExpectedType::Number;
                     if (node.m_pChild[0]) node.m_pChild[0]->value().expected_type = child_exp;
                     if (node.m_pChild[1]) node.m_pChild[1]->value().expected_type = child_exp;
-                } else if (tok.kind == AstNodeKind::FuncBinary) {
-                    if (node.m_pChild[0]) node.m_pChild[0]->value().expected_type = ExpectedType::Number;
-                    if (node.m_pChild[1]) node.m_pChild[1]->value().expected_type = ExpectedType::Number;
                 }
                 continue;
             }
@@ -225,107 +223,139 @@ private:
                     return {};
                 }
                 tok.evaluated = ref_val;
-            } else if (tok.kind == AstNodeKind::FuncRange) {
-                CellCoord a = CellCoord::parse(tok.range_start);
-                CellCoord b = CellCoord::parse(tok.range_end);
-                TX c_min = std::min(a.col, b.col), c_max = std::max(a.col, b.col);
-                TX r_min = std::min(a.row, b.row), r_max = std::max(a.row, b.row);
-                double acc = 0.0;
-                double mn = 0.0, mx = 0.0;
-                TX count = 0;
-                for (TX r = r_min; r <= r_max; ++r) {
-                    for (TX col = c_min; col <= c_max; ++col) {
-                        std::string cid = CellCoord(col, r, true).toId();
-                        CellEvalValue cv = resolveCellValue(cid, visiting, out_err);
-                        if (!out_err.empty()) {
-                            out_rpn = rpn_ss.str();
-                            return {};
-                        }
-                        if (!cv.is_text) {
-                            double v = cv.num;
-                            if (count == 0) { mn = mx = v; }
-                            else { mn = std::min(mn, v); mx = std::max(mx, v); }
-                            acc += v;
-                            ++count;
-                        }
+            } else if (tok.kind == AstNodeKind::CellRange || tok.kind == AstNodeKind::ArgPair) {
+                // Nodos estructurales consumidos por su padre FuncCall
+            } else if (tok.kind == AstNodeKind::FuncCall) {
+                Vector<VectorAscTraits<AstNode*>> args;
+                if (node.m_pChild[0]) args.push_back(node.m_pChild[0]);
+                AstNode* cur = node.m_pChild[1];
+                while (cur) {
+                    if (cur->getValue().kind == AstNodeKind::ArgPair) {
+                        if (cur->m_pChild[0]) args.push_back(cur->m_pChild[0]);
+                        cur = cur->m_pChild[1];
+                    } else {
+                        args.push_back(cur);
+                        break;
                     }
                 }
-                if (tok.func_name == "SUM") tok.evaluated = CellEvalValue{false, acc, ""};
-                else if (tok.func_name == "AVG") tok.evaluated = CellEvalValue{false, count > 0 ? acc / count : 0.0, ""};
-                else if (tok.func_name == "MIN") tok.evaluated = CellEvalValue{false, mn, ""};
-                else if (tok.func_name == "MAX") tok.evaluated = CellEvalValue{false, mx, ""};
-            } else if (tok.kind == AstNodeKind::FuncCountIfs) {
-                const size_t n_conds = tok.cond_pairs.size();
-                if (n_conds == 0) {
-                    out_err = "#VALUE!";
-                    out_rpn = rpn_ss.str();
-                    return {};
-                }
 
-                TX base_cols = 0, base_rows = 0;
-                ValueVec crit_vals;
-                for (size_t k = 0; k < n_conds; ++k) {
-                    const auto& pair = tok.cond_pairs[k].getValue();
-                    CellCoord a = CellCoord::parse(pair.range_start);
-                    CellCoord b = CellCoord::parse(pair.range_end);
-                    TX cols = b.col - a.col + 1;
-                    TX rows = b.row - a.row + 1;
-                    if (k == 0) {
-                        base_cols = cols;
-                        base_rows = rows;
-                    } else if (cols != base_cols || rows != base_rows) {
-                        out_err = "#VALUE!";
-                        out_rpn = rpn_ss.str();
-                        return {};
-                    }
-
-                    StringVec dummy_refs;
-                    AstNode* c_ast = nullptr;
-                    try {
-                        FormulaParser c_parser(pair.criteria_expr, dummy_refs);
-                        c_ast = c_parser.parse();
-                    } catch (...) {
-                        out_err = "#SYNTAX!";
-                        out_rpn = rpn_ss.str();
-                        return {};
-                    }
-                    std::string dummy_rpn, c_err;
-                    CellEvalValue c_val = evaluateAstPostOrder(c_ast, visiting, dummy_rpn, c_err);
-                    freeAst(c_ast);
-                    if (!c_err.empty()) {
-                        out_err = c_err;
-                        out_rpn = rpn_ss.str();
-                        return {};
-                    }
-                    crit_vals.push_back(c_val);
-                }
-
-                TX matched = 0;
-                for (TX dr = 0; dr < base_rows; ++dr) {
-                    for (TX dc = 0; dc < base_cols; ++dc) {
-                        bool all_match = true;
-                        for (size_t k = 0; k < n_conds; ++k) {
-                            const auto& pair = tok.cond_pairs[k].getValue();
-                            CellCoord a = CellCoord::parse(pair.range_start);
-                            std::string cid = CellCoord(a.col + dc, a.row + dr, true).toId();
-                            bool is_empty = (!m_raw_table.contains(cid) || m_raw_table[cid].empty());
-                            CellEvalValue cv;
-                            if (!is_empty) {
-                                cv = resolveCellValue(cid, visiting, out_err);
-                                if (!out_err.empty()) {
-                                    out_rpn = rpn_ss.str();
-                                    return {};
+                const std::string& fn = tok.func_name;
+                if (fn == "IF") {
+                    if (args.size() != 3) { out_err = "#SYNTAX!"; out_rpn = rpn_ss.str(); return {}; }
+                    const CellEvalValue& cond = args[0].getValue()->getValue().evaluated;
+                    bool truthy = (!cond.is_text && std::abs(cond.num) > 1e-9) ||
+                                  (cond.is_text && toUpper(cond.text) == "TRUE");
+                    tok.evaluated = truthy ? args[1].getValue()->getValue().evaluated
+                                           : args[2].getValue()->getValue().evaluated;
+                } else if (fn == "CONCAT") {
+                    std::string out_s;
+                    for (size_t i = 0; i < args.size(); ++i) {
+                        const AstToken& at = args[i].getValue()->getValue();
+                        if (at.kind == AstNodeKind::CellRange) {
+                            CellCoord a = CellCoord::parse(at.range_start);
+                            CellCoord b = CellCoord::parse(at.range_end);
+                            TX c_min = std::min(a.col, b.col), c_max = std::max(a.col, b.col);
+                            TX r_min = std::min(a.row, b.row), r_max = std::max(a.row, b.row);
+                            for (TX r = r_min; r <= r_max; ++r) {
+                                for (TX col = c_min; col <= c_max; ++col) {
+                                    CellEvalValue cv = resolveCellValue(CellCoord(col, r, true).toId(), visiting, out_err);
+                                    if (!out_err.empty()) { out_rpn = rpn_ss.str(); return {}; }
+                                    out_s += cv.asString();
                                 }
                             }
-                            if (!matchesCriteria(cv, is_empty, crit_vals[k].getValue())) {
-                                all_match = false;
-                                break;
-                            }
+                        } else {
+                            out_s += at.evaluated.asString();
                         }
-                        if (all_match) ++matched;
                     }
+                    tok.evaluated = CellEvalValue{true, 0.0, out_s};
+                } else if (fn == "SUM" || fn == "AVG" || fn == "MIN" || fn == "MAX") {
+                    double acc = 0.0, mn = 0.0, mx = 0.0;
+                    TX count = 0;
+                    auto foldNum = [&](double v) {
+                        if (count == 0) { mn = mx = v; }
+                        else { mn = std::min(mn, v); mx = std::max(mx, v); }
+                        acc += v;
+                        ++count;
+                    };
+                    for (size_t i = 0; i < args.size(); ++i) {
+                        const AstToken& at = args[i].getValue()->getValue();
+                        if (at.kind == AstNodeKind::CellRange) {
+                            CellCoord a = CellCoord::parse(at.range_start);
+                            CellCoord b = CellCoord::parse(at.range_end);
+                            TX c_min = std::min(a.col, b.col), c_max = std::max(a.col, b.col);
+                            TX r_min = std::min(a.row, b.row), r_max = std::max(a.row, b.row);
+                            for (TX r = r_min; r <= r_max; ++r) {
+                                for (TX col = c_min; col <= c_max; ++col) {
+                                    CellEvalValue cv = resolveCellValue(CellCoord(col, r, true).toId(), visiting, out_err);
+                                    if (!out_err.empty()) { out_rpn = rpn_ss.str(); return {}; }
+                                    if (!cv.is_text) foldNum(cv.num);
+                                }
+                            }
+                        } else {
+                            const CellEvalValue& ev = at.evaluated;
+                            if (!ev.is_text) foldNum(ev.num);
+                            else if (ev.text.empty()) foldNum(0.0);
+                            else if (isPureNumber(ev.text)) foldNum(std::stod(ev.text));
+                            else { out_err = "#VALUE!"; out_rpn = rpn_ss.str(); return {}; }
+                        }
+                    }
+                    if (fn == "SUM") tok.evaluated = CellEvalValue{false, acc, ""};
+                    else if (fn == "AVG") tok.evaluated = CellEvalValue{false, count > 0 ? acc / count : 0.0, ""};
+                    else if (fn == "MIN") tok.evaluated = CellEvalValue{false, mn, ""};
+                    else if (fn == "MAX") tok.evaluated = CellEvalValue{false, mx, ""};
+                } else if (fn == "COUNTIF" || fn == "COUNTIFS") {
+                    const size_t n_conds = args.size() / 2;
+                    if (n_conds == 0 || args.size() % 2 != 0) { out_err = "#VALUE!"; out_rpn = rpn_ss.str(); return {}; }
+
+                    TX base_cols = 0, base_rows = 0;
+                    Vector<VectorAscTraits<CellCoord>> starts;
+                    ValueVec crit_vals;
+                    for (size_t k = 0; k < n_conds; ++k) {
+                        const AstToken& rt = args[2 * k].getValue()->getValue();
+                        CellCoord a, b;
+                        if (rt.kind == AstNodeKind::CellRange) {
+                            a = CellCoord::parse(rt.range_start);
+                            b = CellCoord::parse(rt.range_end);
+                        } else if (rt.kind == AstNodeKind::CellRef) {
+                            a = b = CellCoord::parse(rt.text);
+                        } else {
+                            out_err = "#VALUE!"; out_rpn = rpn_ss.str(); return {};
+                        }
+                        TX c_min = std::min(a.col, b.col), c_max = std::max(a.col, b.col);
+                        TX r_min = std::min(a.row, b.row), r_max = std::max(a.row, b.row);
+                        TX cols = c_max - c_min + 1;
+                        TX rows = r_max - r_min + 1;
+                        if (k == 0) { base_cols = cols; base_rows = rows; }
+                        else if (cols != base_cols || rows != base_rows) {
+                            out_err = "#VALUE!"; out_rpn = rpn_ss.str(); return {};
+                        }
+                        starts.push_back(CellCoord(c_min, r_min, true));
+                        crit_vals.push_back(args[2 * k + 1].getValue()->getValue().evaluated);
+                    }
+
+                    TX matched = 0;
+                    for (TX dr = 0; dr < base_rows; ++dr) {
+                        for (TX dc = 0; dc < base_cols; ++dc) {
+                            bool all_match = true;
+                            for (size_t k = 0; k < n_conds; ++k) {
+                                CellCoord s = starts[k].getValue();
+                                std::string cid = CellCoord(s.col + dc, s.row + dr, true).toId();
+                                bool is_empty = (!m_raw_table.contains(cid) || m_raw_table[cid].empty());
+                                CellEvalValue cv;
+                                if (!is_empty) {
+                                    cv = resolveCellValue(cid, visiting, out_err);
+                                    if (!out_err.empty()) { out_rpn = rpn_ss.str(); return {}; }
+                                }
+                                if (!matchesCriteria(cv, is_empty, crit_vals[k].getValue())) {
+                                    all_match = false;
+                                    break;
+                                }
+                            }
+                            if (all_match) ++matched;
+                        }
+                    }
+                    tok.evaluated = CellEvalValue{false, static_cast<double>(matched), ""};
                 }
-                tok.evaluated = CellEvalValue{false, static_cast<double>(matched), ""};
             } else if (tok.kind == AstNodeKind::BinaryOp) {
                 if (!node.m_pChild[0] || !node.m_pChild[1]) {
                     out_err = "#SYNTAX!";
@@ -380,30 +410,6 @@ private:
                     }
                     tok.evaluated = CellEvalValue{false, res, ""};
                 }
-            } else if (tok.kind == AstNodeKind::FuncBinary) {
-                if (!node.m_pChild[0] || !node.m_pChild[1]) {
-                    out_err = "#SYNTAX!";
-                    out_rpn = rpn_ss.str();
-                    return {};
-                }
-                double lnum = node.m_pChild[0]->getValue().evaluated.asNumber();
-                double rnum = node.m_pChild[1]->getValue().evaluated.asNumber();
-                double res = (tok.func_name == "MIN") ? std::min(lnum, rnum) : std::max(lnum, rnum);
-                tok.evaluated = CellEvalValue{false, res, ""};
-            } else if (tok.kind == AstNodeKind::IfBranches) {
-                // Contenedor binario para las ramas (verdadero, falso) de FuncIf
-            } else if (tok.kind == AstNodeKind::FuncIf) {
-                if (!node.m_pChild[0] || !node.m_pChild[1] ||
-                    !node.m_pChild[1]->m_pChild[0] || !node.m_pChild[1]->m_pChild[1]) {
-                    out_err = "#SYNTAX!";
-                    out_rpn = rpn_ss.str();
-                    return {};
-                }
-                const CellEvalValue& cond = node.m_pChild[0]->getValue().evaluated;
-                bool truthy = (!cond.is_text && std::abs(cond.num) > 1e-9) ||
-                              (cond.is_text && toUpper(cond.text) == "TRUE");
-                tok.evaluated = truthy ? node.m_pChild[1]->m_pChild[0]->getValue().evaluated
-                                       : node.m_pChild[1]->m_pChild[1]->getValue().evaluated;
             }
 
             // Validación de tipo propagado en Phase::Pre (ej. `"Hola" + 5` -> `#VALUE!`)

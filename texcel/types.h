@@ -1,5 +1,6 @@
 /**
  * @file types.h
+ * @ingroup texcel
  * @brief Tipos base de celdas, nodos AST y utilidades compartidas para Texcel.
  */
 
@@ -83,28 +84,11 @@ struct CellCoord {
 enum class AstNodeKind : TX {
     Number        = 0, /**< Literal numérico (ej. `5`, `4.5`). */
     CellRef       = 1, /**< Referencia a otra celda (ej. `A1`, `B1`). */
-    BinaryOp      = 2, /**< Operador binario (`+`, `-`, `*`, `/`, `^`, `&`). */
-    FuncRange     = 3, /**< Función agregada sobre rango (`SUM`, `AVG`, `MIN`, `MAX`). */
-    StringLiteral = 4, /**< Literal de texto entre comillas (ej. `"Total: "`). */
-    FuncCountIfs  = 5, /**< Conteo condicional (`COUNTIF`, `COUNTIFS`). */
-    FuncBinary    = 6, /**< Función binaria/variádica sobre expresiones (`MIN(a, b)`, `MAX(a, b)`). */
-    FuncIf        = 7, /**< Condicional `IF(cond, ver, fal)` (`m_pChild[0] = cond`, `m_pChild[1] = IfBranches`). */
-    IfBranches    = 8  /**< Par de ramas `(ver, fal)` para `FuncIf`. */
-};
-
-/** @brief Par `(rango, expresión_criterio)` para `COUNTIF` / `COUNTIFS`. */
-struct RangeCriteriaPair {
-    std::string range_start;
-    std::string range_end;
-    std::string criteria_expr;
-
-    auto operator<=>(const RangeCriteriaPair&) const = default;
-    friend std::ostream& operator<<(std::ostream& os, const RangeCriteriaPair& p) {
-        return os << p.range_start << ":" << p.range_end;
-    }
-    friend std::istream& operator>>(std::istream& is, RangeCriteriaPair& p) {
-        return is >> p.range_start >> p.range_end >> p.criteria_expr;
-    }
+    CellRange     = 2, /**< Rango rectangular de celdas (ej. `A1:B3`). */
+    BinaryOp      = 3, /**< Operador binario (`+`, `-`, `*`, `/`, `^`, `&`, `=`, `<>`, `<`, `>`, `<=`, `>=`). */
+    StringLiteral = 4, /**< Literal de texto entre comillas o booleano (`"Hola"`, `TRUE`). */
+    FuncCall      = 5, /**< Llamada a función (`SUM`, `AVG`, `MIN`, `MAX`, `CONCAT`, `IF`, `COUNTIF`, `COUNTIFS`). */
+    ArgPair       = 6  /**< Espina binaria de argumentos `,` para `FuncCall`. */
 };
 
 /** @brief Formatea un valor numérico de forma compacta (sin ceros decimales sobrantes). */
@@ -162,7 +146,6 @@ struct AstToken {
     std::string   func_name;  /**< Nombre de función o contenido de `StringLiteral`. */
     std::string   range_start;/**< Inicio de rango (`A1`). */
     std::string   range_end;  /**< Fin de rango (`B2`). */
-    Vector<VectorAscTraits<RangeCriteriaPair>> cond_pairs; /**< Pares rango-criterio para `COUNTIF`/`COUNTIFS`. */
     ExpectedType  expected_type = ExpectedType::Any;       /**< Propagado hacia abajo en `Phase::Pre`. */
     CellEvalValue evaluated;                               /**< Resultado calculado hacia arriba en `Phase::Post`. */
 
