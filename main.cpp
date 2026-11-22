@@ -19,7 +19,7 @@ using namespace std;
 int main(int argc, char* argv[]) {
     for (TX i = 1; i < argc; ++i) {
         std::string_view arg(argv[i]);
-        if (arg == "--excel" || arg == "-e" || arg == "excel") {
+        if (arg == "--texcel" || arg == "--excel" || arg == "-e" || arg == "texcel" || arg == "excel") {
             RunInteractiveSpreadsheet();
             return 0;
         }

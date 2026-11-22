@@ -27,7 +27,7 @@
 #include "utilities/gotoxy.h"
 #include "utilities/render.h"
 #include "utilities/layouts.h"
-#include "utilities/spreadsheet_tui.h"
+#include "texcel/texcel.h"
 #include "demos.h"
 using namespace std;
 
@@ -873,7 +873,7 @@ void DemoBTree() {
 
 void DemoSpreadsheet() {
     cout << "\n";
-    cout << styled(" █ Pruebas para Hoja de Calculo (Excel TUI Multi-Ventana) ").pure_black().bg_bright_yellow() << "\n\n";
+    cout << styled(" █ Pruebas para Texcel (Hoja de Calculo TUI Multi-Ventana) ").pure_black().bg_bright_yellow() << "\n\n";
 
     SpreadsheetEngine engine;
     SpreadsheetTUI tui(engine, cout);

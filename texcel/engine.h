@@ -1,184 +1,15 @@
 /**
- * @file spreadsheet.h
- * @ingroup containers
- * @brief Motor de hoja de cálculo reactiva respaldado por `HashTable`, `BinaryTree` (AST Euler PostOrder), `LinkedList` y `Vector`.
+ * @file engine.h
+ * @brief Motor de hoja de cálculo reactiva (`HashTable` + `BinaryTree` PostOrder + `LinkedList`).
  */
 
-#ifndef __SPREADSHEET_H__
-#define __SPREADSHEET_H__
+#ifndef __TEXCEL_ENGINE_H__
+#define __TEXCEL_ENGINE_H__
 
-#include "hash_table.h"
-#include "trees/binary_tree.h"
-#include "lists/linked_list.h"
-#include "vector.h"
-#include <string>
-#include <sstream>
-#include <iomanip>
-#include <cmath>
-#include <cctype>
-#include <algorithm>
-#include <stdexcept>
-
-/**
- * @struct CellCoord
- * @brief Coordenada 0-indexada `(col, row)` de una celda con conversión desde/hacia notación Excel (`A1`, `B1`, `D4`).
- */
-struct CellCoord {
-    TX col = 0; /**< Columna 0-indexada (`0 = A`, `1 = B`, ...). */
-    TX row = 0; /**< Fila 0-indexada (`0 = fila 1`, `1 = fila 2`, ...). */
-    bool valid = false;
-
-    CellCoord() = default;
-    CellCoord(TX c, TX r, bool v = true) : col(c), row(r), valid(v) {}
-
-    auto operator<=>(const CellCoord&) const = default;
-
-    /** @brief Convierte un índice de columna (`0 -> A`, `25 -> Z`) a etiqueta de letras. */
-    static std::string colToLabel(TX c) {
-        if (c < 0) return "?";
-        std::string s;
-        TX n = c;
-        while (n >= 0) {
-            s.insert(s.begin(), static_cast<char>('A' + (n % 26)));
-            n = (n / 26) - 1;
-        }
-        return s;
-    }
-
-    /** @brief Retorna el identificador canónico en mayúsculas (ej. `"A1"`, `"D4"`). */
-    std::string toId() const {
-        if (!valid) return "INVALID";
-        return colToLabel(col) + std::to_string(row + 1);
-    }
-
-    /** @brief Parsea una cadena como `"a1"` o `"D4"` en `CellCoord`. */
-    static CellCoord parse(const std::string& raw) {
-        std::string s;
-        for (char c : raw) {
-            if (!std::isspace(static_cast<unsigned char>(c)))
-                s += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-        }
-        if (s.size() < 2) return {};
-        size_t i = 0;
-        TX col_val = 0;
-        while (i < s.size() && std::isupper(static_cast<unsigned char>(s[i]))) {
-            col_val = col_val * 26 + (s[i] - 'A' + 1);
-            ++i;
-        }
-        if (i == 0 || i == s.size()) return {};
-        TX row_val = 0;
-        for (; i < s.size(); ++i) {
-            if (!std::isdigit(static_cast<unsigned char>(s[i]))) return {};
-            row_val = row_val * 10 + (s[i] - '0');
-        }
-        if (row_val <= 0 || col_val <= 0 || col_val > 26 || row_val > 99) return {};
-        return CellCoord(col_val - 1, row_val - 1, true);
-    }
-};
-
-/**
- * @enum AstNodeKind
- * @brief Tipo semántico de cada nodo en el árbol binario de sintaxis abstracta (`BinaryTreeNode<AstToken>`).
- */
-enum class AstNodeKind : TX {
-    Number  = 0, /**< Literal numérico (ej. `5`, `4.5`). */
-    CellRef = 1, /**< Referencia a otra celda (ej. `A1`, `B1`). */
-    BinaryOp = 2,/**< Operador binario (`+`, `-`, `*`, `/`, `^`). */
-    FuncRange = 3/**< Función agregada sobre rango (`SUM`, `AVG`, `MIN`, `MAX`). */
-};
-
-/**
- * @struct AstToken
- * @brief Nodo almacenado dentro de `BinaryTreeNode<AstToken>` para evaluación en `Order::PostOrder`.
- */
-struct AstToken {
-    AstNodeKind kind = AstNodeKind::Number;
-    std::string text;       /**< Representación textual (`"A1"`, `"+"`, `"4"`, `"SUM(A1:B2)"`). */
-    double      number = 0; /**< Valor numérico cuando `kind == AstNodeKind::Number`. */
-    char        op = 0;     /**< Operador cuando `kind == AstNodeKind::BinaryOp`. */
-    std::string func_name;  /**< Nombre de función (`SUM`, `AVG`, `MIN`, `MAX`). */
-    std::string range_start;/**< Inicio de rango (`A1`). */
-    std::string range_end;  /**< Fin de rango (`B2`). */
-
-    auto operator<=>(const AstToken& other) const {
-        return text <=> other.text;
-    }
-
-    friend std::ostream& operator<<(std::ostream& os, const AstToken& t) {
-        return os << t.text;
-    }
-    friend std::istream& operator>>(std::istream& is, AstToken& t) {
-        return is >> t.text;
-    }
-};
-
-/**
- * @struct SpreadsheetCell
- * @brief Estado completo de una celda: expresión original, valor evaluado, errores y metadatos del AST.
- */
-struct SpreadsheetCell {
-    std::string id;            /**< Coordenada canónica (`"A1"`). */
-    std::string raw_expression;/**< Fórmula o valor ingresado detrás de la celda (`"A1 + 4"`). */
-    double      value = 0.0;   /**< Resultado numérico calculado (`9`). */
-    bool        is_formula = false;
-    bool        has_error = false;
-    std::string error_msg;     /**< `#CYCLE!`, `#DIV/0!`, `#SYNTAX!`, `#REF!`. */
-    std::string postorder_rpn; /**< Secuencia en PostOrder generada por `BinaryTreeIterator`. */
-    std::string ast_root_label;/**< Etiqueta de la raíz del AST para el inspector visual. */
-    std::string ast_left_label;/**< Subárbol izquierdo resumido. */
-    std::string ast_right_label;/**< Subárbol derecho resumido. */
-
-    auto operator<=>(const SpreadsheetCell& other) const {
-        return id <=> other.id;
-    }
-
-    /** @brief Formatea el valor numérico de forma compacta (sin ceros decimales sobrantes). */
-    static std::string formatNumber(double v) {
-        if (std::isnan(v) || std::isinf(v)) return "#NUM!";
-        if (std::abs(v - std::round(v)) < 1e-9) {
-            return std::to_string(static_cast<long long>(std::round(v)));
-        }
-        std::ostringstream oss;
-        oss << std::fixed << std::setprecision(2) << v;
-        std::string s = oss.str();
-        while (s.size() > 1 && s.back() == '0') s.pop_back();
-        if (!s.empty() && s.back() == '.') s.pop_back();
-        return s;
-    }
-
-    /** @brief Texto que debe mostrarse dentro de la celda en la matriz. */
-    std::string displayValue() const {
-        if (raw_expression.empty()) return "";
-        if (has_error) return error_msg;
-        return formatNumber(value);
-    }
-
-    friend std::ostream& operator<<(std::ostream& os, const SpreadsheetCell& c) {
-        return os << c.raw_expression;
-    }
-    friend std::istream& operator>>(std::istream& is, SpreadsheetCell& c) {
-        return is >> c.raw_expression;
-    }
-};
-
-/**
- * @struct EvalPreview
- * @brief Resultado de previsualización en vivo mientras el usuario escribe en la consola de comandos.
- */
-struct EvalPreview {
-    bool        active = false;
-    bool        valid = false;
-    std::string target_cell;
-    std::string expression;
-    double      value = 0.0;
-    std::string formatted_value;
-    std::string error_msg;
-    std::string postorder_rpn;
-    std::string ast_root;
-    std::string ast_left;
-    std::string ast_right;
-    Vector<VectorAscTraits<std::string>> referenced_cells;
-};
+#include "types.h"
+#include "parser.h"
+#include "../containers/hash_table.h"
+#include "../containers/lists/linked_list.h"
 
 /**
  * @class SpreadsheetEngine
@@ -192,7 +23,7 @@ struct EvalPreview {
 class SpreadsheetEngine {
 public:
     using StringVec   = Vector<VectorAscTraits<std::string>>;
-    using DoubleVec   = Vector<VectorAscTraits<double>>;
+    using ValueVec    = Vector<VectorAscTraits<CellEvalValue>>;
     using DepList     = LinkedList<LinkedListAscTraits<std::string>>;
     using DepGraph    = BaseHashTable<HashTableTraits<std::string, DepList>, Callable>;
     using AstNode     = BinaryTreeNode<AstToken>;
@@ -269,255 +100,86 @@ private:
         return n;
     }
 
-    /**
-     * @class FormulaParser
-     * @brief Parser de descenso recursivo que construye un árbol `BinaryTreeNode<AstToken>`.
-     */
-    class FormulaParser {
-        std::string m_src;
-        size_t      m_pos = 0;
-        StringVec&  m_refs;
+    static bool isPureNumber(const std::string& s) {
+        if (s.empty()) return false;
+        size_t i = 0;
+        if (s[i] == '+' || s[i] == '-') ++i;
+        if (i >= s.size()) return false;
+        bool has_digit = false, has_dot = false;
+        for (; i < s.size(); ++i) {
+            if (std::isdigit(static_cast<unsigned char>(s[i]))) {
+                has_digit = true;
+            } else if (s[i] == '.' && !has_dot) {
+                has_dot = true;
+            } else {
+                return false;
+            }
+        }
+        return has_digit;
+    }
 
-        void skipSpaces() {
-            while (m_pos < m_src.size() && std::isspace(static_cast<unsigned char>(m_src[m_pos])))
-                ++m_pos;
+    /** @brief Evalúa si una celda cumple un criterio estilo Excel (`">5"`, `"<=10"`, `"<>0"`, `"Total"`, `5`). */
+    static bool matchesCriteria(const CellEvalValue& cell, bool cell_empty, const CellEvalValue& crit) {
+        if (!crit.is_text) {
+            return !cell_empty && !cell.is_text && std::abs(cell.num - crit.num) < 1e-9;
         }
 
-        char peek() {
-            skipSpaces();
-            return (m_pos < m_src.size()) ? m_src[m_pos] : '\0';
+        const std::string& raw_c = crit.text;
+        std::string op_str;
+        std::string rhs;
+
+        if (raw_c.starts_with(">=") || raw_c.starts_with("<=") || raw_c.starts_with("<>") || raw_c.starts_with("!=")) {
+            op_str = raw_c.substr(0, 2);
+            rhs = raw_c.substr(2);
+        } else if (!raw_c.empty() && (raw_c[0] == '>' || raw_c[0] == '<' || raw_c[0] == '=')) {
+            op_str = raw_c.substr(0, 1);
+            rhs = raw_c.substr(1);
+        } else {
+            if (raw_c.empty()) return cell_empty;
+            return !cell_empty && cell.asString() == raw_c;
         }
 
-        char get() {
-            skipSpaces();
-            return (m_pos < m_src.size()) ? m_src[m_pos++] : '\0';
+        rhs = trim(rhs);
+        if (rhs.empty()) {
+            if (op_str == "<>" || op_str == "!=") return !cell_empty;
+            if (op_str == "=") return cell_empty;
+            return false;
         }
 
-    public:
-        FormulaParser(const std::string& src, StringVec& refs) : m_src(src), m_refs(refs) {}
-
-        AstNode* parse() {
-            skipSpaces();
-            if (m_pos < m_src.size() && m_src[m_pos] == '=') ++m_pos;
-            skipSpaces();
-            if (m_pos >= m_src.size()) throw std::runtime_error("Expresión vacía");
-            AstNode* root = parseExpr();
-            skipSpaces();
-            if (m_pos < m_src.size()) {
-                freeAst(root);
-                throw std::runtime_error("Token inesperado");
+        if (isPureNumber(rhs)) {
+            if (cell_empty || cell.is_text) {
+                return (op_str == "<>" || op_str == "!=");
             }
-            return root;
+            double target = std::stod(rhs);
+            if (op_str == ">")  return cell.num > target;
+            if (op_str == "<")  return cell.num < target;
+            if (op_str == ">=") return cell.num >= target - 1e-9;
+            if (op_str == "<=") return cell.num <= target + 1e-9;
+            if (op_str == "=")  return std::abs(cell.num - target) < 1e-9;
+            if (op_str == "<>" || op_str == "!=") return std::abs(cell.num - target) >= 1e-9;
+            return false;
         }
 
-    private:
-        // Expr := Term { ('+' | '-') Term }
-        AstNode* parseExpr() {
-            AstNode* left = parseTerm();
-            while (true) {
-                char c = peek();
-                if (c == '+' || c == '-') {
-                    get();
-                    AstNode* right = nullptr;
-                    try {
-                        right = parseTerm();
-                    } catch (...) {
-                        freeAst(left);
-                        throw;
-                    }
-                    AstToken tok;
-                    tok.kind = AstNodeKind::BinaryOp;
-                    tok.op = c;
-                    tok.text = std::string(1, c);
-                    left = makeBinaryNode(tok, left, right);
-                } else {
-                    break;
-                }
-            }
-            return left;
-        }
-
-        // Term := Power { ('*' | '/') Power }
-        AstNode* parseTerm() {
-            AstNode* left = parsePower();
-            while (true) {
-                char c = peek();
-                if (c == '*' || c == '/') {
-                    get();
-                    AstNode* right = nullptr;
-                    try {
-                        right = parsePower();
-                    } catch (...) {
-                        freeAst(left);
-                        throw;
-                    }
-                    AstToken tok;
-                    tok.kind = AstNodeKind::BinaryOp;
-                    tok.op = c;
-                    tok.text = std::string(1, c);
-                    left = makeBinaryNode(tok, left, right);
-                } else {
-                    break;
-                }
-            }
-            return left;
-        }
-
-        // Power := Unary [ '^' Power ]
-        AstNode* parsePower() {
-            AstNode* left = parseUnary();
-            if (peek() == '^') {
-                get();
-                AstNode* right = nullptr;
-                try {
-                    right = parsePower();
-                } catch (...) {
-                    freeAst(left);
-                    throw;
-                }
-                AstToken tok;
-                tok.kind = AstNodeKind::BinaryOp;
-                tok.op = '^';
-                tok.text = "^";
-                left = makeBinaryNode(tok, left, right);
-            }
-            return left;
-        }
-
-        // Unary := ('+' | '-') Unary | Primary
-        AstNode* parseUnary() {
-            char c = peek();
-            if (c == '+') {
-                get();
-                return parseUnary();
-            }
-            if (c == '-') {
-                get();
-                AstNode* operand = parseUnary();
-                AstToken zero_tok;
-                zero_tok.kind = AstNodeKind::Number;
-                zero_tok.number = 0.0;
-                zero_tok.text = "0";
-                AstNode* zero_node = new AstNode(zero_tok, 0);
-
-                AstToken op_tok;
-                op_tok.kind = AstNodeKind::BinaryOp;
-                op_tok.op = '-';
-                op_tok.text = "-";
-                return makeBinaryNode(op_tok, zero_node, operand);
-            }
-            return parsePrimary();
-        }
-
-        // Primary := '(' Expr ')' | Number | Function(A1:B2) | CellRef
-        AstNode* parsePrimary() {
-            skipSpaces();
-            char c = peek();
-            if (c == '(') {
-                get();
-                AstNode* inside = parseExpr();
-                if (peek() != ')') {
-                    freeAst(inside);
-                    throw std::runtime_error("Falta ')'");
-                }
-                get();
-                return inside;
-            }
-
-            // Literal numérico
-            if (std::isdigit(static_cast<unsigned char>(c)) || c == '.') {
-                size_t start = m_pos;
-                bool has_dot = false;
-                while (m_pos < m_src.size()) {
-                    char ch = m_src[m_pos];
-                    if (std::isdigit(static_cast<unsigned char>(ch))) {
-                        ++m_pos;
-                    } else if (ch == '.' && !has_dot) {
-                        has_dot = true;
-                        ++m_pos;
-                    } else {
-                        break;
-                    }
-                }
-                std::string num_str = m_src.substr(start, m_pos - start);
-                double val = std::stod(num_str);
-                AstToken tok;
-                tok.kind = AstNodeKind::Number;
-                tok.number = val;
-                tok.text = SpreadsheetCell::formatNumber(val);
-                return new AstNode(tok, 0);
-            }
-
-            // Identificador: Celda (A1, B1, D4) o Función (SUM(A1:B3), AVG, MIN, MAX)
-            if (std::isalpha(static_cast<unsigned char>(c))) {
-                size_t start = m_pos;
-                while (m_pos < m_src.size() && std::isalnum(static_cast<unsigned char>(m_src[m_pos]))) {
-                    ++m_pos;
-                }
-                std::string ident = toUpper(m_src.substr(start, m_pos - start));
-
-                if (peek() == '(') {
-                    get(); // consume '('
-                    skipSpaces();
-                    size_t r1_start = m_pos;
-                    while (m_pos < m_src.size() && std::isalnum(static_cast<unsigned char>(m_src[m_pos]))) ++m_pos;
-                    std::string c1_str = toUpper(m_src.substr(r1_start, m_pos - r1_start));
-                    if (peek() != ':') throw std::runtime_error("Se esperaba ':' en rango");
-                    get(); // consume ':'
-                    skipSpaces();
-                    size_t r2_start = m_pos;
-                    while (m_pos < m_src.size() && std::isalnum(static_cast<unsigned char>(m_src[m_pos]))) ++m_pos;
-                    std::string c2_str = toUpper(m_src.substr(r2_start, m_pos - r2_start));
-                    if (peek() != ')') throw std::runtime_error("Falta ')' en función");
-                    get(); // consume ')'
-
-                    CellCoord a = CellCoord::parse(c1_str);
-                    CellCoord b = CellCoord::parse(c2_str);
-                    if (!a.valid || !b.valid) throw std::runtime_error("Rango inválido");
-                    if (ident != "SUM" && ident != "AVG" && ident != "MIN" && ident != "MAX")
-                        throw std::runtime_error("Función desconocida");
-
-                    TX c_min = std::min(a.col, b.col), c_max = std::max(a.col, b.col);
-                    TX r_min = std::min(a.row, b.row), r_max = std::max(a.row, b.row);
-                    for (TX r = r_min; r <= r_max; ++r) {
-                        for (TX col = c_min; col <= c_max; ++col) {
-                            addUniqueStr(m_refs, CellCoord(col, r, true).toId());
-                        }
-                    }
-
-                    AstToken tok;
-                    tok.kind = AstNodeKind::FuncRange;
-                    tok.func_name = ident;
-                    tok.range_start = a.toId();
-                    tok.range_end = b.toId();
-                    tok.text = ident + "(" + a.toId() + ":" + b.toId() + ")";
-                    return new AstNode(tok, 0);
-                }
-
-                CellCoord coord = CellCoord::parse(ident);
-                if (!coord.valid) throw std::runtime_error("Celda inválida: " + ident);
-                std::string cid = coord.toId();
-                addUniqueStr(m_refs, cid);
-
-                AstToken tok;
-                tok.kind = AstNodeKind::CellRef;
-                tok.text = cid;
-                return new AstNode(tok, 0);
-            }
-
-            throw std::runtime_error("Carácter inesperado");
-        }
-    };
+        std::string lhs_str = cell_empty ? "" : cell.asString();
+        if (op_str == "=")  return !cell_empty && lhs_str == rhs;
+        if (op_str == "<>" || op_str == "!=") return cell_empty || lhs_str != rhs;
+        if (cell_empty) return false;
+        if (op_str == ">")  return lhs_str > rhs;
+        if (op_str == "<")  return lhs_str < rhs;
+        if (op_str == ">=") return lhs_str >= rhs;
+        if (op_str == "<=") return lhs_str <= rhs;
+        return false;
+    }
 
     /**
      * @brief Evalúa un árbol `BinaryTreeNode<AstToken>` recorriéndolo con `BinaryTreeIterator` en `Order::PostOrder`.
      */
-    double evaluateAstPostOrder(AstNode* root,
-                                StringVec& visiting,
-                                std::string& out_rpn,
-                                std::string& out_err) {
-        if (!root) return 0.0;
-        DoubleVec stack;
+    CellEvalValue evaluateAstPostOrder(AstNode* root,
+                                       StringVec& visiting,
+                                       std::string& out_rpn,
+                                       std::string& out_err) {
+        if (!root) return {};
+        ValueVec stack;
         std::ostringstream rpn_ss;
         bool first = true;
 
@@ -528,12 +190,14 @@ private:
             first = false;
 
             if (tok.kind == AstNodeKind::Number) {
-                stack.push_back(tok.number);
+                stack.push_back(CellEvalValue{false, tok.number, ""});
+            } else if (tok.kind == AstNodeKind::StringLiteral) {
+                stack.push_back(CellEvalValue{true, 0.0, tok.func_name});
             } else if (tok.kind == AstNodeKind::CellRef) {
-                double ref_val = resolveCellValue(tok.text, visiting, out_err);
+                CellEvalValue ref_val = resolveCellValue(tok.text, visiting, out_err);
                 if (!out_err.empty()) {
                     out_rpn = rpn_ss.str();
-                    return 0.0;
+                    return {};
                 }
                 stack.push_back(ref_val);
             } else if (tok.kind == AstNodeKind::FuncRange) {
@@ -547,57 +211,140 @@ private:
                 for (TX r = r_min; r <= r_max; ++r) {
                     for (TX col = c_min; col <= c_max; ++col) {
                         std::string cid = CellCoord(col, r, true).toId();
-                        double v = resolveCellValue(cid, visiting, out_err);
+                        CellEvalValue cv = resolveCellValue(cid, visiting, out_err);
                         if (!out_err.empty()) {
                             out_rpn = rpn_ss.str();
-                            return 0.0;
+                            return {};
                         }
-                        if (count == 0) { mn = mx = v; }
-                        else { mn = std::min(mn, v); mx = std::max(mx, v); }
-                        acc += v;
-                        ++count;
+                        if (!cv.is_text) {
+                            double v = cv.num;
+                            if (count == 0) { mn = mx = v; }
+                            else { mn = std::min(mn, v); mx = std::max(mx, v); }
+                            acc += v;
+                            ++count;
+                        }
                     }
                 }
-                if (tok.func_name == "SUM") stack.push_back(acc);
-                else if (tok.func_name == "AVG") stack.push_back(count > 0 ? acc / count : 0.0);
-                else if (tok.func_name == "MIN") stack.push_back(mn);
-                else if (tok.func_name == "MAX") stack.push_back(mx);
+                if (tok.func_name == "SUM") stack.push_back(CellEvalValue{false, acc, ""});
+                else if (tok.func_name == "AVG") stack.push_back(CellEvalValue{false, count > 0 ? acc / count : 0.0, ""});
+                else if (tok.func_name == "MIN") stack.push_back(CellEvalValue{false, mn, ""});
+                else if (tok.func_name == "MAX") stack.push_back(CellEvalValue{false, mx, ""});
+            } else if (tok.kind == AstNodeKind::FuncCountIfs) {
+                const size_t n_conds = tok.cond_pairs.size();
+                if (n_conds == 0) {
+                    out_err = "#VALUE!";
+                    out_rpn = rpn_ss.str();
+                    return {};
+                }
+
+                // Validar dimensiones iguales en todos los rangos y evaluar criterios
+                TX base_cols = 0, base_rows = 0;
+                ValueVec crit_vals;
+                for (size_t k = 0; k < n_conds; ++k) {
+                    const auto& pair = tok.cond_pairs[k].getValue();
+                    CellCoord a = CellCoord::parse(pair.range_start);
+                    CellCoord b = CellCoord::parse(pair.range_end);
+                    TX cols = b.col - a.col + 1;
+                    TX rows = b.row - a.row + 1;
+                    if (k == 0) {
+                        base_cols = cols;
+                        base_rows = rows;
+                    } else if (cols != base_cols || rows != base_rows) {
+                        out_err = "#VALUE!";
+                        out_rpn = rpn_ss.str();
+                        return {};
+                    }
+
+                    StringVec dummy_refs;
+                    AstNode* c_ast = nullptr;
+                    try {
+                        FormulaParser c_parser(pair.criteria_expr, dummy_refs);
+                        c_ast = c_parser.parse();
+                    } catch (...) {
+                        out_err = "#SYNTAX!";
+                        out_rpn = rpn_ss.str();
+                        return {};
+                    }
+                    std::string dummy_rpn, c_err;
+                    CellEvalValue c_val = evaluateAstPostOrder(c_ast, visiting, dummy_rpn, c_err);
+                    freeAst(c_ast);
+                    if (!c_err.empty()) {
+                        out_err = c_err;
+                        out_rpn = rpn_ss.str();
+                        return {};
+                    }
+                    crit_vals.push_back(c_val);
+                }
+
+                TX matched = 0;
+                for (TX dr = 0; dr < base_rows; ++dr) {
+                    for (TX dc = 0; dc < base_cols; ++dc) {
+                        bool all_match = true;
+                        for (size_t k = 0; k < n_conds; ++k) {
+                            const auto& pair = tok.cond_pairs[k].getValue();
+                            CellCoord a = CellCoord::parse(pair.range_start);
+                            std::string cid = CellCoord(a.col + dc, a.row + dr, true).toId();
+                            bool is_empty = (!m_raw_table.contains(cid) || m_raw_table[cid].empty());
+                            CellEvalValue cv;
+                            if (!is_empty) {
+                                cv = resolveCellValue(cid, visiting, out_err);
+                                if (!out_err.empty()) {
+                                    out_rpn = rpn_ss.str();
+                                    return {};
+                                }
+                            }
+                            if (!matchesCriteria(cv, is_empty, crit_vals[k].getValue())) {
+                                all_match = false;
+                                break;
+                            }
+                        }
+                        if (all_match) ++matched;
+                    }
+                }
+                stack.push_back(CellEvalValue{false, static_cast<double>(matched), ""});
             } else if (tok.kind == AstNodeKind::BinaryOp) {
                 if (stack.size() < 2) {
                     out_err = "#SYNTAX!";
                     out_rpn = rpn_ss.str();
-                    return 0.0;
+                    return {};
                 }
-                double rhs = stack.back().getValue();
+                CellEvalValue rhs = stack.back().getValue();
                 stack.pop_back();
-                double lhs = stack.back().getValue();
+                CellEvalValue lhs = stack.back().getValue();
                 stack.pop_back();
-                double res = 0.0;
-                switch (tok.op) {
-                    case '+': res = lhs + rhs; break;
-                    case '-': res = lhs - rhs; break;
-                    case '*': res = lhs * rhs; break;
-                    case '/':
-                        if (std::abs(rhs) < 1e-12) {
-                            out_err = "#DIV/0!";
-                            out_rpn = rpn_ss.str();
-                            return 0.0;
-                        }
-                        res = lhs / rhs;
-                        break;
-                    case '^': res = std::pow(lhs, rhs); break;
-                    default:
-                        out_err = "#OP!";
-                        return 0.0;
+
+                if (tok.op == '&') {
+                    stack.push_back(CellEvalValue{true, 0.0, lhs.asString() + rhs.asString()});
+                } else {
+                    double lnum = lhs.asNumber();
+                    double rnum = rhs.asNumber();
+                    double res = 0.0;
+                    switch (tok.op) {
+                        case '+': res = lnum + rnum; break;
+                        case '-': res = lnum - rnum; break;
+                        case '*': res = lnum * rnum; break;
+                        case '/':
+                            if (std::abs(rnum) < 1e-12) {
+                                out_err = "#DIV/0!";
+                                out_rpn = rpn_ss.str();
+                                return {};
+                            }
+                            res = lnum / rnum;
+                            break;
+                        case '^': res = std::pow(lnum, rnum); break;
+                        default:
+                            out_err = "#OP!";
+                            return {};
+                    }
+                    stack.push_back(CellEvalValue{false, res, ""});
                 }
-                stack.push_back(res);
             }
         }
 
         out_rpn = rpn_ss.str();
         if (stack.size() != 1) {
             out_err = "#SYNTAX!";
-            return 0.0;
+            return {};
         }
         return stack.back().getValue();
     }
@@ -609,36 +356,83 @@ private:
         return "(" + summarizeSubtree(node->m_pChild[0]) + " " + t.text + " " + summarizeSubtree(node->m_pChild[1]) + ")";
     }
 
-    double resolveCellValue(const std::string& cell_id, StringVec& visiting, std::string& out_err) {
+    CellEvalValue resolveCellValue(const std::string& cell_id, StringVec& visiting, std::string& out_err) {
         if (containsStr(visiting, cell_id)) {
             out_err = "#CYCLE!";
-            return 0.0;
+            return {};
         }
         if (!m_raw_table.contains(cell_id) || m_raw_table[cell_id].empty()) {
-            return 0.0;
+            return {};
         }
 
         visiting.push_back(cell_id);
         std::string raw = m_raw_table[cell_id];
+
+        // Caso 1: Texto literal explícito con apóstrofe inicial ('123)
+        if (!raw.empty() && raw[0] == '\'') {
+            std::string txt = raw.substr(1);
+            SpreadsheetCell& cell = m_cells[cell_id];
+            cell.id = cell_id;
+            cell.raw_expression = raw;
+            cell.is_text = true;
+            cell.text_value = txt;
+            cell.value = 0.0;
+            cell.is_formula = false;
+            cell.has_error = false;
+            cell.error_msg.clear();
+            cell.postorder_rpn = "\"" + txt + "\"";
+            cell.ast_root_label = "\"" + txt + "\"";
+            cell.ast_left_label.clear();
+            cell.ast_right_label.clear();
+            visiting.pop_back();
+            return CellEvalValue{true, 0.0, txt};
+        }
+
+        bool explicit_formula = (!raw.empty() && raw[0] == '=');
         StringVec refs;
         AstNode* ast = nullptr;
+        bool parse_ok = false;
         try {
             FormulaParser parser(raw, refs);
             ast = parser.parse();
+            parse_ok = true;
         } catch (...) {
+            parse_ok = false;
+        }
+
+        // Caso 2: No empieza con '=' y no es fórmula válida -> Texto literal (ej. "Producto", "Hola")
+        if (!parse_ok && !explicit_formula && !isPureNumber(raw)) {
+            SpreadsheetCell& cell = m_cells[cell_id];
+            cell.id = cell_id;
+            cell.raw_expression = raw;
+            cell.is_text = true;
+            cell.text_value = raw;
+            cell.value = 0.0;
+            cell.is_formula = false;
+            cell.has_error = false;
+            cell.error_msg.clear();
+            cell.postorder_rpn = "\"" + raw + "\"";
+            cell.ast_root_label = "\"" + raw + "\"";
+            cell.ast_left_label.clear();
+            cell.ast_right_label.clear();
+            visiting.pop_back();
+            return CellEvalValue{true, 0.0, raw};
+        }
+
+        if (!parse_ok) {
             visiting.pop_back();
             out_err = "#SYNTAX!";
-            return 0.0;
+            return {};
         }
 
         std::string rpn;
         std::string local_err;
-        double val = evaluateAstPostOrder(ast, visiting, rpn, local_err);
+        CellEvalValue eval_res = evaluateAstPostOrder(ast, visiting, rpn, local_err);
 
         SpreadsheetCell& cell = m_cells[cell_id];
         cell.id = cell_id;
         cell.raw_expression = raw;
-        cell.is_formula = (refs.size() > 0) || (ast && ast->m_pChild[0] != nullptr) || (!raw.empty() && raw[0] == '=');
+        cell.is_formula = explicit_formula || (refs.size() > 0) || (ast && ast->m_pChild[0] != nullptr);
         cell.postorder_rpn = rpn;
         cell.ast_root_label = ast ? ast->getValue().text : "";
         cell.ast_left_label = (ast && ast->m_pChild[0]) ? summarizeSubtree(ast->m_pChild[0]) : "";
@@ -650,15 +444,19 @@ private:
         if (!local_err.empty()) {
             cell.has_error = true;
             cell.error_msg = local_err;
+            cell.is_text = false;
+            cell.text_value.clear();
             cell.value = 0.0;
             out_err = local_err;
-            return 0.0;
+            return {};
         }
 
         cell.has_error = false;
         cell.error_msg.clear();
-        cell.value = val;
-        return val;
+        cell.is_text = eval_res.is_text;
+        cell.text_value = eval_res.text;
+        cell.value = eval_res.num;
+        return eval_res;
     }
 
     /** @brief Actualiza las listas enlazadas de dependencias (`m_inputs` y `m_dependents`) para `cid`. */
@@ -824,13 +622,12 @@ public:
         }
         std::string cid = coord.toId();
         std::string expr = trim(expression_raw);
-        if (!expr.empty() && expr[0] == '=') expr = trim(expr.substr(1));
 
         updateDependencies(cid, expr);
 
         if (expr.empty()) {
             m_raw_table[cid] = "";
-            m_cells[cid] = SpreadsheetCell{cid, "", 0.0, false, false, "", "", "", "", ""};
+            m_cells[cid] = SpreadsheetCell{cid, "", 0.0, "", false, false, false, "", "", "", "", ""};
             StringVec cascaded = propagateFrom(cid);
             addLog("⌫ " + cid + " limpiada");
             return true;
@@ -962,11 +759,29 @@ public:
             return p;
         }
 
+        bool explicit_formula = (!p.expression.empty() && p.expression[0] == '=');
+        if (!p.expression.empty() && p.expression[0] == '\'') {
+            p.valid = true;
+            p.is_text = true;
+            p.formatted_value = p.expression.substr(1);
+            p.postorder_rpn = "\"" + p.formatted_value + "\"";
+            p.ast_root = p.postorder_rpn;
+            return p;
+        }
+
         AstNode* ast = nullptr;
         try {
             FormulaParser parser(p.expression, p.referenced_cells);
             ast = parser.parse();
         } catch (const std::exception& e) {
+            if (!explicit_formula && !isPureNumber(p.expression)) {
+                p.valid = true;
+                p.is_text = true;
+                p.formatted_value = p.expression;
+                p.postorder_rpn = "\"" + p.expression + "\"";
+                p.ast_root = p.postorder_rpn;
+                return p;
+            }
             p.valid = false;
             p.error_msg = e.what();
             return p;
@@ -975,7 +790,7 @@ public:
         StringVec visiting;
         visiting.push_back(p.target_cell);
         std::string rpn, err;
-        double val = evaluateAstPostOrder(ast, visiting, rpn, err);
+        CellEvalValue eval_res = evaluateAstPostOrder(ast, visiting, rpn, err);
 
         p.postorder_rpn = rpn;
         p.ast_root  = ast ? ast->getValue().text : "";
@@ -990,8 +805,9 @@ public:
         }
 
         p.valid = true;
-        p.value = val;
-        p.formatted_value = SpreadsheetCell::formatNumber(val);
+        p.is_text = eval_res.is_text;
+        p.value = eval_res.num;
+        p.formatted_value = eval_res.asString();
         return p;
     }
 
@@ -1012,4 +828,4 @@ public:
     }
 };
 
-#endif // __SPREADSHEET_H__
+#endif // __TEXCEL_ENGINE_H__

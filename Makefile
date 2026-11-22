@@ -2,23 +2,24 @@ CXX        := g++
 CXXFLAGS   := -std=c++23
 TARGET     := main
 SRCS       := main.cpp demos.cpp
+HEADERS    := demos.h types.h $(wildcard texcel/*.h) $(wildcard texcel/helpers/*.h)
 PR_OUT     := tmp/pr_comment.md
 PR_SCRIPT  := scripts/gen_pr_comment.sh
 DOCS_PORT  ?= 8000
 DB_COMPOSE := db/compose.yml
 
-.PHONY: all run excel pr docs clean db-up db-run db-down
+.PHONY: all run texcel pr docs clean db-up db-run db-down
 
 all: clean $(TARGET) run
 
-$(TARGET): $(SRCS)
+$(TARGET): $(SRCS) $(HEADERS)
 	$(CXX) $(CXXFLAGS) $(SRCS) -o $(TARGET)
 
 run: $(TARGET)
 	./$(TARGET)
 
-excel: $(TARGET)
-	./$(TARGET) --excel
+texcel: $(TARGET)
+	./$(TARGET) --texcel
 
 pr:
 	@bash $(PR_SCRIPT) README.md $(PR_OUT)

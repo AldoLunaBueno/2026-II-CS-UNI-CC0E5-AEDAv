@@ -31,7 +31,7 @@ void DemoGotoxy();
 void DemoBTree();
 /** @brief Demostración animada de hoja de cálculo multi-ventana (`HashTable` + `BinaryTree` AST + `gotoxy`). */
 void DemoSpreadsheet();
-/** @brief Inicia la interfaz TUI interactiva de 4 ventanas estilo Claude Code / Codex para la hoja de cálculo. */
+/** @brief Inicia la interfaz TUI interactiva de 4 ventanas para la hoja de cálculo. */
 void RunInteractiveSpreadsheet();
 
 #endif // __DEMOS_H__

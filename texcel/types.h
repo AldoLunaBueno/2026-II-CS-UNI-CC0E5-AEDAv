@@ -1,0 +1,265 @@
+/**
+ * @file types.h
+ * @brief Tipos base de celdas, nodos AST y utilidades compartidas para Texcel.
+ */
+
+#ifndef __TEXCEL_TYPES_H__
+#define __TEXCEL_TYPES_H__
+
+#include "../containers/trees/binary_tree.h"
+#include "../containers/vector.h"
+#include <string>
+#include <sstream>
+#include <iomanip>
+#include <cmath>
+#include <cctype>
+#include <algorithm>
+#include <stdexcept>
+
+/**
+ * @struct CellCoord
+ * @brief Coordenada 0-indexada `(col, row)` de una celda con conversión desde/hacia notación Excel (`A1`, `B1`, `D4`).
+ */
+struct CellCoord {
+    TX col = 0; /**< Columna 0-indexada (`0 = A`, `1 = B`, ...). */
+    TX row = 0; /**< Fila 0-indexada (`0 = fila 1`, `1 = fila 2`, ...). */
+    bool valid = false;
+
+    CellCoord() = default;
+    CellCoord(TX c, TX r, bool v = true) : col(c), row(r), valid(v) {}
+
+    auto operator<=>(const CellCoord&) const = default;
+
+    /** @brief Convierte un índice de columna (`0 -> A`, `25 -> Z`) a etiqueta de letras. */
+    static std::string colToLabel(TX c) {
+        if (c < 0) return "?";
+        std::string s;
+        TX n = c;
+        while (n >= 0) {
+            s.insert(s.begin(), static_cast<char>('A' + (n % 26)));
+            n = (n / 26) - 1;
+        }
+        return s;
+    }
+
+    /** @brief Retorna el identificador canónico en mayúsculas (ej. `"A1"`, `"D4"`). */
+    std::string toId() const {
+        if (!valid) return "INVALID";
+        return colToLabel(col) + std::to_string(row + 1);
+    }
+
+    /** @brief Parsea una cadena como `"a1"` o `"D4"` en `CellCoord`. */
+    static CellCoord parse(const std::string& raw) {
+        std::string s;
+        for (char c : raw) {
+            if (!std::isspace(static_cast<unsigned char>(c)))
+                s += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        }
+        if (s.size() < 2) return {};
+        size_t i = 0;
+        TX col_val = 0;
+        while (i < s.size() && std::isupper(static_cast<unsigned char>(s[i]))) {
+            col_val = col_val * 26 + (s[i] - 'A' + 1);
+            ++i;
+        }
+        if (i == 0 || i == s.size()) return {};
+        TX row_val = 0;
+        for (; i < s.size(); ++i) {
+            if (!std::isdigit(static_cast<unsigned char>(s[i]))) return {};
+            row_val = row_val * 10 + (s[i] - '0');
+        }
+        if (row_val <= 0 || col_val <= 0 || col_val > 26 || row_val > 99) return {};
+        return CellCoord(col_val - 1, row_val - 1, true);
+    }
+};
+
+/**
+ * @enum AstNodeKind
+ * @brief Tipo semántico de cada nodo en el árbol binario de sintaxis abstracta (`BinaryTreeNode<AstToken>`).
+ */
+enum class AstNodeKind : TX {
+    Number        = 0, /**< Literal numérico (ej. `5`, `4.5`). */
+    CellRef       = 1, /**< Referencia a otra celda (ej. `A1`, `B1`). */
+    BinaryOp      = 2, /**< Operador binario (`+`, `-`, `*`, `/`, `^`, `&`). */
+    FuncRange     = 3, /**< Función agregada sobre rango (`SUM`, `AVG`, `MIN`, `MAX`). */
+    StringLiteral = 4, /**< Literal de texto entre comillas (ej. `"Total: "`). */
+    FuncCountIfs  = 5  /**< Conteo condicional (`COUNTIF`, `COUNTIFS`). */
+};
+
+/** @brief Par `(rango, expresión_criterio)` para `COUNTIF` / `COUNTIFS`. */
+struct RangeCriteriaPair {
+    std::string range_start;
+    std::string range_end;
+    std::string criteria_expr;
+
+    auto operator<=>(const RangeCriteriaPair&) const = default;
+    friend std::ostream& operator<<(std::ostream& os, const RangeCriteriaPair& p) {
+        return os << p.range_start << ":" << p.range_end;
+    }
+    friend std::istream& operator>>(std::istream& is, RangeCriteriaPair& p) {
+        return is >> p.range_start >> p.range_end >> p.criteria_expr;
+    }
+};
+
+/**
+ * @struct AstToken
+ * @brief Nodo almacenado dentro de `BinaryTreeNode<AstToken>` para evaluación en `Order::PostOrder`.
+ */
+struct AstToken {
+    AstNodeKind kind = AstNodeKind::Number;
+    std::string text;       /**< Representación textual (`"A1"`, `"+"`, `"4"`, `"SUM(A1:B2)"`). */
+    double      number = 0; /**< Valor numérico cuando `kind == AstNodeKind::Number`. */
+    char        op = 0;     /**< Operador cuando `kind == AstNodeKind::BinaryOp`. */
+    std::string func_name;  /**< Nombre de función o contenido de `StringLiteral`. */
+    std::string range_start;/**< Inicio de rango (`A1`). */
+    std::string range_end;  /**< Fin de rango (`B2`). */
+    Vector<VectorAscTraits<RangeCriteriaPair>> cond_pairs; /**< Pares rango-criterio para `COUNTIF`/`COUNTIFS`. */
+
+    auto operator<=>(const AstToken& other) const {
+        return text <=> other.text;
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const AstToken& t) {
+        return os << t.text;
+    }
+    friend std::istream& operator>>(std::istream& is, AstToken& t) {
+        return is >> t.text;
+    }
+};
+
+/**
+ * @struct SpreadsheetCell
+ * @brief Estado completo de una celda: expresión original, valor evaluado, errores y metadatos del AST.
+ */
+struct SpreadsheetCell {
+    std::string id;            /**< Coordenada canónica (`"A1"`). */
+    std::string raw_expression;/**< Fórmula o valor ingresado detrás de la celda (`"A1 + 4"`). */
+    double      value = 0.0;   /**< Resultado numérico calculado (`9`). */
+    std::string text_value;    /**< Resultado textual cuando `is_text == true`. */
+    bool        is_text = false;
+    bool        is_formula = false;
+    bool        has_error = false;
+    std::string error_msg;     /**< `#CYCLE!`, `#DIV/0!`, `#SYNTAX!`, `#REF!`. */
+    std::string postorder_rpn; /**< Secuencia en PostOrder generada por `BinaryTreeIterator`. */
+    std::string ast_root_label;/**< Etiqueta de la raíz del AST para el inspector visual. */
+    std::string ast_left_label;/**< Subárbol izquierdo resumido. */
+    std::string ast_right_label;/**< Subárbol derecho resumido. */
+
+    auto operator<=>(const SpreadsheetCell& other) const {
+        return id <=> other.id;
+    }
+
+    /** @brief Formatea el valor numérico de forma compacta (sin ceros decimales sobrantes). */
+    static std::string formatNumber(double v) {
+        if (std::isnan(v) || std::isinf(v)) return "#NUM!";
+        if (std::abs(v - std::round(v)) < 1e-9) {
+            return std::to_string(static_cast<long long>(std::round(v)));
+        }
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(2) << v;
+        std::string s = oss.str();
+        while (s.size() > 1 && s.back() == '0') s.pop_back();
+        if (!s.empty() && s.back() == '.') s.pop_back();
+        return s;
+    }
+
+    /** @brief Texto que debe mostrarse dentro de la celda en la matriz. */
+    std::string displayValue() const {
+        if (raw_expression.empty()) return "";
+        if (has_error) return error_msg;
+        if (is_text) return text_value;
+        return formatNumber(value);
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const SpreadsheetCell& c) {
+        return os << c.raw_expression;
+    }
+    friend std::istream& operator>>(std::istream& is, SpreadsheetCell& c) {
+        return is >> c.raw_expression;
+    }
+};
+
+/**
+ * @struct CellEvalValue
+ * @brief Valor polimórfico (numérico o texto) usado en la pila de evaluación PostOrder.
+ */
+struct CellEvalValue {
+    bool        is_text = false;
+    double      num = 0.0;
+    std::string text;
+
+    auto operator<=>(const CellEvalValue&) const = default;
+
+    std::string asString() const {
+        return is_text ? text : SpreadsheetCell::formatNumber(num);
+    }
+    double asNumber() const {
+        return is_text ? 0.0 : num;
+    }
+};
+
+/**
+ * @struct EvalPreview
+ * @brief Resultado de previsualización en vivo mientras el usuario escribe en la consola de comandos.
+ */
+struct EvalPreview {
+    bool        active = false;
+    bool        valid = false;
+    bool        is_text = false;
+    std::string target_cell;
+    std::string expression;
+    double      value = 0.0;
+    std::string formatted_value;
+    std::string error_msg;
+    std::string postorder_rpn;
+    std::string ast_root;
+    std::string ast_left;
+    std::string ast_right;
+    Vector<VectorAscTraits<std::string>> referenced_cells;
+};
+
+namespace texcel_detail {
+using StringVec = Vector<VectorAscTraits<std::string>>;
+using AstNode   = BinaryTreeNode<AstToken>;
+
+inline std::string trim(const std::string& s) {
+    size_t a = 0, b = s.size();
+    while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
+    while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
+    return s.substr(a, b - a);
+}
+
+inline std::string toUpper(std::string s) {
+    for (char& c : s) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    return s;
+}
+
+inline bool containsStr(const StringVec& vec, const std::string& target) {
+    for (size_t i = 0; i < vec.size(); ++i) {
+        if (vec[i].getValue() == target) return true;
+    }
+    return false;
+}
+
+inline void addUniqueStr(StringVec& vec, const std::string& val) {
+    if (!containsStr(vec, val)) vec.push_back(val);
+}
+
+inline void freeAst(AstNode* node) {
+    if (!node) return;
+    freeAst(node->m_pChild[0]);
+    freeAst(node->m_pChild[1]);
+    delete node;
+}
+
+inline AstNode* makeBinaryNode(const AstToken& tok, AstNode* left, AstNode* right) {
+    AstNode* n = new AstNode(tok, 0);
+    n->m_pChild[0] = left;
+    n->m_pChild[1] = right;
+    if (left)  left->m_parent = n;
+    if (right) right->m_parent = n;
+    return n;
+}
+} // namespace texcel_detail
+
+#endif // __TEXCEL_TYPES_H__
