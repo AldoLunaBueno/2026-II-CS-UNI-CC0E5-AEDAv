@@ -21,29 +21,12 @@ class FormulaParser {
     };
     using AstPtr = std::unique_ptr<texcel_detail::AstNode, AstDeleter>;
 
-    struct OpInfo {
-        const char* lexeme;
-        char        code;
-        TX          prec;
-        bool        right_assoc;
-    };
-
-    static constexpr OpInfo BINARY_OPS[] = {
-        {"<>", '!', 1, false}, {"!=", '!', 1, false},
-        {"<=", 'L', 1, false}, {">=", 'G', 1, false},
-        {"=",  '=', 1, false}, {"<",  '<', 1, false}, {">",  '>', 1, false},
-        {"&",  '&', 2, false},
-        {"+",  '+', 3, false}, {"-",  '-', 3, false},
-        {"*",  '*', 4, false}, {"/",  '/', 4, false},
-        {"^",  '^', 5, true}
-    };
-
     std::string m_src;
     size_t      m_pos = 0;
     texcel_detail::StringVec& m_refs;
 
     static bool isIdentChar(char ch) {
-        return std::isalnum(static_cast<unsigned char>(ch)) || ch == '$';
+        return texcel_detail::isChar<std::isalnum>(ch) || ch == '$';
     }
 
     static AstPtr makeNode(const AstToken& tok, AstPtr left = nullptr, AstPtr right = nullptr) {
@@ -51,7 +34,7 @@ class FormulaParser {
     }
 
     void skipSpaces() {
-        while (m_pos < m_src.size() && std::isspace(static_cast<unsigned char>(m_src[m_pos])))
+        while (m_pos < m_src.size() && texcel_detail::isChar<std::isspace>(m_src[m_pos]))
             ++m_pos;
     }
 
@@ -73,19 +56,15 @@ class FormulaParser {
     }
 
     void registerRangeRefs(const CellCoord& a, const CellCoord& b) {
-        TX c_min = std::min(a.col, b.col), c_max = std::max(a.col, b.col);
-        TX r_min = std::min(a.row, b.row), r_max = std::max(a.row, b.row);
-        for (TX r = r_min; r <= r_max; ++r) {
-            for (TX col = c_min; col <= c_max; ++col) {
-                texcel_detail::addUniqueStr(m_refs, CellCoord(col, r, true).toId());
-            }
-        }
+        texcel_detail::forEachCellInRange(a, b, [&](const std::string& cid) {
+            texcel_detail::addUniqueStr(m_refs, cid);
+        });
     }
 
-    bool peekBinaryOp(OpInfo& out, size_t& op_len) {
+    bool peekBinaryOp(texcel_detail::OpInfo& out, size_t& op_len) {
         skipSpaces();
         if (m_pos >= m_src.size()) return false;
-        for (const auto& op : BINARY_OPS) {
+        for (const auto& op : texcel_detail::BINARY_OPS) {
             size_t len = std::strlen(op.lexeme);
             if (m_src.compare(m_pos, len, op.lexeme) == 0) {
                 out = op;
@@ -115,7 +94,7 @@ private:
     AstPtr parseBinary(TX min_prec) {
         AstPtr left = parseUnary();
         while (true) {
-            OpInfo op{};
+            texcel_detail::OpInfo op{};
             size_t op_len = 0;
             if (!peekBinaryOp(op, op_len) || op.prec < min_prec) break;
             m_pos += op_len;
@@ -224,12 +203,12 @@ private:
             return makeNode(tok);
         }
 
-        if (std::isdigit(static_cast<unsigned char>(c)) || c == '.') {
+        if (texcel_detail::isChar<std::isdigit>(c) || c == '.') {
             size_t start = m_pos;
             bool has_dot = false;
             while (m_pos < m_src.size()) {
                 char ch = m_src[m_pos];
-                if (std::isdigit(static_cast<unsigned char>(ch))) ++m_pos;
+                if (texcel_detail::isChar<std::isdigit>(ch)) ++m_pos;
                 else if (ch == '.' && !has_dot) { has_dot = true; ++m_pos; }
                 else break;
             }
@@ -241,7 +220,7 @@ private:
             return makeNode(tok);
         }
 
-        if (std::isalpha(static_cast<unsigned char>(c)) || c == '$') {
+        if (texcel_detail::isChar<std::isalpha>(c) || c == '$') {
             std::string ident = readIdent();
             if (peek() == '(') {
                 get();

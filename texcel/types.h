@@ -17,6 +17,14 @@
 #include <algorithm>
 #include <stdexcept>
 
+namespace texcel_detail {
+template <int (*Fn)(int)>
+inline bool isChar(char ch) { return Fn(static_cast<unsigned char>(ch)) != 0; }
+
+template <int (*Fn)(int)>
+inline char toChar(char ch) { return static_cast<char>(Fn(static_cast<unsigned char>(ch))); }
+} // namespace texcel_detail
+
 /**
  * @struct CellCoord
  * @brief Coordenada 0-indexada `(col, row)` de una celda con conversión desde/hacia notación Excel (`A1`, `B1`, `D4`).
@@ -56,20 +64,20 @@ struct CellCoord {
     static CellCoord parse(const std::string& raw) {
         std::string s;
         for (char c : raw) {
-            if (!std::isspace(static_cast<unsigned char>(c)) && c != '$')
-                s += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            if (!texcel_detail::isChar<std::isspace>(c) && c != '$')
+                s += texcel_detail::toChar<std::toupper>(c);
         }
         if (s.size() < 2) return {};
         size_t i = 0;
         TX col_val = 0;
-        while (i < s.size() && std::isupper(static_cast<unsigned char>(s[i]))) {
+        while (i < s.size() && texcel_detail::isChar<std::isupper>(s[i])) {
             col_val = col_val * 26 + (s[i] - 'A' + 1);
             ++i;
         }
         if (i == 0 || i == s.size()) return {};
         TX row_val = 0;
         for (; i < s.size(); ++i) {
-            if (!std::isdigit(static_cast<unsigned char>(s[i]))) return {};
+            if (!texcel_detail::isChar<std::isdigit>(s[i])) return {};
             row_val = row_val * 10 + (s[i] - '0');
         }
         if (row_val <= 0 || col_val <= 0 || col_val > MAX_COLS || row_val > MAX_ROWS) return {};
@@ -224,13 +232,13 @@ using AstNode   = BinaryTreeNode<AstToken>;
 
 inline std::string trim(const std::string& s) {
     size_t a = 0, b = s.size();
-    while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
-    while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
+    while (a < b && isChar<std::isspace>(s[a])) ++a;
+    while (b > a && isChar<std::isspace>(s[b - 1])) --b;
     return s.substr(a, b - a);
 }
 
 inline std::string toUpper(std::string s) {
-    for (char& c : s) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    for (char& c : s) c = toChar<std::toupper>(c);
     return s;
 }
 
@@ -243,6 +251,43 @@ inline bool containsStr(const StringVec& vec, const std::string& target) {
 
 inline void addUniqueStr(StringVec& vec, const std::string& val) {
     if (!containsStr(vec, val)) vec.push_back(val);
+}
+
+struct OpInfo {
+    const char*  lexeme;
+    char         code;
+    TX           prec;
+    ExpectedType expected = ExpectedType::Number;
+    bool         right_assoc = false;
+};
+
+inline constexpr OpInfo BINARY_OPS[] = {
+    // 1. comparación
+    {"<>", '!', 1, ExpectedType::Any}, {"!=", '!', 1, ExpectedType::Any},
+    {"<=", 'L', 1, ExpectedType::Any}, {">=", 'G', 1, ExpectedType::Any},
+    {"=",  '=', 1, ExpectedType::Any}, {"<",  '<', 1, ExpectedType::Any}, {">",  '>', 1, ExpectedType::Any},
+    // 2. concatenación
+    {"&",  '&', 2, ExpectedType::Text},
+    // 3. suma y resta
+    {"+",  '+', 3}, {"-",  '-', 3},
+    // 4. división y multiplicación
+    {"*",  '*', 4}, {"/",  '/', 4},
+    // 5. potenciación (aquí sí mantienes el true)
+    {"^",  '^', 5, ExpectedType::Number, true}
+};
+
+inline bool isBinaryOpChar(char ch) {
+    for (const auto& op : BINARY_OPS) {
+        if (op.lexeme[0] == ch && op.lexeme[1] == '\0') return true;
+    }
+    return false;
+}
+
+inline ExpectedType binaryOpExpectedType(char code) {
+    for (const auto& op : BINARY_OPS) {
+        if (op.code == code) return op.expected;
+    }
+    return ExpectedType::Any;
 }
 
 inline void freeAst(AstNode* node) {
@@ -259,6 +304,23 @@ inline AstNode* makeBinaryNode(const AstToken& tok, AstNode* left, AstNode* righ
     if (left)  left->m_parent = n;
     if (right) right->m_parent = n;
     return n;
+}
+
+template <typename Fn>
+inline bool forEachCellInRange(const CellCoord& a, const CellCoord& b, Fn&& fn) {
+    TX c_min = std::min(a.col, b.col), c_max = std::max(a.col, b.col);
+    TX r_min = std::min(a.row, b.row), r_max = std::max(a.row, b.row);
+    for (TX r = r_min; r <= r_max; ++r) {
+        for (TX col = c_min; col <= c_max; ++col) {
+            std::string cid = CellCoord(col, r, true).toId();
+            if constexpr (std::is_same_v<std::invoke_result_t<Fn, const std::string&>, bool>) {
+                if (!fn(cid)) return false;
+            } else {
+                fn(cid);
+            }
+        }
+    }
+    return true;
 }
 } // namespace texcel_detail
 
