@@ -128,6 +128,26 @@ inline bool handleMouseDrag(TuiState& st, TX mx, TX my) {
     return false;
 }
 
+inline bool tryToggleBooleanCell(TuiState& st, TX gc, TX gr, TX rel_x_in_cell) {
+    constexpr TX toggle_col = 1 + (TuiState::CELL_WIDTH / 2); // Glifo centrado ('■' / '□') en alignCell
+    if (rel_x_in_cell != toggle_col) return false;
+    std::string cid = CellCoord(gc, gr, true).toId();
+    SpreadsheetCell cell = st.engine.getCell(cid);
+    if (cell.is_formula || cell.has_error || !cell.result.is_text) return false;
+    std::string upper_raw = texcel_detail::toUpper(texcel_detail::trim(cell.raw_expression));
+    if (upper_raw != "TRUE" && upper_raw != "FALSE") return false;
+
+    std::string next_val = (upper_raw == "TRUE") ? "FALSE" : "TRUE";
+    st.engine.setCell(cid, next_val);
+    st.maybeAutoSave();
+    st.clearSelection();
+    st.cursor = {gc, gr, true};
+    st.mode = SpreadsheetFocusMode::GridNavigation;
+    st.setInput();
+    st.status_banner = "✔ " + cid + " = " + next_val;
+    return true;
+}
+
 inline bool handleGridMouseDown(TuiState& st, TX mx, TX my, TX gc, TX gr, bool is_ctrl_click, bool is_extend_click) {
     if (st.mode == SpreadsheetFocusMode::CommandConsole && !st.point_mode &&
         !is_ctrl_click && TuiState::isFormulaBuffer(st.input_buffer)) {
@@ -146,10 +166,13 @@ inline bool handleGridMouseDown(TuiState& st, TX mx, TX my, TX gc, TX gr, bool i
         handleCommandSubmit(st, st.input_buffer);
     }
 
+    TX rel_x_in_cell = (mx - TuiState::GRID_X0) % (TuiState::CELL_WIDTH + 1);
+    if (!st.point_mode && !is_ctrl_click && !is_extend_click && tryToggleBooleanCell(st, gc, gr, rel_x_in_cell)) {
+        return true;
+    }
+
     st.drag_win = TuiState::WIN_GRID;
     st.mouse_dragging = true;
-
-    TX rel_x_in_cell = (mx - TuiState::GRID_X0) % (TuiState::CELL_WIDTH + 1);
     bool on_active_corner = (gc == st.cursor.col && gr == st.cursor.row && rel_x_in_cell == TuiState::CELL_WIDTH);
 
     if ((is_ctrl_click || on_active_corner) && !st.point_mode) {

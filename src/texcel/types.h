@@ -171,6 +171,7 @@ struct SpreadsheetCell {
     CellEvalValue result;        /**< Resultado numérico o textual calculado. */
     bool          is_formula = false;
     bool          has_error = false;
+    bool          dirty = true;  /**< Indica si el valor cacheado en `result` requiere recálculo. */
     std::string   error_msg;     /**< `#CYCLE!`, `#DIV/0!`, `#SYNTAX!`, `#REF!`. */
     std::string   postorder_rpn; /**< Secuencia en PostOrder generada por `BinaryTreeIterator`. */
     Vector<VectorAscTraits<std::string>> inputs; /**< Celdas referenciadas directamente. */

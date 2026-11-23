@@ -229,6 +229,35 @@ int main() {
     }
     st2.closeModal();
 
+    // 12. Toggle booleano clicable solo en el caracter central (col 5 dentro de la celda)
+    clean_e.setCell("C1", "TRUE");
+    clean_e.setCell("D1", "= IF(C1, 10, 20)");
+    assert(clean_e.getCell("D1").displayValue() == "10");
+    TX c1_x0 = texcel_tui::TuiState::GRID_X0 + 2 * (texcel_tui::TuiState::CELL_WIDTH + 1);
+    TX c1_y  = texcel_tui::TuiState::GRID_Y0;
+    // Clic fuera del caracter central (rel_x = 2) solo selecciona C1, no cambia TRUE
+    std::string c1_side = "0;" + std::to_string(c1_x0 + 2 + 1) + ";" + std::to_string(c1_y + 1);
+    assert(texcel_tui::handleSgrMouse(st2, c1_side, 'M'));
+    assert(texcel_tui::handleSgrMouse(st2, c1_side, 'm'));
+    assert(clean_e.getCell("C1").displayValue() == "TRUE");
+    // Clic exacto en el caracter central (rel_x = 5) alterna TRUE -> FALSE y propaga a D1
+    std::string c1_mid = "0;" + std::to_string(c1_x0 + 5 + 1) + ";" + std::to_string(c1_y + 1);
+    assert(texcel_tui::handleSgrMouse(st2, c1_mid, 'M'));
+    assert(!st2.mouse_dragging);
+    assert(clean_e.getCell("C1").displayValue() == "FALSE");
+    assert(clean_e.getCell("D1").displayValue() == "20");
+    // Segundo clic en el caracter central alterna FALSE -> TRUE
+    assert(texcel_tui::handleSgrMouse(st2, c1_mid, 'M'));
+    assert(clean_e.getCell("C1").displayValue() == "TRUE");
+    assert(clean_e.getCell("D1").displayValue() == "10");
+    // Formula booleana no se sobrescribe al clicar su caracter central
+    clean_e.setCell("E1", "= C1");
+    TX e1_x0 = texcel_tui::TuiState::GRID_X0 + 4 * (texcel_tui::TuiState::CELL_WIDTH + 1);
+    std::string e1_mid = "0;" + std::to_string(e1_x0 + 5 + 1) + ";" + std::to_string(c1_y + 1);
+    assert(texcel_tui::handleSgrMouse(st2, e1_mid, 'M'));
+    assert(texcel_tui::handleSgrMouse(st2, e1_mid, 'm'));
+    assert(clean_e.getCell("E1").is_formula && clean_e.getCell("E1").displayValue() == "TRUE");
+
     std::cout << "[PASS] test_tui_navigation\n";
     return 0;
 }

@@ -154,6 +154,21 @@ private:
         return val;
     }
 
+    CellEvalValue readCellForEval(const std::string& cid, StringVec& visiting, bool& out_is_empty) {
+        if (texcel_detail::containsStr(visiting, cid)) throw EvalError{"#CYCLE!"};
+        if (m_cells.contains(cid)) {
+            const SpreadsheetCell& cached = m_cells[cid];
+            if (!cached.dirty) {
+                out_is_empty = cached.raw_expression.empty();
+                if (out_is_empty) return {};
+                if (cached.has_error) throw EvalError{cached.error_msg};
+                return cached.result;
+            }
+        }
+        out_is_empty = !hasRawCell(cid);
+        return out_is_empty ? CellEvalValue{} : resolveOrThrow(cid, visiting);
+    }
+
     static Vector<VectorAscTraits<AstNode*>> collectFuncArgs(const AstNode& node) {
         Vector<VectorAscTraits<AstNode*>> args;
         if (node.m_pChild[0]) args.push_back(node.m_pChild[0]);
@@ -223,8 +238,8 @@ private:
                 for (size_t k = 0; k < n_conds; ++k) {
                     CellCoord s = starts[k].getValue();
                     std::string cid = CellCoord(s.col + dc, s.row + dr, true).toId();
-                    bool is_empty = !hasRawCell(cid);
-                    CellEvalValue cv = is_empty ? CellEvalValue{} : resolveOrThrow(cid, visiting);
+                    bool is_empty = false;
+                    CellEvalValue cv = readCellForEval(cid, visiting, is_empty);
                     if (!matchesCriteria(cv, is_empty, crit_vals[k].getValue())) {
                         all_match = false;
                         break;
@@ -413,6 +428,16 @@ private:
             out_err = "#CYCLE!";
             return {};
         }
+        if (m_cells.contains(cell_id)) {
+            const SpreadsheetCell& cached = m_cells[cell_id];
+            if (!cached.dirty) {
+                if (cached.has_error) {
+                    out_err = cached.error_msg;
+                    return {};
+                }
+                return cached.result;
+            }
+        }
         if (!hasRawCell(cell_id)) return {};
 
         visiting.push_back(cell_id);
@@ -438,6 +463,7 @@ private:
             cell.has_error = true;
             cell.error_msg = local_err;
             cell.result = {};
+            cell.dirty = false;
             out_err = local_err;
             return {};
         }
@@ -445,7 +471,23 @@ private:
         cell.has_error = false;
         cell.error_msg.clear();
         cell.result = eval_res;
+        cell.dirty = false;
         return eval_res;
+    }
+
+    StringVec collectAndMarkDirtySubgraph(const std::string& root_id) {
+        StringVec affected;
+        affected.push_back(root_id);
+        for (size_t qi = 0; qi < affected.size(); ++qi) {
+            std::string curr_id = affected[qi].getValue();
+            if (m_cells.contains(curr_id)) m_cells[curr_id].dirty = true;
+            if (m_dependents.contains(curr_id)) {
+                for (const auto& dep_node : m_dependents[curr_id]) {
+                    texcel_detail::addUniqueStr(affected, dep_node.getValue());
+                }
+            }
+        }
+        return affected;
     }
 
     bool recomputeCell(const std::string& cid, std::string* out_disp = nullptr) {
@@ -453,34 +495,29 @@ private:
         StringVec visiting;
         std::string err;
         resolveCellValue(cid, visiting, err);
-        std::string now = m_cells[cid].displayValue();
+        std::string now = m_cells.contains(cid) ? m_cells[cid].displayValue() : "";
         if (out_disp) *out_disp = now;
         return now != prev;
     }
 
     /**
-     * @brief Propaga el recálculo en cascada recorriendo la `LinkedList` de dependientes en BFS O(1) por paso.
+     * @brief Propaga el recálculo en cascada sobre los descendientes marcados como `dirty`.
      */
-    StringVec propagateFrom(const std::string& root_id) {
+    StringVec propagateAffected(const StringVec& affected) {
         StringVec updated;
-        StringVec visited;
-        visited.push_back(root_id);
-
-        for (size_t qi = 0; qi < visited.size(); ++qi) {
-            std::string curr_id = visited[qi].getValue();
-            if (qi > 0 && hasRawCell(curr_id)) {
-                std::string now_disp;
-                if (recomputeCell(curr_id, &now_disp)) {
-                    texcel_detail::addUniqueStr(updated, curr_id + "=" + now_disp);
-                }
-            }
-            if (m_dependents.contains(curr_id)) {
-                for (const auto& dep_node : m_dependents[curr_id]) {
-                    texcel_detail::addUniqueStr(visited, dep_node.getValue());
-                }
+        for (size_t qi = 1; qi < affected.size(); ++qi) {
+            std::string curr_id = affected[qi].getValue();
+            if (!hasRawCell(curr_id)) continue;
+            std::string now_disp;
+            if (recomputeCell(curr_id, &now_disp)) {
+                texcel_detail::addUniqueStr(updated, curr_id + "=" + now_disp);
             }
         }
         return updated;
+    }
+
+    StringVec propagateFrom(const std::string& root_id) {
+        return propagateAffected(collectAndMarkDirtySubgraph(root_id));
     }
 
 public:
@@ -509,6 +546,7 @@ public:
             std::string cid = entry_node.getValue().getKey();
             prev_display[cid] = m_cells.contains(cid) ? m_cells[cid].displayValue() : "";
         }
+        m_cells.clear();
 
         for (const auto& entry_node : m_raw_table) {
             std::string cid = entry_node.getValue().getKey();
@@ -539,18 +577,19 @@ public:
         std::string expr = texcel_detail::trim(expression_raw);
 
         unsubscribeInputs(cid);
+        StringVec affected = collectAndMarkDirtySubgraph(cid);
 
         if (expr.empty()) {
             m_raw_table[cid] = "";
-            m_cells[cid] = SpreadsheetCell{.id = cid};
-            propagateFrom(cid);
+            m_cells[cid] = SpreadsheetCell{.id = cid, .dirty = false};
+            propagateAffected(affected);
             addLog("⌫ " + cid + " limpiada");
             return true;
         }
 
         m_raw_table[cid] = expr;
         recomputeCell(cid);
-        StringVec cascaded = propagateFrom(cid);
+        StringVec cascaded = propagateAffected(affected);
 
         const SpreadsheetCell& cell = m_cells[cid];
         std::string log_expr = (!expr.empty() && expr[0] == '=') ? texcel_detail::trim(expr.substr(1)) : expr;

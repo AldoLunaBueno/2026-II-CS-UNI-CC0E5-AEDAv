@@ -10,7 +10,7 @@ PR_SCRIPT  := scripts/gen_pr_comment.sh
 DOCS_PORT  ?= 8000
 DB_COMPOSE := db/compose.yml
 
-.PHONY: all run texcel test test-unit test-e2e pr docs clean db-up db-run db-down
+.PHONY: all run texcel test test-unit test-e2e test-perf pr docs clean db-up db-run db-down
 
 all: clean $(TARGET) run
 
@@ -37,6 +37,11 @@ test-e2e: $(TARGET) $(E2E_SRCS)
 		echo "Running $$src..."; \
 		python3 "$$src" "./$(TARGET)" || exit 1; \
 	done
+
+test-perf: $(HEADERS) tests/texcel/performance/gen_perf_sheets.py tests/texcel/performance/bench_texcel.cpp
+	@mkdir -p tmp
+	@python3 tests/texcel/performance/gen_perf_sheets.py
+	@$(CXX) $(CXXFLAGS) -O2 -I. tests/texcel/performance/bench_texcel.cpp -o /tmp/bench_texcel && /tmp/bench_texcel && rm -f /tmp/bench_texcel
 
 pr:
 	@bash $(PR_SCRIPT) README.md $(PR_OUT)
