@@ -70,6 +70,38 @@ int main() {
     e.setCell("E5", "=IF(COUNTIFS($P$1:$R$1, E$4, $P$2:$R$2, \"<>\")=0, \"\", MIN(20, MAX(0, 4 * COUNTIFS($P5:$R5, TRUE, $P$1:$R$1, E$4, $P$2:$R$2, \"A\") / MAX(1, COUNTIFS($P$1:$R$1, E$4, $P$2:$R$2, \"A\")) + 16 * COUNTIFS($P5:$R5, TRUE, $P$1:$R$1, E$4, $P$2:$R$2, \"T\") / MAX(1, COUNTIFS($P$1:$R$1, E$4, $P$2:$R$2, \"T\")) - 3 * COUNTIFS($P5:$R5, TRUE, $P$1:$R$1, E$4, $P$2:$R$2, \"CT\"))))");
     assert(e.getCell("E5").displayValue() == "17");
 
+    // Comandos con asignacion X = expr, respaldo a texto y preview en vivo
+    std::string assigned;
+    assert(e.executeCommand("M1 = A1 + 4", "A1", &assigned));
+    assert(assigned == "M1");
+    assert(e.getCell("M1").is_formula);
+    assert(e.getCell("M1").displayValue() == "9");
+    assert(e.getCellInputs("M1").size() == 1 && e.getCellInputs("M1")[0].getValue() == "A1");
+
+    assert(e.executeCommand("M2 = Hola", "A1", &assigned));
+    assert(assigned == "M2");
+    assert(!e.getCell("M2").is_formula);
+    assert(e.getCell("M2").displayValue() == "Hola");
+
+    auto prev_eq = e.previewCommand("= A1 + 4", "M1");
+    assert(prev_eq.active && prev_eq.valid && !prev_eq.result.is_text && prev_eq.result.asString() == "9");
+    auto prev_assign = e.previewCommand("M3 = A1 + 4", "A1");
+    assert(prev_assign.active && prev_assign.valid && prev_assign.target_cell == "M3");
+    assert(!prev_assign.result.is_text && prev_assign.result.asString() == "9");
+
+    // Numeros puros negativos/positivos no deben marcarse como formula
+    e.setCell("N1", "-5");
+    e.setCell("N2", "+7");
+    assert(!e.getCell("N1").is_formula && e.getCell("N1").displayValue() == "-5");
+    assert(!e.getCell("N2").is_formula && e.getCell("N2").displayValue() == "7");
+
+    // Comandos administrativos ignorados en preview (incluyendo "q", sin confundir "Q1")
+    for (const char* cmd : {"q", "QUIT", "exit", "clear", "save", "load"}) {
+        assert(!e.previewCommand(cmd, "A1").active);
+    }
+    assert(e.previewCommand("Q1", "A1").active);
+    assert(e.previewCommand("= COUNTIF(A1, \"5\")", "N3").result.asString() == "1");
+
     std::cout << "[PASS] test_eval_prepost\n";
     return 0;
 }
