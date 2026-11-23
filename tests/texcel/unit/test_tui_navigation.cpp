@@ -108,6 +108,11 @@ int main() {
     // 9. Secuencias CSI puras (Shift+Flechas, Supr, historial ↑/↓) y Bracketed Paste
     texcel_tui::handleGridEscapeKey(st, "1;2", 'C'); // Shift+Right desde C3 -> C3:D3
     assert(st.hasCellSel() && st.selectedRangeStr() == "C3:D3");
+    assert(st.status_banner.find("C3:D3") != std::string::npos);
+    texcel_tui::handleGridEscapeKey(st, "", 'B');    // Flecha abajo limpia seleccion y banner de sombreado
+    assert(!st.hasCellSel() && st.status_banner.empty());
+    texcel_tui::handleGridEscapeKey(st, "", 'A');    // Volver a C3
+    texcel_tui::handleGridEscapeKey(st, "1;2", 'C'); // Re-sombrear C3:D3
     e.setCell("C3", "11"); e.setCell("D3", "22");
     texcel_tui::handleGridEscapeKey(st, "3", '~');   // Supr borra el rango seleccionado
     assert(!st.hasCellSel() && e.getCell("C3").displayValue() == "" && e.getCell("D3").displayValue() == "");
@@ -121,12 +126,108 @@ int main() {
     texcel_tui::handleConsoleEscapeKey(st, "", 'F'); // End
     assert(st.input_cursor == st.input_buffer.size());
 
-    // 10. Smoke test de renderAll (4 ventanas + AST + modal) sobre ostringstream
-    dummy_os.str("");
-    st.modal_open = true;
-    texcel_tui::renderAll(st);
-    assert(!dummy_os.str().empty());
-    st.modal_open = false;
+    // 10. Escritura directa en celda sin Enter previo + boton [V ↻] de AST + modal [fx] y [?]
+    st.mode = SpreadsheetFocusMode::GridNavigation;
+    st.setInput();
+    st.cursor = {0, 0, true};
+    assert(texcel_tui::handleGridKey(st, 'q')); // 'q' ahora escribe directamente en la celda
+    assert(st.mode == SpreadsheetFocusMode::CommandConsole && st.input_buffer == "q");
+    assert(texcel_tui::handleConsoleKey(st, 'u'));
+    assert(texcel_tui::handleConsoleKey(st, 'e'));
+    assert(texcel_tui::handleConsoleKey(st, '\n'));
+    assert(st.mode == SpreadsheetFocusMode::GridNavigation && e.getCell("A1").displayValue() == "que");
+
+    // Clic en radio buttons ■ V / □ H del Inspector orienta el AST
+    assert(!st.ast_horizontal);
+    TX ast_h_x = st.right_x + 2 + 15;
+    TX ast_v_x = st.right_x + 2 + 10;
+    TX ast_btn_y = texcel_tui::TuiState::TOP_Y + 6;
+    std::string ast_h_click = "0;" + std::to_string(ast_h_x + 1) + ";" + std::to_string(ast_btn_y + 1);
+    std::string ast_v_click = "0;" + std::to_string(ast_v_x + 1) + ";" + std::to_string(ast_btn_y + 1);
+    assert(texcel_tui::handleSgrMouse(st, ast_h_click, 'M'));
+    assert(st.ast_horizontal);
+    assert(texcel_tui::handleSgrMouse(st, ast_v_click, 'M'));
+    assert(!st.ast_horizontal);
+
+    // Chord Ctrl+X + A abre Ayuda, Ctrl+X + F abre Funciones
+    st.chord_x = true;
+    texcel_tui::handleChordXKey(st, 'a');
+    assert(!st.chord_x && st.modal_kind == texcel_tui::ModalKind::Help);
+    st.closeModal();
+    st.chord_x = true;
+    texcel_tui::handleChordXKey(st, 'f');
+    assert(!st.chord_x && st.modal_kind == texcel_tui::ModalKind::Functions);
+    st.closeModal();
+
+    // Clic en [?] de la barra superior abre Ayuda
+    TX help_btn_x = st.total_width - 10;
+    std::string help_click = "0;" + std::to_string(help_btn_x + 1) + ";1";
+    assert(texcel_tui::handleSgrMouse(st, help_click, 'M'));
+    assert(st.modal_kind == texcel_tui::ModalKind::Help);
+    st.closeModal();
+
+    // Clic en [fx] abre Funciones
+    TX fx_x = texcel_tui::TuiState::LEFT_X + st.left_w - 5;
+    TX fx_y = texcel_tui::TuiState::BOT_Y + 2;
+    std::string fx_click = "0;" + std::to_string(fx_x + 1) + ";" + std::to_string(fx_y + 1);
+    assert(texcel_tui::handleSgrMouse(st, fx_click, 'M'));
+    assert(st.modal_kind == texcel_tui::ModalKind::Functions);
+
+    // Rueda del ratón hacia abajo selecciona AVG (índice 1)
+    texcel_tui::ModalRect mr = st.modalRect();
+    std::string wheel_down = "65;" + std::to_string(mr.x + 5) + ";" + std::to_string(mr.y + 5);
+    assert(texcel_tui::handleSgrMouse(st, wheel_down, 'M'));
+    assert(st.fx_idx == 1);
+
+    // Tab cambia a Ayuda y vuelve a Funciones
+    texcel_tui::handleModalKey(st, '\t');
+    assert(st.modal_kind == texcel_tui::ModalKind::Help);
+    texcel_tui::handleModalKey(st, '\t');
+    assert(st.modal_kind == texcel_tui::ModalKind::Functions);
+
+    // Enter inserta "= AVG(" desde Hoja y pasa a modo Edición
+    texcel_tui::handleModalKey(st, '\n');
+    assert(!st.isModalOpen());
+    assert(st.mode == SpreadsheetFocusMode::CommandConsole);
+    assert(st.input_buffer == "= AVG(");
+
+    // Inserción en medio de una fórmula ya abierta (clic 1 selecciona, clic 2 inserta)
+    st.setInput("= A1 + ");
+    st.openModal(texcel_tui::ModalKind::Functions);
+    st.fx_idx = 0; st.fx_scroll = 0;
+    std::string row2_click = "0;" + std::to_string(mr.x + 6) + ";" + std::to_string(mr.y + 3 + 2 + 1); // MIN (idx 2)
+    assert(texcel_tui::handleSgrMouse(st, row2_click, 'M')); // 1er clic: selecciona MIN
+    assert(st.isModalOpen() && st.fx_idx == 2);
+    assert(texcel_tui::handleSgrMouse(st, row2_click, 'M')); // 2do clic: inserta MIN(
+    assert(!st.isModalOpen() && st.input_buffer == "= A1 + MIN(");
+
+    // 11. Leyenda dinámica + smoke test de renderAll (4 ventanas + 3 modales)
+    SpreadsheetEngine clean_e;
+    std::ostringstream render_out;
+    texcel_tui::TuiState st2(clean_e, render_out);
+    st2.updateLayout();
+    texcel_tui::renderAll(st2);
+    std::string plain_empty = texcel_tui::stripAnsi(render_out.str());
+    assert(plain_empty.find("Activa") != std::string::npos);
+    assert(plain_empty.find("Referencia") == std::string::npos);
+    assert(plain_empty.find("Afectada") == std::string::npos);
+
+    clean_e.setCell("A1", "5");
+    clean_e.setCell("B1", "= A1 + 4");
+    st2.cursor = {1, 0, true}; // B1 activa -> A1 en Referencia
+    render_out.str("");
+    texcel_tui::renderAll(st2);
+    std::string plain_ref = texcel_tui::stripAnsi(render_out.str());
+    assert(plain_ref.find("Activa") != std::string::npos);
+    assert(plain_ref.find("Referencia") != std::string::npos);
+
+    for (auto mk : {texcel_tui::ModalKind::Sheets, texcel_tui::ModalKind::Functions, texcel_tui::ModalKind::Help}) {
+        render_out.str("");
+        st2.openModal(mk);
+        texcel_tui::renderAll(st2);
+        assert(!render_out.str().empty());
+    }
+    st2.closeModal();
 
     std::cout << "[PASS] test_tui_navigation\n";
     return 0;

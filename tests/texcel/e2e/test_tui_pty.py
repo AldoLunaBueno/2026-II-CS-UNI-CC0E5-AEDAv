@@ -157,9 +157,9 @@ def main() -> int:
             sess.send(b"\t99")
             sess.send(sgr_mouse(0, 1, 1) + sgr_mouse(0, 1, 1, release=True))  # Clic en B2 (auto-commit)
 
-            # 6. Guardar hoja con Ctrl+S y salir limpio con 'q' en Modo 1
+            # 6. Guardar hoja con Ctrl+S y salir limpio con Ctrl+D
             sess.send(b"\x13")  # Ctrl+S
-            sess.send(b"q")     # Salir desde GridNavigation
+            sess.send(b"\x04")  # Ctrl+D
             rc = sess.close(timeout_s=3.0)
             assert rc == 0, f"Código de salida inesperado: {rc}"
         except Exception:

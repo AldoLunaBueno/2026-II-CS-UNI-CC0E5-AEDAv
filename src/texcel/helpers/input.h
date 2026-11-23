@@ -170,6 +170,7 @@ inline bool handleGridMouseDown(TuiState& st, TX mx, TX my, TX gc, TX gr, bool i
     } else {
         if (st.cursor.col != gc || st.cursor.row != gr) st.resetAstScroll();
         st.cursor = st.sel_a = st.sel_b = {gc, gr, true};
+        st.clearSelectionBanner();
     }
 
     if (st.point_mode) {
@@ -181,15 +182,107 @@ inline bool handleGridMouseDown(TuiState& st, TX mx, TX my, TX gc, TX gr, bool i
     return true;
 }
 
+inline void executeSheetsModalItem(TuiState& st, TX idx) {
+    if (idx == TuiState::MODAL_AUTOSAVE) {
+        st.config.autosave = !st.config.autosave;
+        st.config.saveConfig();
+        st.engine.addLog(std::string("⚙ Autoguardado: ") + (st.config.autosave ? "ON" : "OFF"));
+        st.status_banner = std::string("Autoguardado ") + (st.config.autosave ? "activado." : "desactivado.");
+        if (st.config.autosave) st.saveSheet(st.config.current_sheet, true);
+    } else if (idx == TuiState::MODAL_SAVE) {
+        st.saveSheet(st.config.current_sheet);
+        st.refreshSheetList();
+        st.closeModal();
+    } else if (idx == TuiState::MODAL_NEW) {
+        st.modal_new_mode = true;
+        st.modal_new_name.clear();
+    } else if (idx >= TuiState::MODAL_FIRST_FILE) {
+        TX fidx = idx - TuiState::MODAL_FIRST_FILE;
+        if (fidx < static_cast<TX>(st.config.sheet_files.size())) {
+            st.loadSheet(st.config.sheet_files[static_cast<size_t>(fidx)].getValue());
+            st.closeModal();
+        }
+    }
+}
+
+inline bool handleModalMouse(TuiState& st, TX btn, TX mx, TX my, bool is_release, bool is_drag) {
+    if (btn & 64) {
+        bool forward = (btn & 1) != 0;
+        if (st.modal_kind == ModalKind::Functions) {
+            st.fx_idx = std::clamp<TX>(st.fx_idx + (forward ? 1 : -1), 0, FUNCTION_CATALOG_SIZE - 1);
+            st.clampFxScroll();
+            return true;
+        }
+        if (st.modal_kind == ModalKind::Help) {
+            st.help_scroll += forward ? 1 : -1;
+            st.clampHelpScroll();
+            return true;
+        }
+        if (st.modal_kind == ModalKind::Sheets && !st.modal_new_mode) {
+            st.modal_idx = std::clamp<TX>(st.modal_idx + (forward ? 1 : -1), 0, st.modalMaxIdx());
+            return true;
+        }
+        return false;
+    }
+    if ((btn & 3) != 0 || is_release || is_drag) return false;
+
+    ModalRect mr = st.modalRect();
+    if (mx < mr.x || mx >= mr.x + mr.w || my < mr.y || my >= mr.y + mr.h) {
+        st.closeModal();
+        return true;
+    }
+
+    if (st.isFxHelpModal()) {
+        if (my == mr.y + 1) {
+            if (mx >= mr.x + 2 && mx <= mr.x + 18) { st.openModal(ModalKind::Functions); return true; }
+            if (mx >= mr.x + 19 && mx <= mr.x + 32) { st.openModal(ModalKind::Help); return true; }
+        }
+        if (st.modal_kind == ModalKind::Functions &&
+            my >= mr.y + 3 && my < mr.y + 3 + TuiState::FX_LIST_ROWS) {
+            TX clicked = st.fx_scroll + (my - (mr.y + 3));
+            if (clicked >= 0 && clicked < FUNCTION_CATALOG_SIZE) {
+                if (clicked == st.fx_idx) st.insertSelectedFunction();
+                else { st.fx_idx = clicked; st.clampFxScroll(); }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    if (st.modal_kind == ModalKind::Sheets && !st.modal_new_mode) {
+        TX rel_y = my - mr.y;
+        TX clicked_idx = -1;
+        if (rel_y >= 1 && rel_y <= 3) {
+            clicked_idx = rel_y - 1;
+        } else if (rel_y >= 5 && rel_y < mr.h - 3 && st.config.sheet_files.size() > 0) {
+            const TX list_rows = mr.h - 8;
+            TX file_cursor = (st.modal_idx >= TuiState::MODAL_FIRST_FILE) ? (st.modal_idx - TuiState::MODAL_FIRST_FILE) : 0;
+            TX scroll_f = (file_cursor >= list_rows) ? (file_cursor - list_rows + 1) : 0;
+            TX fidx = scroll_f + (rel_y - 5);
+            if (fidx < static_cast<TX>(st.config.sheet_files.size())) {
+                clicked_idx = TuiState::MODAL_FIRST_FILE + fidx;
+            }
+        }
+        if (clicked_idx >= 0) {
+            if (clicked_idx == st.modal_idx) executeSheetsModalItem(st, clicked_idx);
+            else st.modal_idx = clicked_idx;
+            return true;
+        }
+    }
+    return false;
+}
+
 inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
     TX btn = 0, mx_1 = 1, my_1 = 1;
     char s1 = 0, s2 = 0;
     std::istringstream mss(payload);
-    if (!(mss >> btn >> s1 >> mx_1 >> s2 >> my_1) || st.modal_open) return false;
+    if (!(mss >> btn >> s1 >> mx_1 >> s2 >> my_1)) return false;
 
     TX mx = mx_1 - 1, my = my_1 - 1;
     bool is_release = (mc == 'm');
     bool is_drag    = (btn & 32) != 0;
+
+    if (st.isModalOpen()) return handleModalMouse(st, btn, mx, my, is_release, is_drag);
 
     if (btn & 64) return handleMouseWheel(st, btn, mx, my);
 
@@ -203,6 +296,34 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
     }
     if (is_drag) return handleMouseDrag(st, mx, my);
     if ((btn & 3) != 0 || is_release) return false;
+
+    if (st.isHeaderHelpBtnPos(mx, my)) {
+        if (st.modal_kind == ModalKind::Help) st.closeModal();
+        else st.openModal(ModalKind::Help);
+        return true;
+    }
+    if (st.isHeaderExitBtnPos(mx, my)) {
+        st.should_exit = true;
+        return false;
+    }
+    if (st.isFxButtonPos(mx, my)) {
+        st.openModal(ModalKind::Functions);
+        return true;
+    }
+    if (st.isAstVerticalRadioPos(mx, my)) {
+        if (st.ast_horizontal) {
+            st.ast_horizontal = false;
+            st.resetAstScroll();
+        }
+        return true;
+    }
+    if (st.isAstHorizontalRadioPos(mx, my)) {
+        if (!st.ast_horizontal) {
+            st.ast_horizontal = true;
+            st.resetAstScroll();
+        }
+        return true;
+    }
 
     if (st.isNameBoxPos(mx, my)) {
         auto now = std::chrono::steady_clock::now();
@@ -258,9 +379,9 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
 
 inline void applyBracketedPaste(TuiState& st, const std::string& pasted) {
     bool has_external_sel = st.hasCellSel() || (st.hasTextSel() && st.text_win != TuiState::WIN_CONSOLE);
-    if (!st.modal_open && (has_external_sel || st.mode != SpreadsheetFocusMode::CommandConsole)) {
+    if (!st.isModalOpen() && (has_external_sel || st.mode != SpreadsheetFocusMode::CommandConsole)) {
         st.copySelectionToClipboard();
-    } else if (st.mode == SpreadsheetFocusMode::CommandConsole && !st.modal_open) {
+    } else if (st.mode == SpreadsheetFocusMode::CommandConsole && !st.isModalOpen()) {
         for (char c : pasted) {
             if (c == '\n' || c == '\r') break;
             if (texcel_detail::isChar<std::isprint>(c)) st.insertInputChar(c);
@@ -368,14 +489,24 @@ inline bool handleEscapeSequence(TuiState& st, termios& raw_term) {
         return true;
     }
 
-    if (st.modal_open) {
+    if (st.isModalOpen()) {
         if (n1 == 0) {
             if (st.modal_new_mode) { st.modal_new_mode = false; st.modal_new_name.clear(); }
-            else st.modal_open = false;
-        } else if (seq[0] == '[' && !st.modal_new_mode) {
-            if (csi_final == 'A' && st.modal_idx > 0) --st.modal_idx;
-            else if (csi_final == 'B' && st.modal_idx < st.modalMaxIdx()) ++st.modal_idx;
-            else if (csi_params == "3" && csi_final == '~') st.deleteSelectedModalSheet();
+            else st.closeModal();
+        } else if (seq[0] == '[') {
+            if (st.modal_kind == ModalKind::Sheets && !st.modal_new_mode) {
+                if (csi_final == 'A' && st.modal_idx > 0) --st.modal_idx;
+                else if (csi_final == 'B' && st.modal_idx < st.modalMaxIdx()) ++st.modal_idx;
+                else if (csi_params == "3" && csi_final == '~') st.deleteSelectedModalSheet();
+            } else if (st.modal_kind == ModalKind::Functions) {
+                if (csi_final == 'A' && st.fx_idx > 0) { --st.fx_idx; st.clampFxScroll(); }
+                else if (csi_final == 'B' && st.fx_idx + 1 < FUNCTION_CATALOG_SIZE) { ++st.fx_idx; st.clampFxScroll(); }
+                else if (csi_final == 'C' || csi_final == 'D') st.openModal(ModalKind::Help);
+            } else if (st.modal_kind == ModalKind::Help) {
+                if (csi_final == 'A') { --st.help_scroll; st.clampHelpScroll(); }
+                else if (csi_final == 'B') { ++st.help_scroll; st.clampHelpScroll(); }
+                else if (csi_final == 'C' || csi_final == 'D') st.openModal(ModalKind::Functions);
+            }
         }
         return true;
     }
@@ -389,7 +520,7 @@ inline bool handleEscapeSequence(TuiState& st, termios& raw_term) {
         st.exitPointMode(true);
         st.setInput();
         st.mode = SpreadsheetFocusMode::GridNavigation;
-        st.status_banner = "Modo Navegacion activo (usa flechas para moverte).";
+        st.status_banner.clear();
         return true;
     }
 
@@ -401,6 +532,18 @@ inline bool handleEscapeSequence(TuiState& st, termios& raw_term) {
 }
 
 inline void handleModalKey(TuiState& st, char ch) {
+    if (st.modal_kind == ModalKind::Functions) {
+        if (ch == '\t') { st.openModal(ModalKind::Help); return; }
+        if (ch == '\n' || ch == '\r' || ch == ' ') { st.insertSelectedFunction(); return; }
+        if (texcel_detail::toChar<std::tolower>(ch) == 'q') st.closeModal();
+        return;
+    }
+    if (st.modal_kind == ModalKind::Help) {
+        if (ch == '\t') { st.openModal(ModalKind::Functions); return; }
+        if (texcel_detail::toChar<std::tolower>(ch) == 'q' || ch == '?') st.closeModal();
+        return;
+    }
+
     if (st.modal_new_mode) {
         if (ch == '\n' || ch == '\r') {
             if (!st.modal_new_name.empty()) {
@@ -408,9 +551,7 @@ inline void handleModalKey(TuiState& st, char ch) {
                 st.config.current_sheet = st.modal_new_name;
                 st.saveSheet(st.config.current_sheet);
                 st.refreshSheetList();
-                st.modal_new_mode = false;
-                st.modal_new_name.clear();
-                st.modal_open = false;
+                st.closeModal();
             }
         } else if (ch == 127 || ch == '\b') {
             if (!st.modal_new_name.empty()) st.modal_new_name.pop_back();
@@ -420,36 +561,13 @@ inline void handleModalKey(TuiState& st, char ch) {
         return;
     }
 
-    auto executeModalItem = [&](TX idx) {
-        if (idx == TuiState::MODAL_AUTOSAVE) {
-            st.config.autosave = !st.config.autosave;
-            st.config.saveConfig();
-            st.engine.addLog(std::string("⚙ Autoguardado: ") + (st.config.autosave ? "ON" : "OFF"));
-            st.status_banner = std::string("Autoguardado ") + (st.config.autosave ? "activado." : "desactivado.");
-            if (st.config.autosave) st.saveSheet(st.config.current_sheet, true);
-        } else if (idx == TuiState::MODAL_SAVE) {
-            st.saveSheet(st.config.current_sheet);
-            st.refreshSheetList();
-            st.modal_open = false;
-        } else if (idx == TuiState::MODAL_NEW) {
-            st.modal_new_mode = true;
-            st.modal_new_name.clear();
-        } else if (idx >= TuiState::MODAL_FIRST_FILE) {
-            TX fidx = idx - TuiState::MODAL_FIRST_FILE;
-            if (fidx < static_cast<TX>(st.config.sheet_files.size())) {
-                st.loadSheet(st.config.sheet_files[static_cast<size_t>(fidx)].getValue());
-                st.modal_open = false;
-            }
-        }
-    };
-
     switch (texcel_detail::toChar<std::tolower>(ch)) {
-        case '\n': case '\r': case ' ': executeModalItem(st.modal_idx); break;
-        case 'a': executeModalItem(TuiState::MODAL_AUTOSAVE); break;
-        case 's': executeModalItem(TuiState::MODAL_SAVE); break;
-        case 'n': executeModalItem(TuiState::MODAL_NEW); break;
+        case '\n': case '\r': case ' ': executeSheetsModalItem(st, st.modal_idx); break;
+        case 'a': executeSheetsModalItem(st, TuiState::MODAL_AUTOSAVE); break;
+        case 's': executeSheetsModalItem(st, TuiState::MODAL_SAVE); break;
+        case 'n': executeSheetsModalItem(st, TuiState::MODAL_NEW); break;
         case 127: case '\b': st.deleteSelectedModalSheet(); break;
-        case 'q': st.modal_open = false; break;
+        case 'q': st.closeModal(); break;
     }
 }
 
@@ -460,7 +578,7 @@ inline void handleTabKey(TuiState& st) {
         st.return_to_grid_on_submit = false;
         if (st.input_buffer.empty()) st.loadActiveCellIntoBuffer();
         st.input_cursor = st.input_buffer.size();
-        st.status_banner = "Consola activa. Escribe = B1 + 4, 5, o [Ctrl+U] para limpiar";
+        st.status_banner.clear();
     } else {
         if (TuiState::isFormulaBuffer(st.input_buffer) && TuiState::canAcceptPointRef(st.input_buffer)) {
             st.point_mode = true;
@@ -470,14 +588,14 @@ inline void handleTabKey(TuiState& st) {
                 st.input_buffer.push_back(' ');
             }
             st.point_base = st.input_buffer;
-            st.status_banner = "Point Mode activo: mueve con flechas para apuntar una celda.";
+            st.status_banner.clear();
         } else {
             st.point_mode = false;
         }
         st.mode = SpreadsheetFocusMode::GridNavigation;
         if (!st.point_mode) {
             st.setInput();
-            st.status_banner = "Foco en Hoja de Calculo. Muevete con flechas o pulsa Enter.";
+            st.status_banner.clear();
         }
     }
 }
@@ -507,48 +625,25 @@ inline bool handleGridKey(TuiState& st, char ch) {
     if (st.point_mode) return handlePointModeKey(st, ch);
 
     std::string cid = st.cursor.toId();
-    switch (texcel_detail::toChar<std::tolower>(ch)) {
-        case 'q': return false;
-        case 'y':
-            st.copySelectionToClipboard("✔ Copiado al portapapeles (Ctrl+C o Y).");
-            break;
-        case 'o':
-            st.ast_horizontal = !st.ast_horizontal;
-            st.resetAstScroll();
-            st.status_banner = std::string("Orientacion AST: ") + (st.ast_horizontal ? "Horizontal [H]." : "Vertical [V].");
-            break;
-        case 'f': case '+':
-            if (st.hasCellSel()) st.applySelectionAutoFill();
-            break;
-        case '=':
-            st.mode = SpreadsheetFocusMode::CommandConsole;
-            st.return_to_grid_on_submit = true;
-            st.setInput("= ");
-            st.status_banner = "Editando formula en " + cid + " (pulsa [Tab] para Point Mode).";
-            break;
-        case '\n': case '\r':
-            st.mode = SpreadsheetFocusMode::CommandConsole;
-            st.return_to_grid_on_submit = true;
-            st.loadActiveCellIntoBuffer();
-            st.status_banner = "Editando celda " + cid + " en vivo...";
-            break;
-        case ':':
-            st.mode = SpreadsheetFocusMode::CommandConsole;
-            st.return_to_grid_on_submit = false;
-            st.setInput();
-            st.status_banner = "Modo comando directo activado.";
-            break;
-        case 127: case '\b':
-            st.clearSelectedCells();
-            break;
-        default:
-            if (texcel_detail::isChar<std::isdigit>(ch)) {
-                st.mode = SpreadsheetFocusMode::CommandConsole;
-                st.return_to_grid_on_submit = true;
-                st.setInput(std::string(1, ch));
-            }
-            break;
+    if (ch == '=') {
+        st.mode = SpreadsheetFocusMode::CommandConsole;
+        st.return_to_grid_on_submit = true;
+        st.setInput("= ");
+        st.status_banner.clear();
+    } else if (ch == '\n' || ch == '\r') {
+        st.mode = SpreadsheetFocusMode::CommandConsole;
+        st.return_to_grid_on_submit = true;
+        st.loadActiveCellIntoBuffer();
+        st.status_banner.clear();
+    } else if (ch == 127 || ch == '\b') {
+        st.clearSelectedCells();
+    } else if (texcel_detail::isChar<std::isprint>(ch)) {
+        st.mode = SpreadsheetFocusMode::CommandConsole;
+        st.return_to_grid_on_submit = true;
+        st.setInput(std::string(1, ch));
+        st.status_banner.clear();
     }
+    (void)cid;
     return true;
 }
 
@@ -576,6 +671,30 @@ inline bool handleConsoleKey(TuiState& st, char ch) {
         }
     }
     return true;
+}
+
+inline void handleChordXKey(TuiState& st, char ch) {
+    st.chord_x = false;
+    switch (texcel_detail::toChar<std::tolower>(ch)) {
+        case 'f': case 'x':
+            st.openModal(ModalKind::Functions);
+            break;
+        case 'h': case 'o':
+            st.openModal(ModalKind::Sheets);
+            break;
+        case 's':
+            st.saveSheet(st.config.current_sheet);
+            st.refreshSheetList();
+            break;
+        case 'g':
+            st.beginNameBoxEdit();
+            break;
+        case 'a':
+            st.openModal(ModalKind::Help);
+            break;
+        default:
+            break;
+    }
 }
 
 inline void handleNameBoxKey(TuiState& st, char ch) {

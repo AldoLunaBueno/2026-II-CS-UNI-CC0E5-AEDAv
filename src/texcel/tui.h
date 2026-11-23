@@ -92,7 +92,7 @@ public:
         renderAll(true);
 
         bool running = true;
-        while (running) {
+        while (running && !m_st.should_exit) {
             char ch = 0;
             ssize_t nread = read(STDIN_FILENO, &ch, 1);
             if (nread < 0) {
@@ -115,17 +115,39 @@ public:
             }
             if (ch == 4) break;
 
+            if (ch == 24) { // Ctrl+X: Prefijo de comandos
+                if (!m_st.isModalOpen()) {
+                    m_st.chord_x = !m_st.chord_x;
+                    renderAll();
+                }
+                continue;
+            }
+            if (m_st.chord_x) {
+                if (ch == Ansi::ESC) {
+                    m_st.chord_x = false;
+                    renderAll();
+                    continue;
+                }
+                texcel_tui::handleChordXKey(m_st, ch);
+                renderAll();
+                continue;
+            }
             if (ch == 19) { m_st.saveSheet(m_st.config.current_sheet); m_st.refreshSheetList(); renderAll(); continue; }
+            if (ch == 6) { // Ctrl+F: Catálogo interactivo de funciones (fx)
+                if (m_st.modal_kind == texcel_tui::ModalKind::Functions) m_st.closeModal();
+                else m_st.openModal(texcel_tui::ModalKind::Functions);
+                renderAll();
+                continue;
+            }
             if (ch == 7)  { // Ctrl+G: Ir a celda o rango en el Name Box
+                m_st.closeModal();
                 m_st.beginNameBoxEdit();
                 renderAll();
                 continue;
             }
-            if (ch == 15) {
-                m_st.modal_open = !m_st.modal_open;
-                m_st.modal_new_mode = false;
-                m_st.modal_new_name.clear();
-                if (m_st.modal_open) m_st.refreshSheetList();
+            if (ch == 15) { // Ctrl+O: Gestor de hojas
+                if (m_st.modal_kind == texcel_tui::ModalKind::Sheets) m_st.closeModal();
+                else m_st.openModal(texcel_tui::ModalKind::Sheets);
                 renderAll();
                 continue;
             }
@@ -146,7 +168,7 @@ public:
                 if (need_render) renderAll();
                 continue;
             }
-            if (m_st.modal_open)      { texcel_tui::handleModalKey(m_st, ch);   renderAll(); continue; }
+            if (m_st.isModalOpen())   { texcel_tui::handleModalKey(m_st, ch);   renderAll(); continue; }
             if (m_st.namebox_editing) { texcel_tui::handleNameBoxKey(m_st, ch); renderAll(); continue; }
             if (ch == '\t')           { texcel_tui::handleTabKey(m_st);         renderAll(); continue; }
 

@@ -485,7 +485,7 @@ private:
 
 public:
     SpreadsheetEngine() {
-        addLog("Motor iniciado (HashTable + BinaryTree + LinkedList)");
+        addLog("Sesión iniciada.");
     }
 
     /** @brief Registra un evento en el historial de la ventana de actividad. */

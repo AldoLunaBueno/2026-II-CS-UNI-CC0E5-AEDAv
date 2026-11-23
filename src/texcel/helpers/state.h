@@ -36,6 +36,63 @@ namespace texcel_tui {
 
 enum class SelectionKind : TX { None = 0, Cells = 1, Fill = 2, Text = 3 };
 enum class ScrollDrag : uint8_t { None = 0, GridV, GridH, AstV, AstH };
+enum class ModalKind : uint8_t { None = 0, Sheets, Functions, Help };
+
+struct FunctionSpec {
+    const char* name;
+    const char* summary;
+    const char* syntax;
+    const char* detail;
+    const char* example;
+};
+
+inline constexpr FunctionSpec FUNCTION_CATALOG[] = {
+    {"SUM",      "Suma valores o rangos",     "SUM(rango | v1, v2, ...)",       "Suma todos los valores numéricos.",                 "= SUM(A1:A5)"},
+    {"AVG",      "Promedio aritmético",       "AVG(rango | v1, v2, ...)",       "Calcula la media de las celdas numéricas.",         "= AVG(B1:B5)"},
+    {"MIN",      "Valor mínimo",              "MIN(rango | v1, v2, ...)",       "Devuelve el menor valor numérico.",                 "= MIN(A1:A10)"},
+    {"MAX",      "Valor máximo",              "MAX(rango | v1, v2, ...)",       "Devuelve el mayor valor numérico.",                 "= MAX(A1:A10)"},
+    {"IF",       "Condición lógica",          "IF(cond, si_ok, si_no)",         "Evalúa una condición y elige uno de dos valores.",  "= IF(A1>=11, \"OK\", \"NO\")"},
+    {"CONCAT",   "Une textos y valores",      "CONCAT(v1, v2, ...)",            "Concatena textos, números o rangos (también &).",   "= CONCAT(\"Total: \", D4)"},
+    {"COUNTIF",  "Cuenta con 1 criterio",     "COUNTIF(rango, criterio)",       "Cuenta celdas que cumplen una condición.",          "= COUNTIF(A1:A10, \">5\")"},
+    {"COUNTIFS", "Cuenta con varios criterios","COUNTIFS(r1, c1, r2, c2, ...)", "Cuenta celdas que cumplen todos los criterios.",    "= COUNTIFS(A1:A5, \">10\", B1:B5, \"OK\")"},
+};
+inline constexpr TX FUNCTION_CATALOG_SIZE = static_cast<TX>(sizeof(FUNCTION_CATALOG) / sizeof(FUNCTION_CATALOG[0]));
+
+struct HelpEntry {
+    const char* key;
+    const char* desc;
+    bool        is_section;
+};
+
+inline constexpr HelpEntry HELP_CATALOG[] = {
+    {"Edición y fórmulas", "", true},
+    {"Escribir",     "Escribe en cualquier celda",          false},
+    {"=",            "Iniciar fórmula en la celda",         false},
+    {"Tab",          "Alternar Hoja y Editor / Apuntar",    false},
+    {"Ctrl+X F",     "Catálogo de funciones (o clic [fx])", false},
+    {"Ctrl+U",       "Limpiar texto del editor",            false},
+    {"Supr / Bksp",  "Borrar celda o rango seleccionado",   false},
+    {"Navegación y selección", "", true},
+    {"Ctrl+X G",     "Ir a celda o rango (o Ctrl+G)",       false},
+    {"Shift+Flecha", "Seleccionar rango con teclado",       false},
+    {"Ctrl+Clic",    "Autorrelleno (o arrastrar esquina)",  false},
+    {"Ctrl+C",       "Copiar selección (o clic derecho)",   false},
+    {"Hojas y vista", "", true},
+    {"Ctrl+X H",     "Gestor de hojas (o Ctrl+O)",          false},
+    {"Ctrl+X S",     "Guardar hoja actual (o Ctrl+S)",      false},
+    {"■ V  □ H",     "Clic en Inspector para orientar AST", false},
+    {"Ctrl+X A",     "Abrir esta ayuda (o clic en [?])",    false},
+    {"Ctrl+D",       "Salir de Texcel (o clic en [Salir])", false},
+    {"Comandos (en editor)", "", true},
+    {"clear",        "Limpia todas las celdas de la hoja",  false},
+    {"save | load",  "Guarda o recarga la hoja actual",     false},
+    {"quit",         "Cierra Texcel",                       false},
+};
+inline constexpr TX HELP_CATALOG_SIZE = static_cast<TX>(sizeof(HELP_CATALOG) / sizeof(HELP_CATALOG[0]));
+
+struct ModalRect {
+    TX x, y, w, h, inner_w;
+};
 
 /**
  * @struct TuiState
@@ -121,16 +178,107 @@ struct TuiState {
     bool        console_ref_inserting = false;
     size_t      console_ref_pos = 0;
     size_t      console_ref_len = 0;
-    std::string status_banner = "Usa [Tab] para alternar entre Matriz y Consola.";
+    static constexpr TX FX_LIST_ROWS   = 6;  // Filas visibles de funciones en el modal fx
+    static constexpr TX HELP_LIST_ROWS = 11; // Filas visibles de ayuda en el modal ?
+
+    std::string status_banner;
     Vector<VectorAscTraits<std::string>> cmd_history;
     TX history_idx = -1;
 
-    // Gestor de hojas y configuración
+    // Modales flotantes (Hojas, Funciones fx, Ayuda ?)
     TexcelConfig config;
-    bool         modal_open     = false;
+    ModalKind    modal_kind     = ModalKind::None;
     bool         modal_new_mode = false;
     std::string  modal_new_name;
     TX           modal_idx      = 0;
+    TX           fx_idx         = 0;
+    TX           fx_scroll      = 0;
+    TX           help_scroll    = 0;
+    bool         chord_x        = false;
+    bool         should_exit    = false;
+
+    bool isModalOpen() const { return modal_kind != ModalKind::None; }
+    bool isFxHelpModal() const { return modal_kind == ModalKind::Functions || modal_kind == ModalKind::Help; }
+
+    void openModal(ModalKind kind) {
+        modal_kind = kind;
+        modal_new_mode = false;
+        modal_new_name.clear();
+        if (kind == ModalKind::Sheets) refreshSheetList();
+        else if (kind == ModalKind::Functions) clampFxScroll();
+        else if (kind == ModalKind::Help) clampHelpScroll();
+    }
+
+    void closeModal() {
+        modal_kind = ModalKind::None;
+        modal_new_mode = false;
+        modal_new_name.clear();
+    }
+
+    ModalRect modalRect() const {
+        TX w = std::min<TX>(62, total_width - 8);
+        TX h = 16;
+        TX x = (total_width - w) / 2;
+        TX y = (TOTAL_HEIGHT - h) / 2;
+        return {x, y, w, h, static_cast<TX>(w - 4)};
+    }
+
+    bool isFxButtonPos(TX mx, TX my) const {
+        TX x1 = LEFT_X + left_w - 4;
+        TX x0 = x1 - 3;
+        return my == BOT_Y + 2 && mx >= x0 && mx <= x1;
+    }
+
+    bool isAstVerticalRadioPos(TX mx, TX my) const {
+        TX x0 = right_x + 2 + 9;
+        return my == TOP_Y + 6 && mx >= x0 && mx <= x0 + 2;
+    }
+
+    bool isAstHorizontalRadioPos(TX mx, TX my) const {
+        TX x0 = right_x + 2 + 14;
+        return my == TOP_Y + 6 && mx >= x0 && mx <= x0 + 2;
+    }
+
+    bool isHeaderHelpBtnPos(TX mx, TX my) const {
+        return my == 0 && total_width >= 64 && mx >= total_width - 11 && mx <= total_width - 9;
+    }
+
+    bool isHeaderExitBtnPos(TX mx, TX my) const {
+        return my == 0 && total_width >= 64 && mx >= total_width - 7 && mx < total_width;
+    }
+
+    void clampFxScroll() {
+        fx_idx = std::clamp<TX>(fx_idx, 0, FUNCTION_CATALOG_SIZE - 1);
+        TX max_scroll = std::max<TX>(0, FUNCTION_CATALOG_SIZE - FX_LIST_ROWS);
+        if (fx_idx < fx_scroll) fx_scroll = fx_idx;
+        if (fx_idx >= fx_scroll + FX_LIST_ROWS) fx_scroll = fx_idx - FX_LIST_ROWS + 1;
+        fx_scroll = std::clamp<TX>(fx_scroll, 0, max_scroll);
+    }
+
+    void clampHelpScroll() {
+        TX max_scroll = std::max<TX>(0, HELP_CATALOG_SIZE - HELP_LIST_ROWS);
+        help_scroll = std::clamp<TX>(help_scroll, 0, max_scroll);
+    }
+
+    void insertSelectedFunction() {
+        clampFxScroll();
+        const FunctionSpec& fn = FUNCTION_CATALOG[fx_idx];
+        std::string call = std::string(fn.name) + "(";
+        if (mode != SpreadsheetFocusMode::CommandConsole) {
+            exitPointMode();
+            mode = SpreadsheetFocusMode::CommandConsole;
+            return_to_grid_on_submit = true;
+            setInput("= " + call);
+        } else if (input_buffer.empty()) {
+            setInput("= " + call);
+        } else {
+            input_cursor = std::min(input_cursor, input_buffer.size());
+            input_buffer.insert(input_cursor, call);
+            input_cursor += call.size();
+        }
+        closeModal();
+        status_banner = std::string(fn.syntax);
+    }
 
     TuiState(SpreadsheetEngine& eng, std::ostream& out) : engine(eng), os(out) {}
 
@@ -162,7 +310,15 @@ struct TuiState {
     bool hasCellSel() const { return sel_kind == SelectionKind::Cells; }
     bool hasFillSel() const { return sel_kind == SelectionKind::Fill; }
     bool hasTextSel() const { return sel_kind == SelectionKind::Text; }
-    void clearSelection()   { sel_kind = SelectionKind::None; }
+    void clearSelectionBanner() {
+        if (status_banner.starts_with("Rango ") || status_banner.starts_with("Texto sombreado")) {
+            status_banner.clear();
+        }
+    }
+    void clearSelection() {
+        sel_kind = SelectionKind::None;
+        clearSelectionBanner();
+    }
 
     void updatePointedCell() {
         if (!point_mode) return;

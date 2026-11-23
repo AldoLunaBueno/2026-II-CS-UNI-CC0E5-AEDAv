@@ -104,9 +104,8 @@ inline void drawWindowFrame(TuiState& st, TX x, TX y, TX w, TX h,
         return styled(glyph).gray().str();
     };
 
-    std::string badge = active_focus ? " ● ACTIVA " : " ";
     size_t inner_w = (w >= 2) ? static_cast<size_t>(w - 2) : 0;
-    std::string full_title = " " + title + badge;
+    std::string full_title = " " + title + " ";
     if (inner_w > 2 && visible_length(full_title) > inner_w - 2) {
         full_title = fitWidth(full_title, inner_w - 2);
     }
@@ -144,22 +143,21 @@ inline void drawWindowFrame(TuiState& st, TX x, TX y, TX w, TX h,
     st.ros() << styleBorder("╰" + repeatGlyph("─", inner_w) + "╯");
 }
 
-inline void renderHeaderBar(TuiState& st, const EvalPreview& preview) {
+inline void renderHeaderBar(TuiState& st, const EvalPreview&) {
     gotoxy(st.ros(), 0, 0);
     std::string mode_badge;
-    if (st.modal_open) {
-        mode_badge = styled(fitWidth(" GESTOR DE HOJAS (MODAL) ", 27)).badge_cyan();
+    if (st.modal_kind == ModalKind::Sheets) {
+        mode_badge = styled(fitWidth(" HOJAS ", 11)).badge_cyan();
+    } else if (st.modal_kind == ModalKind::Functions) {
+        mode_badge = styled(fitWidth(" FUNCIONES ", 11)).badge_cyan();
+    } else if (st.modal_kind == ModalKind::Help) {
+        mode_badge = styled(fitWidth(" AYUDA ", 11)).badge_cyan();
     } else if (st.point_mode) {
-        mode_badge = styled(fitWidth(" POINT MODE: APUNTAR CELDA ", 27)).badge_yellow();
+        mode_badge = styled(fitWidth(" APUNTAR ", 11)).badge_yellow();
     } else if (st.mode == SpreadsheetFocusMode::GridNavigation) {
-        mode_badge = styled(fitWidth(" MODO 1: NAVEGACION MATRIZ ", 27)).badge_cyan();
+        mode_badge = styled(fitWidth(" HOJA ", 11)).badge_cyan();
     } else {
-        mode_badge = styled(fitWidth(" MODO 2: CONSOLA COMANDOS ", 27)).badge_green();
-    }
-
-    std::string focus_id = st.activeCellId();
-    if (preview.active && !preview.target_cell.empty()) {
-        focus_id = preview.target_cell;
+        mode_badge = styled(fitWidth(" EDITAR ", 11)).badge_green();
     }
 
     std::string auto_badge = st.config.autosave
@@ -170,12 +168,32 @@ inline void renderHeaderBar(TuiState& st, const EvalPreview& preview) {
     oss << styled(" ◆ Texcel ").badge_blue()
         << " " << mode_badge
         << styled(" │ ").gray() << styled(st.config.current_sheet + TexcelConfig::SHEET_EXT).bright_yellow().bold()
-        << " " << auto_badge
-        << styled(" │ Celda:").gray() << styled(fitWidth(focus_id, 3)).bright_cyan().bold()
-        << styled(" │ [Ctrl+S] Guardar [Ctrl+O] Hojas [Tab] Modo [q] Salir").gray();
+        << " " << auto_badge;
 
-    st.ros() << fitWidth(oss.str(), static_cast<size_t>(st.total_width));
+    std::string left_part = oss.str();
+    if (st.total_width >= 64) {
+        std::string right_part = styled("[?]").bright_cyan().str() + " " + styled("[Salir]").gray().str();
+        size_t lw = visible_length(left_part);
+        size_t rw = visible_length(right_part); // 11 cols: "[?] [Salir]"
+        size_t tw = static_cast<size_t>(st.total_width);
+        if (lw + rw + 1 <= tw) {
+            st.ros() << left_part << std::string(tw - lw - rw, ' ') << right_part;
+            return;
+        }
+    }
+    st.ros() << fitWidth(left_part, static_cast<size_t>(st.total_width));
 }
+
+struct GridLegendFlags {
+    bool active  = false;
+    bool sel     = false;
+    bool fill    = false;
+    bool target  = false;
+    bool ref     = false;
+    bool dep     = false;
+    bool formula = false;
+    bool err     = false;
+};
 
 struct GridRenderCtx {
     const EvalPreview& preview;
@@ -184,9 +202,10 @@ struct GridRenderCtx {
     TX sel_cmin = 0, sel_rmin = 0, sel_cmax = 0, sel_rmax = 0;
     SpreadsheetEngine::StringVec inputs;
     SpreadsheetEngine::StringVec dependents;
+    GridLegendFlags legend{};
 };
 
-inline std::string renderGridCell(TuiState& st, const GridRenderCtx& ctx, TX col_idx, TX row_idx) {
+inline std::string renderGridCell(TuiState& st, GridRenderCtx& ctx, TX col_idx, TX row_idx) {
     std::string cid = CellCoord(col_idx, row_idx, true).toId();
     SpreadsheetCell cell = st.engine.getCell(cid);
 
@@ -219,21 +238,22 @@ inline std::string renderGridCell(TuiState& st, const GridRenderCtx& ctx, TX col
         formatted = left ? (ramp + formatted.substr(1)) : (formatted.substr(0, formatted.size() - 1) + ramp);
     }
 
-    if (is_cursor)                                     return styled(formatted).badge_cyan();
-    if ((st.hasFillSel() && in_sel) || is_target_cell) return styled(formatted).badge_green();
-    if (st.hasCellSel() && in_sel)                     return styled(formatted).badge_blue();
-    if (texcel_detail::containsStr(ctx.inputs, cid))   return styled(formatted).badge_yellow();
-    if (texcel_detail::containsStr(ctx.dependents, cid)) return styled(formatted).bright_magenta().bold().underline();
-    if (cell.has_error)                                return styled(formatted).bright_red().bold();
-    if (is_bool_true || cell.is_formula)               return styled(formatted).bright_green().bold();
+    if (is_cursor)                                     { ctx.legend.active = true; return styled(formatted).badge_cyan(); }
+    if (st.hasFillSel() && in_sel)                     { ctx.legend.fill = true;   return styled(formatted).badge_green(); }
+    if (is_target_cell)                                { ctx.legend.target = true; return styled(formatted).badge_green(); }
+    if (st.hasCellSel() && in_sel)                     { ctx.legend.sel = true;    return styled(formatted).badge_blue(); }
+    if (texcel_detail::containsStr(ctx.inputs, cid))   { ctx.legend.ref = true;    return styled(formatted).badge_yellow(); }
+    if (texcel_detail::containsStr(ctx.dependents, cid)) { ctx.legend.dep = true;  return styled(formatted).bright_magenta().bold().underline(); }
+    if (cell.has_error)                                { ctx.legend.err = true;    return styled(formatted).bright_red().bold(); }
+    if (is_bool_true || cell.is_formula)               { ctx.legend.formula = true; return styled(formatted).bright_green().bold(); }
     if (is_bool_false)                                 return styled(formatted).dim();
     if (!val_text.empty())                             return styled(formatted).bright_white();
     return styled(alignCell("·", TuiState::CELL_WIDTH, false)).dim();
 }
 
 inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
-    bool is_focused = !st.modal_open && (st.mode == SpreadsheetFocusMode::GridNavigation);
-    drawWindowFrame(st, TuiState::LEFT_X, TuiState::TOP_Y, st.left_w, TuiState::TOP_H, "Hoja de Calculo", is_focused);
+    bool is_focused = !st.isModalOpen() && (st.mode == SpreadsheetFocusMode::GridNavigation);
+    drawWindowFrame(st, TuiState::LEFT_X, TuiState::TOP_Y, st.left_w, TuiState::TOP_H, "Hoja", is_focused);
 
     std::string active_id = st.cursor.toId();
     std::string preview_target_id = active_id;
@@ -317,10 +337,14 @@ inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
 
     gotoxy(st.ros(), TuiState::LEFT_X + 2, TuiState::TOP_Y + TuiState::TOP_H - 2);
     std::ostringstream leg;
-    leg << styled(" ■ ").badge_cyan() << styled("Activa ").gray()
-        << styled(" ■ ").badge_yellow() << styled("Referencia ").gray()
-        << styled(" ■ ").bright_magenta().bold() << styled("Afectada ").gray()
-        << styled(" ■ ").bright_green().bold() << styled("Formula").gray();
+    if (ctx.legend.active)  leg << styled(" ■ ").badge_cyan() << styled("Activa ").gray();
+    if (ctx.legend.sel)     leg << styled(" ■ ").badge_blue() << styled("Selección ").gray();
+    if (ctx.legend.fill)    leg << styled(" ■ ").badge_green() << styled("Relleno ").gray();
+    if (ctx.legend.target)  leg << styled(" ■ ").badge_green() << styled("Destino ").gray();
+    if (ctx.legend.ref)     leg << styled(" ■ ").badge_yellow() << styled("Referencia ").gray();
+    if (ctx.legend.dep)     leg << styled(" ■ ").bright_magenta().bold() << styled("Afectada ").gray();
+    if (ctx.legend.formula) leg << styled(" ■ ").bright_green().bold() << styled("Fórmula ").gray();
+    if (ctx.legend.err)     leg << styled(" ■ ").bright_red().bold() << styled("Error ").gray();
     st.ros() << fitWidth(leg.str(), inner_w);
 
     // Mini-scrollbars de la Matriz (vertical y horizontal)
@@ -373,7 +397,7 @@ inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
     }
 
     drawWindowFrame(st, st.right_x, TuiState::TOP_Y, st.right_w, TuiState::TOP_H,
-                    "Inspector & AST [" + inspect_id + "]",
+                    "Inspector [" + inspect_id + "]",
                     false, true);
 
     SpreadsheetCell cell = st.engine.getCell(inspect_id);
@@ -382,7 +406,7 @@ inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
     std::string raw_fx = showing_preview ? preview.expression : cell.raw_expression;
     std::string val_str = showing_preview
         ? (preview.valid ? preview.result.asString() : preview.error_msg)
-        : (cell.raw_expression.empty() ? "(vacia)" : cell.displayValue());
+        : (cell.raw_expression.empty() ? "∅" : cell.displayValue());
     std::string rpn_str   = showing_preview ? preview.postorder_rpn : cell.postorder_rpn;
 
     const size_t inner_w = static_cast<size_t>(st.right_w - 4);
@@ -395,11 +419,11 @@ inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
     bool is_fx = cell.is_formula || (showing_preview && !preview.result.is_text && !raw_fx.empty() && raw_fx[0] == '=');
     bool is_txt = showing_preview ? preview.result.is_text : cell.result.is_text;
     std::string kind_badge = raw_fx.empty()
-        ? styled("Celda vacia").dim().str()
+        ? styled("Vacía").dim().str()
         : (is_fx
-            ? styled("Formula / Expresion").bright_green().bold().str()
-            : (is_txt ? styled("Texto").bright_cyan().str() : styled("Valor Literal").bright_cyan().str()));
-    putLine(1, styled("Celda      : ").gray().str() + styled(inspect_id).bright_yellow().bold().str() + " (" + kind_badge + ")");
+            ? styled("Fórmula").bright_green().bold().str()
+            : (is_txt ? styled("Texto").bright_cyan().str() : styled("Número").bright_cyan().str()));
+    putLine(1, styled("Tipo       : ").gray().str() + kind_badge);
 
     std::string fx_display = "∅";
     if (!raw_fx.empty()) {
@@ -427,8 +451,18 @@ inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
     putLine(4, styled("Depende de : ").gray().str() + styled(clipPlain(formatCellList(inputs), val_max)).bright_yellow().str());
     putLine(5, styled("Afecta a   : ").gray().str() + styled(clipPlain(formatCellList(deps), val_max)).bright_magenta().str());
 
-    std::string orient_tag = st.ast_horizontal ? "[H]" : "[V]";
-    putLine(6, styled(makeSectionHeader("BinaryTree AST " + orient_tag + " ([O] rotar)", inner_w)).gray().str());
+    std::string ast_hdr_prefix = "─── AST  ";
+    std::string v_radio = st.ast_horizontal
+        ? styled("□ V").dim().str()
+        : styled("■ V").bright_cyan().bold().str();
+    std::string h_radio = st.ast_horizontal
+        ? styled("■ H").bright_cyan().bold().str()
+        : styled("□ H").dim().str();
+    size_t hdr_used = 9 + 3 + 2 + 3 + 1; // "─── AST  " + "■ V" + "  " + "□ H" + " "
+    std::string ast_hdr_tail = (inner_w > hdr_used) ? repeatGlyph("─", inner_w - hdr_used) : "";
+    putLine(6, styled(ast_hdr_prefix).gray().str() +
+               v_radio + "  " + h_radio +
+               styled(" " + ast_hdr_tail).gray().str());
 
     std::string rpn_disp = rpn_str.empty() ? "∅" : clipPlain(rpn_str, inner_w > 11 ? inner_w - 11 : 20);
     putLine(7, styled("PostOrder: ").gray().str() + styled(rpn_disp).bright_green().str());
@@ -442,7 +476,7 @@ inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
 
     if (vg.nodes.empty() || vg.width <= 0 || vg.height <= 0) {
         for (TX row = 0; row < TuiState::AST_VIEW_H; ++row) putLine(8 + row, "");
-        putLine(9, styled("       (sin arbol de expresion)").dim().str());
+        putLine(9, styled("          (sin AST)").dim().str());
     } else {
         ClippedGraphRenderer ast_renderer(
             st.ros(), static_cast<TX>(inner_w), TuiState::AST_VIEW_H,
@@ -477,7 +511,7 @@ inline std::string renderCommandInput(TuiState& st, const std::string& active_id
     std::string cursor_block = is_focused ? styled("█").bright_green().blink().str() : "";
 
     if (st.input_buffer.empty()) {
-        if (is_focused) return cursor_block + styled("Ej: = A1 + 4  o  5  o  Ctrl+U limpiar").dim().str();
+        if (is_focused) return cursor_block + styled("Valor, =fórmula o [fx]").dim().str();
         std::string cell_preview = st.formatCellForInput(active_id);
         if (!cell_preview.empty()) {
             std::string clipped = clipPlain(cell_preview, max_in);
@@ -485,7 +519,7 @@ inline std::string renderCommandInput(TuiState& st, const std::string& active_id
                 ? styled(clipped).bright_cyan().str()
                 : styled(clipped).white().str();
         }
-        return styled("[Enter] o [=] para editar " + active_id).dim().str();
+        return styled("Valor o =fórmula").dim().str();
     }
     if (!is_focused) {
         return styled(clipPlain(st.input_buffer, max_in)).bright_white().bold().str();
@@ -505,8 +539,8 @@ inline std::string renderCommandInput(TuiState& st, const std::string& active_id
 inline std::string renderCommandStatus(TuiState& st, const EvalPreview& preview, const std::string& active_id, size_t inner_w) {
     if (st.point_mode) {
         std::string pinfo = preview.valid
-            ? ("= " + preview.result.asString() + "  (Point Mode: operador +-*/ o [Enter])")
-            : ("Point Mode [" + active_id + "]");
+            ? ("= " + preview.result.asString() + "  (Apuntar: operador +-*/ o [Enter])")
+            : ("Apuntando [" + active_id + "]");
         return styled(clipPlain(pinfo, inner_w)).dim().str();
     }
     if (preview.active) {
@@ -521,9 +555,9 @@ inline std::string renderCommandStatus(TuiState& st, const EvalPreview& preview,
 }
 
 inline void renderCommandWindow(TuiState& st, const EvalPreview& preview) {
-    bool is_focused = !st.modal_open && (st.mode == SpreadsheetFocusMode::CommandConsole);
+    bool is_focused = !st.isModalOpen() && (st.mode == SpreadsheetFocusMode::CommandConsole);
     drawWindowFrame(st, TuiState::LEFT_X, TuiState::BOT_Y, st.left_w, TuiState::BOT_H,
-                    "Consola & Editor de Formulas",
+                    "Fórmula",
                     is_focused);
 
     const size_t inner_w = static_cast<size_t>(st.left_w - 4);
@@ -535,18 +569,25 @@ inline void renderCommandWindow(TuiState& st, const EvalPreview& preview) {
     const size_t box_inner = (inner_w > 2) ? (inner_w - 2) : 20;
     std::string prompt_label = active_id + " ❯ ";
     const size_t prefix_len = visible_length(prompt_label);
-    const size_t text_slot = (box_inner > prefix_len + 1) ? (box_inner - prefix_len - 1) : 12;
+    constexpr size_t fx_btn_cols = 5; // " [fx]"
+    const size_t text_slot = (box_inner > prefix_len + fx_btn_cols + 2)
+        ? (box_inner - prefix_len - fx_btn_cols - 2)
+        : 10;
 
     std::string prompt_prefix = is_focused
         ? styled(prompt_label).bright_green().bold().str()
         : styled(prompt_label).cyan().str();
     std::string input_rendered = renderCommandInput(st, active_id, is_focused, text_slot);
+    std::string fx_pill = is_focused
+        ? styled("[fx]").bright_cyan().bold().str()
+        : styled("[fx]").cyan().str();
 
     std::string h_bar = repeatGlyph("─", box_inner);
     putLine(1, styled("╭" + h_bar + "╮").gray().str());
-    putLine(2, styled("│ ").gray().str() + prompt_prefix + fitWidth(input_rendered, text_slot) + styled("│").gray().str());
+    putLine(2, styled("│ ").gray().str() + prompt_prefix + fitWidth(input_rendered, text_slot) + " " + fx_pill + styled(" │").gray().str());
     putLine(3, styled("╰" + h_bar + "╯").gray().str());
     putLine(4, renderCommandStatus(st, preview, active_id, inner_w));
+
     std::string banner = clipPlain(st.status_banner, inner_w);
     std::string styled_banner = banner.starts_with("✔")
         ? styled(banner).bright_green().str()
@@ -554,15 +595,29 @@ inline void renderCommandWindow(TuiState& st, const EvalPreview& preview) {
             ? styled(banner).bright_yellow().str()
             : styled(banner).cyan().str();
     putLine(5, styled_banner);
-    putLine(6, styled("Ejemplos: ").gray().bold().str() +
-               styled("5 │ = A1 + 4 │ = A1 + B1 │ [Tab] Point Mode").dim().str());
-    putLine(7, styled("Comandos: ").gray().bold().str() +
-               styled("SUM / CONCAT / COUNTIF(S) / & │ clear │ save │ load │ quit").dim().str());
+    putLine(6, "");
+
+    if (st.chord_x) {
+        std::string chord_line =
+            styled(" Ctrl+X ❯ ").bright_yellow().bold().str() +
+            styled("[F] Funciones  [H] Hojas  [S] Guardar  [G] Ir a  [A] Ayuda").cyan().str();
+        putLine(7, fitWidth(chord_line, inner_w));
+    } else {
+        std::string shortcuts;
+        if (st.point_mode) {
+            shortcuts = "[↑↓←→] Celda  [+-*/] Operador  [Enter] Aplicar  [Esc] Volver";
+        } else if (st.mode == SpreadsheetFocusMode::CommandConsole) {
+            shortcuts = "[Enter] Aplicar  [Tab] Apuntar  [Ctrl+U] Limpiar  [Esc] Cancelar";
+        } else {
+            shortcuts = "[Ctrl+X] Comandos";
+        }
+        putLine(7, styled(clipPlain(shortcuts, inner_w)).dim().str());
+    }
 }
 
 inline void renderActivityWindow(TuiState& st) {
     drawWindowFrame(st, st.right_x, TuiState::BOT_Y, st.right_w, TuiState::BOT_H,
-                    "Eventos & Propagacion",
+                    "Actividad",
                     false, true);
 
     const size_t inner_w = static_cast<size_t>(st.right_w - 4);
@@ -586,21 +641,18 @@ inline void renderActivityWindow(TuiState& st) {
         }
     }
 
-    std::string footer = "Total ops: " + std::to_string(total) + " │ Ciclos: protegidos";
+    std::string footer = std::to_string(total) + (total == 1 ? " evento" : " eventos");
     drawWindowLineWithSelection(st, TuiState::WIN_ACTIVITY, st.right_x + 2, TuiState::BOT_Y + TuiState::BOT_H - 2, styled(footer).dim().str(), inner_w);
 }
 
 inline void renderFileManagerModal(TuiState& st) {
-    const TX modal_w = std::min<TX>(60, st.total_width - 8);
-    const TX modal_h = 16;
-    const TX mx = (st.total_width - modal_w) / 2;
-    const TX my = (TuiState::TOTAL_HEIGHT - modal_h) / 2;
-    const size_t inner_w = static_cast<size_t>(modal_w - 4);
+    ModalRect mr = st.modalRect();
+    const size_t inner_w = static_cast<size_t>(mr.inner_w);
 
-    drawWindowFrame(st, mx, my, modal_w, modal_h, "Gestor de Hojas & Configuracion", true, false, true);
+    drawWindowFrame(st, mr.x, mr.y, mr.w, mr.h, "Hojas", true, false, true);
 
     auto putRow = [&](TX rel_y, bool selected, const std::string& content) {
-        gotoxy(st.ros(), mx + 2, my + rel_y);
+        gotoxy(st.ros(), mr.x + 2, mr.y + rel_y);
         std::string line = (selected ? " ▸ " : "   ") + content;
         if (selected) st.ros() << styled(fitWidth(line, inner_w)).badge_cyan();
         else st.ros() << fitWidth(line, inner_w);
@@ -610,45 +662,124 @@ inline void renderFileManagerModal(TuiState& st) {
         ? styled("[ON] ").bright_green().bold().str()
         : styled("[OFF]").gray().str();
     putRow(1, st.modal_idx == TuiState::MODAL_AUTOSAVE,
-           "[A] Autoguardado al editar : " + (st.modal_idx == TuiState::MODAL_AUTOSAVE ? std::string(st.config.autosave ? "[ON]" : "[OFF]") : auto_txt));
+           "[A] Autoguardado : " + (st.modal_idx == TuiState::MODAL_AUTOSAVE ? std::string(st.config.autosave ? "[ON]" : "[OFF]") : auto_txt));
     putRow(2, st.modal_idx == TuiState::MODAL_SAVE,
-           "[S] Guardar hoja actual (" + st.config.current_sheet + TexcelConfig::SHEET_EXT + ")");
+           "[S] Guardar (" + st.config.current_sheet + TexcelConfig::SHEET_EXT + ")");
 
     if (st.modal_new_mode) {
         putRow(3, true, "Nueva hoja (Enter): " + st.modal_new_name + "█");
     } else {
-        putRow(3, st.modal_idx == TuiState::MODAL_NEW, "[N] Crear nueva hoja limpia...");
+        putRow(3, st.modal_idx == TuiState::MODAL_NEW, "[N] Nueva hoja...");
     }
 
-    gotoxy(st.ros(), mx + 2, my + 4);
-    st.ros() << fitWidth(styled(makeSectionHeader("Hojas guardadas en output/sheets/", inner_w)).gray().str(), inner_w);
+    gotoxy(st.ros(), mr.x + 2, mr.y + 4);
+    st.ros() << fitWidth(styled(makeSectionHeader("Guardadas", inner_w)).gray().str(), inner_w);
 
-    const TX list_rows = modal_h - 8;
+    const TX list_rows = mr.h - 8;
     TX file_cursor = (st.modal_idx >= TuiState::MODAL_FIRST_FILE) ? (st.modal_idx - TuiState::MODAL_FIRST_FILE) : 0;
     TX scroll_f = (file_cursor >= list_rows) ? (file_cursor - list_rows + 1) : 0;
 
     if (st.config.sheet_files.size() == 0) {
-        gotoxy(st.ros(), mx + 2, my + 6);
-        st.ros() << fitWidth(styled("   (No hay hojas guardadas aun. Pulsa [S] o [N])").dim().str(), inner_w);
+        gotoxy(st.ros(), mr.x + 2, mr.y + 6);
+        st.ros() << fitWidth(styled("   (Sin hojas guardadas. Pulsa [S] o [N])").dim().str(), inner_w);
     } else {
         for (TX i = 0; i < list_rows; ++i) {
             TX idx = scroll_f + i;
             if (idx < static_cast<TX>(st.config.sheet_files.size())) {
                 std::string fname = st.config.sheet_files[static_cast<size_t>(idx)].getValue();
-                std::string tag = (fname == st.config.current_sheet) ? " ★ (actual)" : "";
+                std::string tag = (fname == st.config.current_sheet) ? " ★" : "";
                 putRow(5 + i, st.modal_idx == TuiState::MODAL_FIRST_FILE + idx, fname + TexcelConfig::SHEET_EXT + tag);
             } else {
-                gotoxy(st.ros(), mx + 2, my + 5 + i);
+                gotoxy(st.ros(), mr.x + 2, mr.y + 5 + i);
                 st.ros() << std::string(inner_w, ' ');
             }
         }
     }
 
-    gotoxy(st.ros(), mx + 2, my + modal_h - 2);
+    gotoxy(st.ros(), mr.x + 2, mr.y + mr.h - 2);
     std::string help = st.modal_new_mode
-        ? "Escribe el nombre y pulsa [Enter] │ [Esc] Cancelar"
+        ? "Nombre y [Enter] │ [Esc] Cancelar"
         : "[↑/↓] Mover │ [Enter] OK │ [Supr] Borrar │ [Esc] Cerrar";
     st.ros() << fitWidth(styled(clipPlain(help, inner_w)).dim().str(), inner_w);
+}
+
+inline void renderFxHelpModal(TuiState& st) {
+    ModalRect mr = st.modalRect();
+    const size_t inner_w = static_cast<size_t>(mr.inner_w);
+    bool is_fx = (st.modal_kind == ModalKind::Functions);
+
+    drawWindowFrame(st, mr.x, mr.y, mr.w, mr.h, is_fx ? "Funciones [fx]" : "Ayuda [?]", true, false, true);
+
+    // Fila 1: barra de pestañas clicable
+    gotoxy(st.ros(), mr.x + 2, mr.y + 1);
+    std::string tab_fx   = is_fx ? styled(" Funciones (fx) ").badge_cyan().str() : styled(" Funciones (fx) ").gray().str();
+    std::string tab_help = is_fx ? styled(" Ayuda (?) ").gray().str()            : styled(" Ayuda (?) ").badge_cyan().str();
+    std::string tab_hint = styled("  [Tab] cambiar").dim().str();
+    st.ros() << fitWidth(tab_fx + "  " + tab_help + tab_hint, inner_w);
+
+    gotoxy(st.ros(), mr.x + 2, mr.y + 2);
+    st.ros() << styled(repeatGlyph("─", inner_w)).gray();
+
+    if (is_fx) {
+        st.clampFxScroll();
+        for (TX i = 0; i < TuiState::FX_LIST_ROWS; ++i) {
+            TX idx = st.fx_scroll + i;
+            gotoxy(st.ros(), mr.x + 2, mr.y + 3 + i);
+            if (idx < FUNCTION_CATALOG_SIZE) {
+                const FunctionSpec& fn = FUNCTION_CATALOG[idx];
+                bool selected = (idx == st.fx_idx);
+                std::string name_col = fitWidth(fn.name, 10);
+                std::string row_txt = (selected ? " ▸ " : "   ") + name_col + " " + fn.summary;
+                if (selected) st.ros() << styled(fitWidth(row_txt, inner_w)).badge_cyan();
+                else st.ros() << styled(fitWidth(row_txt, inner_w)).white();
+            } else {
+                st.ros() << std::string(inner_w, ' ');
+            }
+        }
+        if (FUNCTION_CATALOG_SIZE > TuiState::FX_LIST_ROWS) {
+            drawVerticalScrollbar(st, mr.x + mr.w - 1, mr.y + 3, TuiState::FX_LIST_ROWS,
+                                  st.fx_scroll, FUNCTION_CATALOG_SIZE - TuiState::FX_LIST_ROWS);
+        }
+
+        // Separador y definición en vivo de la función seleccionada
+        const FunctionSpec& cur = FUNCTION_CATALOG[st.fx_idx];
+        gotoxy(st.ros(), mr.x + 2, mr.y + 9);
+        st.ros() << styled(repeatGlyph("─", inner_w)).gray();
+        gotoxy(st.ros(), mr.x + 2, mr.y + 10);
+        st.ros() << fitWidth(styled(clipPlain(cur.syntax, inner_w)).bright_yellow().bold().str(), inner_w);
+        gotoxy(st.ros(), mr.x + 2, mr.y + 11);
+        st.ros() << fitWidth(styled(clipPlain(cur.detail, inner_w)).white().str(), inner_w);
+        gotoxy(st.ros(), mr.x + 2, mr.y + 12);
+        st.ros() << fitWidth(styled("Ej: ").gray().str() + styled(clipPlain(cur.example, inner_w > 4 ? inner_w - 4 : inner_w)).bright_cyan().str(), inner_w);
+
+        gotoxy(st.ros(), mr.x + 2, mr.y + mr.h - 2);
+        st.ros() << fitWidth(styled(clipPlain("[↑/↓] Mover │ [Enter/Clic] Insertar │ [Esc] Cerrar", inner_w)).dim().str(), inner_w);
+    } else {
+        st.clampHelpScroll();
+        for (TX i = 0; i < TuiState::HELP_LIST_ROWS; ++i) {
+            TX idx = st.help_scroll + i;
+            gotoxy(st.ros(), mr.x + 2, mr.y + 3 + i);
+            if (idx < HELP_CATALOG_SIZE) {
+                const HelpEntry& e = HELP_CATALOG[idx];
+                if (e.is_section) {
+                    st.ros() << fitWidth(styled(makeSectionHeader(e.key, inner_w)).bright_cyan().bold().str(), inner_w);
+                } else {
+                    std::string k = styled(fitWidth(e.key, 14)).bright_yellow().bold().str();
+                    std::string d = styled(clipPlain(e.desc, inner_w > 16 ? inner_w - 16 : inner_w)).white().str();
+                    st.ros() << fitWidth(" " + k + " " + d, inner_w);
+                }
+            } else {
+                st.ros() << std::string(inner_w, ' ');
+            }
+        }
+        if (HELP_CATALOG_SIZE > TuiState::HELP_LIST_ROWS) {
+            drawVerticalScrollbar(st, mr.x + mr.w - 1, mr.y + 3, TuiState::HELP_LIST_ROWS,
+                                  st.help_scroll, HELP_CATALOG_SIZE - TuiState::HELP_LIST_ROWS);
+        }
+
+        gotoxy(st.ros(), mr.x + 2, mr.y + mr.h - 2);
+        st.ros() << fitWidth(styled(clipPlain("[↑/↓] Desplazar │ [Tab] Funciones │ [Esc] Cerrar", inner_w)).dim().str(), inner_w);
+    }
 }
 
 inline void renderAll(TuiState& st, bool force_clear = false) {
@@ -668,8 +799,10 @@ inline void renderAll(TuiState& st, bool force_clear = false) {
     renderInspectorWindow(st, preview);
     renderCommandWindow(st, preview);
     renderActivityWindow(st);
-    if (st.modal_open) {
+    if (st.modal_kind == ModalKind::Sheets) {
         renderFileManagerModal(st);
+    } else if (st.isFxHelpModal()) {
+        renderFxHelpModal(st);
     }
     TX end_y = st.interactive_alt_screen
         ? std::min<TX>(TuiState::TOTAL_HEIGHT - 1, std::max<TX>(0, st.term_rows - 1))
