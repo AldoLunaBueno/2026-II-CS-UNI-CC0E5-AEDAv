@@ -332,10 +332,10 @@ private:
      */
     CellEvalValue evaluateAstPostOrder(AstNode* root,
                                        StringVec& visiting,
-                                       std::string& out_rpn,
+                                       std::string* out_rpn,
                                        std::string& out_err) {
         if (!root) return {};
-        std::ostringstream rpn_ss;
+        if (out_rpn) out_rpn->clear();
         bool first = true;
 
         try {
@@ -352,9 +352,13 @@ private:
                     continue;
                 }
 
-                if (!first) rpn_ss << " ";
-                rpn_ss << "[" << tok.text << "]";
-                first = false;
+                if (out_rpn) {
+                    if (!first) out_rpn->push_back(' ');
+                    out_rpn->push_back('[');
+                    out_rpn->append(tok.text);
+                    out_rpn->push_back(']');
+                    first = false;
+                }
 
                 if (tok.kind == AstNodeKind::CellRef) {
                     tok.evaluated = resolveOrThrow(tok.text, visiting);
@@ -379,18 +383,16 @@ private:
             }
         } catch (const EvalError& e) {
             out_err = e.code;
-            out_rpn = rpn_ss.str();
             return {};
         }
 
-        out_rpn = rpn_ss.str();
         return root->getValue().evaluated;
     }
 
     CellEvalValue evaluateRawExpression(const std::string& raw,
                                         StringVec& visiting,
                                         StringVec* out_refs,
-                                        std::string& out_rpn,
+                                        std::string* out_rpn,
                                         std::string& out_err,
                                         std::string* out_syntax_msg = nullptr) {
         bool has_quote = (!raw.empty() && raw[0] == '\'');
@@ -398,11 +400,11 @@ private:
         if (!explicit_formula) {
             if (!has_quote && texcel_detail::isPureNumber(raw)) {
                 double val = std::stod(raw);
-                out_rpn = "[" + formatCellNumber(val) + "]";
+                if (out_rpn) *out_rpn = "[" + formatCellNumber(val) + "]";
                 return CellEvalValue{false, val, ""};
             }
             std::string txt = has_quote ? raw.substr(1) : raw;
-            out_rpn = "\"" + txt + "\"";
+            if (out_rpn) *out_rpn = "\"" + txt + "\"";
             return CellEvalValue{true, 0.0, txt};
         }
 
@@ -428,12 +430,16 @@ private:
         old_inputs.clear();
     }
 
-    CellEvalValue resolveCellValue(const std::string& cell_id, StringVec& visiting, std::string& out_err) {
+    CellEvalValue resolveCellValue(const std::string& cell_id,
+                                   StringVec& visiting,
+                                   std::string& out_err,
+                                   const std::string* known_raw = nullptr,
+                                   SpreadsheetCell* known_cell = nullptr) {
         if (texcel_detail::containsStr(visiting, cell_id)) {
             out_err = "#CYCLE!";
             return {};
         }
-        SpreadsheetCell* existing = m_cells.find(cell_id);
+        SpreadsheetCell* existing = known_cell ? known_cell : m_cells.find(cell_id);
         if (existing && !existing->dirty) {
             if (existing->has_error) {
                 out_err = existing->error_msg;
@@ -441,17 +447,17 @@ private:
             }
             return existing->result;
         }
-        const std::string* raw_ptr = m_raw_table.find(cell_id);
+        const std::string* raw_ptr = known_raw ? known_raw : m_raw_table.find(cell_id);
         if (!raw_ptr || raw_ptr->empty()) return {};
 
-        std::string raw = *raw_ptr;
+        const std::string& raw = *raw_ptr;
         bool same_expr = (existing != nullptr && existing->raw_expression == raw);
 
         visiting.push_back(cell_id);
         StringVec refs;
         std::string rpn, local_err;
         CellEvalValue eval_res = evaluateRawExpression(
-            raw, visiting, same_expr ? nullptr : &refs, rpn, local_err);
+            raw, visiting, same_expr ? nullptr : &refs, same_expr ? nullptr : &rpn, local_err);
         visiting.pop_back();
 
         if (!same_expr) {
@@ -462,13 +468,13 @@ private:
             cell.id = cell_id;
             cell.raw_expression = raw;
             cell.is_formula = (!raw.empty() && raw[0] == '=');
+            cell.postorder_rpn = std::move(rpn);
             cell.inputs = std::move(refs);
             for (size_t i = 0; i < cell.inputs.size(); ++i) {
                 const std::string& ref_id = cell.inputs[i].getValue();
                 if (ref_id != cell_id) m_dependents[ref_id].push_back(cell_id, 0);
             }
         }
-        cell.postorder_rpn = rpn;
 
         if (!local_err.empty()) {
             cell.has_error = true;
@@ -517,28 +523,45 @@ private:
         return a.result.num == b.result.num;
     }
 
-    void evalCellQuiet(const std::string& cid) {
+    void evalCellQuiet(const std::string& cid,
+                       const std::string* known_raw = nullptr,
+                       SpreadsheetCell* known_cell = nullptr) {
         StringVec visiting;
         std::string err;
-        resolveCellValue(cid, visiting, err);
+        resolveCellValue(cid, visiting, err, known_raw, known_cell);
     }
 
-    bool recomputeCell(const std::string& cid, std::string* out_disp = nullptr) {
-        SpreadsheetCell* before_ptr = m_cells.find(cid);
-        bool had_before = (before_ptr != nullptr);
-        SpreadsheetCell prev_copy;
+    bool recomputeCell(const std::string& cid,
+                       std::string* out_disp = nullptr,
+                       const std::string* known_raw = nullptr) {
+        SpreadsheetCell* cell_ptr = m_cells.find(cid);
+        bool had_before = (cell_ptr != nullptr);
+        bool prev_empty = true;
+        bool prev_err = false;
+        std::string prev_err_msg;
+        CellEvalValue prev_res;
         if (had_before) {
-            prev_copy.raw_expression = before_ptr->raw_expression;
-            prev_copy.has_error      = before_ptr->has_error;
-            prev_copy.error_msg      = before_ptr->error_msg;
-            prev_copy.result         = before_ptr->result;
+            prev_empty   = cell_ptr->raw_expression.empty();
+            prev_err     = cell_ptr->has_error;
+            prev_err_msg = cell_ptr->error_msg;
+            prev_res     = cell_ptr->result;
         }
-        evalCellQuiet(cid);
-        SpreadsheetCell* after_ptr = m_cells.find(cid);
+        evalCellQuiet(cid, known_raw, cell_ptr);
+        SpreadsheetCell* after_ptr = cell_ptr ? cell_ptr : m_cells.find(cid);
         if (!had_before && !after_ptr) return false;
-        if (had_before && after_ptr && cellStateEqual(prev_copy, *after_ptr)) return false;
-        std::string prev = had_before ? prev_copy.displayValue() : "";
-        std::string now  = after_ptr  ? after_ptr->displayValue() : "";
+        if (had_before && after_ptr) {
+            bool now_empty = after_ptr->raw_expression.empty();
+            bool same = (prev_empty && now_empty) ||
+                        (!prev_empty && !now_empty &&
+                         prev_err == after_ptr->has_error &&
+                         (prev_err ? (prev_err_msg == after_ptr->error_msg)
+                                   : (prev_res.is_text == after_ptr->result.is_text &&
+                                      (prev_res.is_text ? (prev_res.text == after_ptr->result.text)
+                                                        : (prev_res.num == after_ptr->result.num)))));
+            if (same) return false;
+        }
+        std::string prev = (!had_before || prev_empty) ? "" : (prev_err ? prev_err_msg : prev_res.asString());
+        std::string now  = after_ptr ? after_ptr->displayValue() : "";
         if (out_disp) *out_disp = now;
         return now != prev;
     }
@@ -549,10 +572,11 @@ private:
     StringVec propagateAffected(const StringVec& affected) {
         StringVec updated;
         for (size_t qi = 1; qi < affected.size(); ++qi) {
-            std::string curr_id = affected[qi].getValue();
-            if (!hasRawCell(curr_id)) continue;
+            const std::string& curr_id = affected[qi].getValue();
+            const std::string* raw_ptr = m_raw_table.find(curr_id);
+            if (!raw_ptr || raw_ptr->empty()) continue;
             std::string now_disp;
-            if (recomputeCell(curr_id, &now_disp)) {
+            if (recomputeCell(curr_id, &now_disp, raw_ptr)) {
                 updated.push_back(curr_id + "=" + now_disp);
             }
         }
@@ -581,31 +605,17 @@ public:
     const RawTable& rawTable() const { return m_raw_table; }
 
     /** @brief Reconstruye el grafo `LinkedList` y recalcula todas las celdas activas. */
-    StringVec recalculateAll(const std::string& changed_id = "") {
+    StringVec recalculateAll(const std::string& = "") {
         m_dependents.clear();
-
-        BaseHashTable<HashTableTraits<std::string, std::string>, Callable> prev_display;
-        for (const auto& entry_node : m_raw_table) {
-            std::string cid = entry_node.getValue().getKey();
-            const SpreadsheetCell* c = m_cells.find(cid);
-            prev_display[cid] = c ? c->displayValue() : "";
-        }
         m_cells.clear();
 
         for (const auto& entry_node : m_raw_table) {
-            std::string cid = entry_node.getValue().getKey();
-            if (!entry_node.getValue().getValue().empty()) evalCellQuiet(cid);
+            const auto& kv = entry_node.getValue();
+            if (!kv.getValue().empty()) {
+                evalCellQuiet(kv.getKey(), &kv.getValue(), nullptr);
+            }
         }
-
-        StringVec updated;
-        for (const auto& entry_node : m_raw_table) {
-            std::string cid = entry_node.getValue().getKey();
-            if (entry_node.getValue().getValue().empty() || cid == changed_id) continue;
-
-            std::string now_disp = m_cells[cid].displayValue();
-            if (now_disp != prev_display[cid]) updated.push_back(cid + "=" + now_disp);
-        }
-        return updated;
+        return {};
     }
 
     /**
@@ -726,7 +736,7 @@ public:
         visiting.push_back(p.target_cell);
         std::string rpn, err, syntax_msg;
         CellEvalValue eval_res = evaluateRawExpression(
-            p.expression, visiting, &p.referenced_cells, rpn, err, &syntax_msg);
+            p.expression, visiting, &p.referenced_cells, &rpn, err, &syntax_msg);
 
         p.postorder_rpn = rpn;
         if (!err.empty()) {

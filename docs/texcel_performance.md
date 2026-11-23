@@ -15,6 +15,8 @@ Registro histórico de los hitos de optimización del motor de **Texcel**, medid
 | [H1](#h1--conjunto-avl-en-bfs-y-rangos) | Conjunto AVL en BFS y rangos | 2026-11-23 | 21.43 | 903.37 | 1275.92 | 8.92 | 18.41 | 1782.47 | 2939.75 | 9.82 | **6960.09** |
 | [H2](#h2--preservación-del-grafo-de-dependencias-en-propagación) | Preservación de grafo en propagación | 2026-11-23 | 21.32 | 973.88 | 1106.58 | 13.00 | 19.46 | 1854.23 | 762.14 | 8.10 | **4758.71** |
 | [H3](#h3--búsqueda-directa-en-basehashtable-y-eliminación-de-lookupsformateos-redundantes) | `find_by` / `find` sin `Value{}` | 2026-11-23 | 21.32 | 470.55 | 337.59 | 10.59 | 19.23 | 1055.15 | 221.31 | 10.60 | **2146.34** |
+| 🔴 [H4](#h4--caché-de-ast-compilado-descartado-empíricamente) | Caché AST (descartado: regresión) | 2026-11-23 | 21.32 | 502.92 | 343.78 | 19.33 | 20.33 | 1058.93 | 518.96 | 49.86 | 🔴 **2535.42** |
+| [H5](#h5--recalculateall-de-una-sola-pasada-rpn-directo-toid-en-pila-y-fusión-de-lookups) | 1-pass `recalculateAll`, RPN/`toId` y fusión de lookups | 2026-11-23 | 22.84 | 395.57 | 267.30 | 13.42 | 17.83 | 846.97 | 179.26 | 12.12 | **1755.31** |
 
 ---
 
@@ -64,3 +66,31 @@ En otras palabras: **un cambio numérico estaba destruyendo y reconstruyendo tod
 3. En `SpreadsheetEngine` ([`src/texcel/engine.h`](../src/texcel/engine.h)), se reemplazaron los patrones `contains + operator[]` por punteros de una sola búsqueda (`find`) y se separó `evalCellQuiet` (usada en `recalculateAll` y en la celda raíz de `setCell`) de `recomputeCell` (que además compara primero los campos crudos con `cellStateEqual` antes de invocar `displayValue()`).
 
 **El impacto:** `Recalc` y `Edit→Fin` cayeron a más de la mitad en ambos escenarios: Simple bajó de **2,114.78 ms** a **840.07 ms** (`Edit→Fin` **337.59 ms**), Mixta bajó de **2,643.93 ms** a **1,306.28 ms** (`Edit→Fin` **221.31 ms**), y la suma total se redujo de **4,758.71 ms** a **2,146.34 ms** (**5.12× más rápido** respecto a H0).
+
+### 🔴 H4 — Caché de AST compilado (Descartado empíricamente)
+**La hipótesis:** Conservar el árbol `BinaryTreeNode<AstToken>` compilado dentro de cada `SpreadsheetCell` mediante `std::shared_ptr` (con deleter `freeAst`) y omitir la reconstrucción de `postorder_rpn` cuando `raw_expression` no cambia, para evitar el re-parseo y las reservas `new`/`delete` durante `Edit→Fin`.
+
+**El resultado empírico (regresión de +389.08 ms respecto a H3):** Aunque la suite funcional pasó íntegramente, el benchmark empeoró de **2,146.34 ms** (`H3`) a **2,535.42 ms** (`H4`):
+- `Mixta Edit→Fin` subió de **221.31 ms** a **518.96 ms** (+297.65 ms).
+- `Clear` subió de **10.59 ms / 10.60 ms** a **19.33 ms / 49.86 ms** (+48.00 ms combinados).
+
+**Por qué ocurrió y dónde está el límite:**
+1. **El parseo ya no era el cuello de botella:** Tras `H1`–`H3`, `FormulaParser` sobre fórmulas individuales cuesta muy poco; en cambio, mantener 20,000 árboles `BinaryTreeNode<AstToken>` vivos en el heap junto con bloques de control atómicos de `std::shared_ptr` aumenta la huella de memoria de `SpreadsheetCell`, degrada la localidad de caché L2/L3, encarece cada copia/movimiento de `SpreadsheetCell` y cuadruplica el costo de liberación en `Clear`.
+2. **El costo dominante restante en `Mixta`:** No está en `FormulaParser`, sino en los recorridos masivos de rangos (`readCellForEval` dentro de `SUM`, `AVG`, `COUNTIF`, `COUNTIFS`) y en el iterador `PrePostIter`.
+
+**Decisión:** Se descartaron los cambios de código en `src/texcel/types.h` y `src/texcel/engine.h`, conservando el óptimo alcanzado en **H3 (`2,146.34 ms`)**.
+
+### H5 — `recalculateAll` de una sola pasada, RPN directo, `toId` en pila y fusión de lookups
+**El problema:** Tras revertir `H4`, el perfil de `H3` (`2,146.34 ms`) todavía acumulaba cuatro fuentes de trabajo redundante dentro del motor, sin necesidad de incrementar la huella de memoria de `SpreadsheetCell`:
+1. `SpreadsheetEngine::recalculateAll` ([`src/texcel/engine.h`](../src/texcel/engine.h)) ejecutaba tres recorridos completos sobre `m_raw_table`, construía un árbol AVL temporal `prev_display` de 20,000 cadenas, formateaba `displayValue()` antes y después, y ensamblaba un `StringVec updated` que ningún llamador del proyecto utilizaba; además volvía a buscar `m_raw_table.find(cid)` dentro de `resolveCellValue` aunque el bucle ya disponía de la clave y el valor crudo.
+2. `evaluateAstPostOrder` instanciaba un `std::ostringstream` (con inicialización de `std::locale` y buffer dinámico) en cada fórmula evaluada, incluso durante `Edit→Fin` cuando `same_expr == true` y `cell.postorder_rpn` ya estaba calculado.
+3. En `propagateAffected` → `recomputeCell` → `resolveCellValue`, una misma celda `cid` se buscaba hasta 5 veces entre `m_raw_table` y `m_cells` y copiaba `raw_expression` en cada comprobación de cambio.
+4. `CellCoord::toId` y `CellCoord::colToLabel` ([`src/texcel/types.h`](../src/texcel/types.h)) —invocados ~230,000 veces en los rangos de la hoja Mixta— usaban `std::string::insert(begin(), ...)` y concatenaban tres `std::string` temporales por coordenada, mientras que `formatCellNumber` instanciaba un `std::ostringstream` por cada número decimal.
+
+**La solución:**
+1. En [`src/texcel/engine.h`](../src/texcel/engine.h), `recalculateAll` pasó a una única pasada directa sobre `m_raw_table`, inyectando `&kv.getValue()` en `evalCellQuiet` → `resolveCellValue`.
+2. `resolveCellValue` recibió punteros opcionales `known_raw` y `known_cell` para reutilizar el `const std::string*` y el `SpreadsheetCell*` ya localizados por `propagateAffected` y `recomputeCell` (reduciendo de 5 descensos AVL por celda a 2 y evitando copiar `raw_expression`).
+3. `evaluateAstPostOrder` y `evaluateRawExpression` pasaron a recibir `std::string* out_rpn`: omiten la generación de RPN cuando `same_expr == true` y, cuando se requiere, construyen la cadena directamente con `std::string::append`/`push_back` sin `std::ostringstream`.
+4. En [`src/texcel/types.h`](../src/texcel/types.h), `CellCoord::colToLabel`, `CellCoord::toId` y `formatCellNumber` se reescribieron sobre buffers pequeños en pila (`char buf[...]`) y `std::snprintf`, aprovechando SSO y evitando realocaciones temporales.
+
+**El impacto:** El tiempo bajó en todas las fases de cálculo de ambos escenarios: Simple cayó de **840.07 ms** a **699.14 ms** (`Recalc` **395.57 ms**, `Edit→Fin` **267.30 ms**), Mixta cayó de **1,306.28 ms** a **1,056.18 ms** (`Recalc` **846.97 ms**, `Edit→Fin` **179.26 ms**), y el total global bajó de **2,146.34 ms** a **1,755.31 ms** (**6.26× más rápido** respecto a H0).

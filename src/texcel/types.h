@@ -18,6 +18,7 @@
 #include <cctype>
 #include <algorithm>
 #include <stdexcept>
+#include <cstdio>
 
 namespace texcel_detail {
 template <int (*Fn)(int)>
@@ -47,19 +48,39 @@ struct CellCoord {
     /** @brief Convierte un índice de columna (`0 -> A`, `25 -> Z`) a etiqueta de letras. */
     static std::string colToLabel(TX c) {
         if (c < 0) return "?";
-        std::string s;
+        char rev[8];
+        int len = 0;
         TX n = c;
-        while (n >= 0) {
-            s.insert(s.begin(), static_cast<char>('A' + (n % 26)));
+        while (n >= 0 && len < 8) {
+            rev[len++] = static_cast<char>('A' + (n % 26));
             n = (n / 26) - 1;
         }
-        return s;
+        char buf[8];
+        for (int i = 0; i < len; ++i) buf[i] = rev[len - 1 - i];
+        return std::string(buf, static_cast<size_t>(len));
     }
 
     /** @brief Retorna el identificador canónico en mayúsculas (ej. `"A1"`, `"D4"`). */
     std::string toId() const {
         if (!valid) return "INVALID";
-        return colToLabel(col) + std::to_string(row + 1);
+        char buf[16];
+        char rev[12];
+        int len = 0;
+        TX n = col;
+        while (n >= 0 && len < 8) {
+            rev[len++] = static_cast<char>('A' + (n % 26));
+            n = (n / 26) - 1;
+        }
+        int pos = 0;
+        for (int i = len - 1; i >= 0; --i) buf[pos++] = rev[i];
+        TX r = row + 1;
+        len = 0;
+        do {
+            rev[len++] = static_cast<char>('0' + (r % 10));
+            r /= 10;
+        } while (r > 0 && len < 12);
+        for (int i = len - 1; i >= 0; --i) buf[pos++] = rev[i];
+        return std::string(buf, static_cast<size_t>(pos));
     }
 
     /** @brief Parsea una cadena como `"a1"`, `"AA12"` o `"$D$4"` en `CellCoord`. */
@@ -112,9 +133,10 @@ inline std::string formatCellNumber(double v) {
     if (std::abs(v - std::round(v)) < 1e-9) {
         return std::to_string(static_cast<long long>(std::round(v)));
     }
-    std::ostringstream oss;
-    oss << std::fixed << std::setprecision(2) << v;
-    std::string s = oss.str();
+    char buf[48];
+    int n = std::snprintf(buf, sizeof(buf), "%.2f", v);
+    if (n <= 0) return "0";
+    std::string s(buf, static_cast<size_t>(n));
     while (s.size() > 1 && s.back() == '0') s.pop_back();
     if (!s.empty() && s.back() == '.') s.pop_back();
     return s;
