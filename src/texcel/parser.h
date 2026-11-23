@@ -50,13 +50,14 @@ class FormulaParser {
 
     std::string m_src;
     size_t      m_pos = 0;
-    texcel_detail::StringVec& m_refs;
+    texcel_detail::StringVec* m_refs = nullptr;
     texcel_detail::StringSet  m_seen_refs;
 
     void addRef(const std::string& cid) {
+        if (!m_refs) return;
         if (!m_seen_refs.contains(cid)) {
             m_seen_refs[cid] = true;
-            m_refs.push_back(cid);
+            m_refs->push_back(cid);
         }
     }
 
@@ -91,6 +92,7 @@ class FormulaParser {
     }
 
     void registerRangeRefs(const CellCoord& a, const CellCoord& b) {
+        if (!m_refs) return;
         texcel_detail::forEachCellInRange(a, b, [&](const std::string& cid) {
             addRef(cid);
         });
@@ -111,7 +113,8 @@ class FormulaParser {
     }
 
 public:
-    FormulaParser(const std::string& src, texcel_detail::StringVec& refs) : m_src(src), m_refs(refs) {}
+    FormulaParser(const std::string& src, texcel_detail::StringVec* refs = nullptr) : m_src(src), m_refs(refs) {}
+    FormulaParser(const std::string& src, texcel_detail::StringVec& refs) : m_src(src), m_refs(&refs) {}
 
     texcel_detail::AstNode* parse() {
         skipSpaces();

@@ -54,7 +54,7 @@ private:
     }
 
 public:
-    static AstNode* tryParseAst(const std::string& expr, StringVec& out_refs, std::string* out_err_msg = nullptr) {
+    static AstNode* tryParseAst(const std::string& expr, StringVec* out_refs = nullptr, std::string* out_err_msg = nullptr) {
         try {
             FormulaParser parser(expr, out_refs);
             return parser.parse();
@@ -62,6 +62,10 @@ public:
             if (out_err_msg) *out_err_msg = e.what();
             return nullptr;
         }
+    }
+
+    static AstNode* tryParseAst(const std::string& expr, StringVec& out_refs, std::string* out_err_msg = nullptr) {
+        return tryParseAst(expr, &out_refs, out_err_msg);
     }
 
 private:
@@ -385,7 +389,7 @@ private:
 
     CellEvalValue evaluateRawExpression(const std::string& raw,
                                         StringVec& visiting,
-                                        StringVec& out_refs,
+                                        StringVec* out_refs,
                                         std::string& out_rpn,
                                         std::string& out_err,
                                         std::string* out_syntax_msg = nullptr) {
@@ -440,24 +444,31 @@ private:
         }
         if (!hasRawCell(cell_id)) return {};
 
-        visiting.push_back(cell_id);
         std::string raw = m_raw_table[cell_id];
+        bool same_expr = m_cells.contains(cell_id) && m_cells[cell_id].raw_expression == raw;
+
+        visiting.push_back(cell_id);
         StringVec refs;
         std::string rpn, local_err;
-        CellEvalValue eval_res = evaluateRawExpression(raw, visiting, refs, rpn, local_err);
+        CellEvalValue eval_res = evaluateRawExpression(
+            raw, visiting, same_expr ? nullptr : &refs, rpn, local_err);
         visiting.pop_back();
 
-        unsubscribeInputs(cell_id);
-        SpreadsheetCell& cell = m_cells[cell_id];
-        cell.id = cell_id;
-        cell.raw_expression = raw;
-        cell.is_formula = (!raw.empty() && raw[0] == '=');
-        cell.postorder_rpn = rpn;
-        cell.inputs = refs;
-        for (size_t i = 0; i < refs.size(); ++i) {
-            const std::string& ref_id = refs[i].getValue();
-            if (ref_id != cell_id) texcel_detail::addUniqueStr(m_dependents[ref_id], cell_id);
+        if (!same_expr) {
+            unsubscribeInputs(cell_id);
         }
+        SpreadsheetCell& cell = m_cells[cell_id];
+        if (!same_expr) {
+            cell.id = cell_id;
+            cell.raw_expression = raw;
+            cell.is_formula = (!raw.empty() && raw[0] == '=');
+            cell.inputs = std::move(refs);
+            for (size_t i = 0; i < cell.inputs.size(); ++i) {
+                const std::string& ref_id = cell.inputs[i].getValue();
+                if (ref_id != cell_id) m_dependents[ref_id].push_back(cell_id, 0);
+            }
+        }
+        cell.postorder_rpn = rpn;
 
         if (!local_err.empty()) {
             cell.has_error = true;
@@ -583,6 +594,7 @@ public:
         std::string expr = texcel_detail::trim(expression_raw);
 
         unsubscribeInputs(cid);
+        if (m_cells.contains(cid)) m_cells[cid].raw_expression.clear();
         StringVec affected = collectAndMarkDirtySubgraph(cid);
 
         if (expr.empty()) {
@@ -686,7 +698,7 @@ public:
         visiting.push_back(p.target_cell);
         std::string rpn, err, syntax_msg;
         CellEvalValue eval_res = evaluateRawExpression(
-            p.expression, visiting, p.referenced_cells, rpn, err, &syntax_msg);
+            p.expression, visiting, &p.referenced_cells, rpn, err, &syntax_msg);
 
         p.postorder_rpn = rpn;
         if (!err.empty()) {
