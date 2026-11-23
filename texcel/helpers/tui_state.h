@@ -8,8 +8,8 @@
 #define __TEXCEL_HELPERS_TUI_STATE_H__
 
 #include "../engine.h"
-#include "../config.h"
-#include "../clipboard.h"
+#include "tui_config.h"
+#include "tui_clipboard.h"
 #include "tui_text.h"
 #include "../../types.h"
 #include <algorithm>
@@ -34,11 +34,16 @@ enum class SpreadsheetFocusMode {
 
 namespace texcel_tui {
 
+enum class SelectionKind : TX { None = 0, Cells = 1, Fill = 2, Text = 3 };
+enum class ScrollDrag : uint8_t { None = 0, GridV, GridH, AstV, AstH };
+
 /**
  * @struct TuiState
  * @brief Estado completo de la sesión TUI compartido entre el renderer, el input handler y `SpreadsheetTUI`.
  */
 struct TuiState {
+    enum WinId : TX { WIN_GRID = 1, WIN_INSPECTOR = 2, WIN_CONSOLE = 3, WIN_ACTIVITY = 4 };
+    enum ModalItem : TX { MODAL_AUTOSAVE = 0, MODAL_SAVE = 1, MODAL_NEW = 2, MODAL_FIRST_FILE = 3 };
     static constexpr TX MIN_TOTAL_WIDTH = 40;
     static constexpr TX DEFAULT_WIDTH   = 98;
     static constexpr TX TOTAL_HEIGHT    = 28;
@@ -52,6 +57,9 @@ struct TuiState {
     static constexpr TX VISIBLE_ROWS = 10; // 1..10 por vista + 1 fila vacía antes de la leyenda
     static constexpr TX CELL_WIDTH   = 9;
     static constexpr TX ROW_HEADER_W = 8;  // Ancho de la esquina superior izq. (A1:D10) y columna de filas
+    static constexpr TX GRID_X0      = LEFT_X + 2 + ROW_HEADER_W;
+    static constexpr TX GRID_Y0      = TOP_Y + 3;
+    static constexpr TX AST_Y0       = TOP_Y + 8;
 
     SpreadsheetEngine&   engine;
     std::ostream&        os;
@@ -69,23 +77,19 @@ struct TuiState {
     TX   visible_cols = 5;
     bool interactive_alt_screen = false;
 
-    TX cursor_col = 0;
-    TX cursor_row = 0;
+    CellCoord cursor{0, 0, true};
     TX scroll_col = 0;
     TX scroll_row = 0;
 
     // Point Mode
     bool        point_mode = false;
-    TX          target_col = 0;
-    TX          target_row = 0;
+    CellCoord   point_target{0, 0, true};
     std::string point_base;
 
     // Selección con ratón (SGR Mouse Tracking) confinada por ventana
-    bool mouse_dragging   = false;
-    bool fill_dragging    = false;
-    bool vscroll_dragging = false;
-    bool hscroll_dragging = false;
-    TX   drag_win         = 0;
+    bool       mouse_dragging = false;
+    ScrollDrag scroll_drag    = ScrollDrag::None;
+    TX         drag_win       = 0;
 
     // Name Box interactivo en esquina superior izquierda (clic = ir a celda/rango, doble clic = A1)
     bool        namebox_editing = false;
@@ -94,17 +98,15 @@ struct TuiState {
 
     // Navegador 2D del AST en el Inspector (Ventana 2)
     static constexpr TX AST_VIEW_H = 6; // rel_y = 8..13
-    bool ast_horizontal       = false;
-    TX   ast_scroll_x         = 0;
-    TX   ast_scroll_y         = 0;
-    TX   ast_graph_w          = 0;
-    TX   ast_graph_h          = 0;
-    bool ast_vscroll_dragging = false;
-    bool ast_hscroll_dragging = false;
-    bool has_cell_sel   = false;
-    bool has_fill_sel   = false;
-    TX   sel_c0 = 0, sel_r0 = 0, sel_c1 = 0, sel_r1 = 0;
-    bool has_text_sel   = false;
+    bool ast_horizontal = false;
+    TX   ast_scroll_x   = 0;
+    TX   ast_scroll_y   = 0;
+    TX   ast_graph_w    = 0;
+    TX   ast_graph_h    = 0;
+
+    SelectionKind sel_kind = SelectionKind::None;
+    CellCoord sel_a{0, 0, true};
+    CellCoord sel_b{0, 0, true};
     TX   text_win       = 0;
     TX   tx0 = 0, ty0 = 0, tx1 = 0, ty1 = 0;
     TX   last_anchor_win = 0;
@@ -157,32 +159,30 @@ struct TuiState {
         ++input_cursor;
     }
 
+    bool hasCellSel() const { return sel_kind == SelectionKind::Cells; }
+    bool hasFillSel() const { return sel_kind == SelectionKind::Fill; }
+    bool hasTextSel() const { return sel_kind == SelectionKind::Text; }
+    void clearSelection()   { sel_kind = SelectionKind::None; }
+
     void updatePointedCell() {
         if (!point_mode) return;
-        setInput(point_base + CellCoord(cursor_col, cursor_row, true).toId());
+        setInput(point_base + cursor.toId());
     }
 
     /** @brief Indica si hay un arrastre activo de cualquier scrollbar. */
-    bool isScrollDragging() const {
-        return vscroll_dragging || hscroll_dragging || ast_vscroll_dragging || ast_hscroll_dragging;
-    }
+    bool isScrollDragging() const { return scroll_drag != ScrollDrag::None; }
 
     /** @brief Indica si hay algún arrastre activo (celda, texto o scrollbar). */
-    bool isAnyDragging() const {
-        return mouse_dragging || isScrollDragging();
-    }
+    bool isAnyDragging() const { return mouse_dragging || isScrollDragging(); }
 
-    /** @brief Limpia todas las banderas de arrastre de scrollbars. */
-    void clearScrollDragging() {
-        vscroll_dragging = hscroll_dragging = ast_vscroll_dragging = ast_hscroll_dragging = false;
-    }
+    /** @brief Limpia el estado de arrastre de scrollbars. */
+    void clearScrollDragging() { scroll_drag = ScrollDrag::None; }
 
     /** @brief Sale de Point Mode restaurando el cursor en la celda objetivo. */
     void exitPointMode(bool ensure_visible = false) {
         if (!point_mode) return;
         point_mode = false;
-        cursor_col = target_col;
-        cursor_row = target_row;
+        cursor = point_target;
         if (ensure_visible) ensureCursorVisible();
     }
 
@@ -198,29 +198,24 @@ struct TuiState {
         input_cursor = console_ref_pos + console_ref_len;
     }
 
-    void copyToClipboard(const std::string& text) {
-        TexcelClipboard::copy(os, text);
-    }
-
     /** @brief Copia la selección actual al portapapeles y actualiza `status_banner` si había texto. */
     bool copySelectionToClipboard(const std::string& banner = "✔ Seleccion copiada al portapapeles.") {
         std::string txt = extractCurrentSelectionText();
         if (txt.empty()) return false;
-        copyToClipboard(txt);
+        TexcelClipboard::copy(os, txt);
         status_banner = banner;
         return true;
     }
 
     /** @brief Retorna el ID de la celda activa (o la celda objetivo si está en Point Mode). */
     std::string activeCellId() const {
-        return CellCoord(point_mode ? target_col : cursor_col,
-                         point_mode ? target_row : cursor_row, true).toId();
+        return (point_mode ? point_target : cursor).toId();
     }
 
     /** @brief Formatea el rango seleccionado normalizado (`A1:C3`, o `A1` si `collapse_single` y es 1 celda). */
     std::string selectedRangeStr(bool collapse_single = false) const {
         TX cmin, rmin, cmax, rmax;
-        normalizeCellRange(sel_c0, sel_r0, sel_c1, sel_r1, cmin, rmin, cmax, rmax);
+        normalizeCellRange(sel_a.col, sel_a.row, sel_b.col, sel_b.row, cmin, rmin, cmax, rmax);
         std::string id0 = CellCoord(cmin, rmin, true).toId();
         std::string id1 = CellCoord(cmax, rmax, true).toId();
         return (collapse_single && id0 == id1) ? id0 : (id0 + ":" + id1);
@@ -228,28 +223,23 @@ struct TuiState {
 
     /** @brief Ejecuta Auto-Fill sobre la selección rectangular actual, autoguarda y actualiza el banner. */
     void applySelectionAutoFill() {
-        TX filled = engine.autoFillRange(sel_c0, sel_r0, sel_c1, sel_r1);
+        TX filled = engine.autoFillRange(sel_a.col, sel_a.row, sel_b.col, sel_b.row);
         maybeAutoSave();
         status_banner = "✔ Auto-Fill (" + std::to_string(filled) + " celdas) en " + selectedRangeStr();
     }
 
     std::string formatCellForInput(const std::string& cid) {
-        SpreadsheetCell cur = engine.getCell(cid);
-        if (cur.raw_expression.empty()) return "";
-        if (cur.is_formula && cur.raw_expression[0] != '=') return "= " + cur.raw_expression;
-        return cur.raw_expression;
+        return engine.getCell(cid).raw_expression;
     }
 
     void loadActiveCellIntoBuffer() {
-        std::string cid = CellCoord(cursor_col, cursor_row, true).toId();
-        input_buffer = formatCellForInput(cid);
-        input_cursor = input_buffer.size();
+        setInput(formatCellForInput(cursor.toId()));
     }
 
     std::string extractCurrentSelectionText() {
-        if (has_cell_sel) {
+        if (hasCellSel()) {
             TX cmin, rmin, cmax, rmax;
-            normalizeCellRange(sel_c0, sel_r0, sel_c1, sel_r1, cmin, rmin, cmax, rmax);
+            normalizeCellRange(sel_a.col, sel_a.row, sel_b.col, sel_b.row, cmin, rmin, cmax, rmax);
             std::ostringstream tsv;
             for (TX r = rmin; r <= rmax; ++r) {
                 if (r > rmin) tsv << "\n";
@@ -260,7 +250,7 @@ struct TuiState {
             }
             return tsv.str();
         }
-        if (has_text_sel && text_win >= 2 && text_win <= 4) {
+        if (hasTextSel() && text_win >= WIN_INSPECTOR && text_win <= WIN_ACTIVITY) {
             TX wx0, wy0, wx1, wy1;
             if (windowInnerBounds(text_win, wx0, wy0, wx1, wy1)) {
                 TX sx0, sy0, sx1, sy1;
@@ -284,25 +274,20 @@ struct TuiState {
                 return copied.str();
             }
         }
-        return engine.getCell(CellCoord(cursor_col, cursor_row, true).toId()).displayValue();
+        return engine.getCell(cursor.toId()).displayValue();
     }
 
     bool windowInnerBounds(TX win_id, TX& x0, TX& y0, TX& x1, TX& y1) const {
-        if (win_id == 2) { x0 = right_x + 2; y0 = TOP_Y + 1; x1 = right_x + right_w - 3; y1 = TOP_Y + TOP_H - 2; return true; }
-        if (win_id == 3) { x0 = LEFT_X + 2;  y0 = BOT_Y + 1; x1 = LEFT_X + left_w - 3;   y1 = BOT_Y + BOT_H - 2; return true; }
-        if (win_id == 4) { x0 = right_x + 2; y0 = BOT_Y + 1; x1 = right_x + right_w - 3; y1 = BOT_Y + BOT_H - 2; return true; }
+        if (win_id == WIN_INSPECTOR) { x0 = right_x + 2; y0 = TOP_Y + 1; x1 = right_x + right_w - 3; y1 = TOP_Y + TOP_H - 2; return true; }
+        if (win_id == WIN_CONSOLE)   { x0 = LEFT_X + 2;  y0 = BOT_Y + 1; x1 = LEFT_X + left_w - 3;   y1 = BOT_Y + BOT_H - 2; return true; }
+        if (win_id == WIN_ACTIVITY)  { x0 = right_x + 2; y0 = BOT_Y + 1; x1 = right_x + right_w - 3; y1 = BOT_Y + BOT_H - 2; return true; }
         return false;
     }
 
     /** @brief Verifica si una fila dentro de una ventana es seleccionable (excluye barras divisorias horizontales). */
     bool isSelectableWindowRow(TX win_id, TX abs_y) const {
-        if (win_id == 2) {
-            // Excluir barra divisoria "─── BinaryTree AST ───" (TOP_Y + 6) y conector "╭──┴──╮" (TOP_Y + 9)
-            if (abs_y == TOP_Y + 6 || abs_y == TOP_Y + 9) return false;
-        } else if (win_id == 3) {
-            // Excluir bordes superior e inferior de la caja del prompt (BOT_Y + 1 y BOT_Y + 3)
-            if (abs_y == BOT_Y + 1 || abs_y == BOT_Y + 3) return false;
-        }
+        if (win_id == WIN_INSPECTOR) return abs_y != TOP_Y + 6 && abs_y != TOP_Y + 9;
+        if (win_id == WIN_CONSOLE)   return abs_y != BOT_Y + 1 && abs_y != BOT_Y + 3;
         return true;
     }
 
@@ -322,22 +307,20 @@ struct TuiState {
     }
 
     bool screenToGridCell(TX mx, TX my, TX& out_col, TX& out_row, bool clamp_to_grid) const {
-        TX grid_x0 = LEFT_X + 2 + ROW_HEADER_W;
-        TX grid_x1 = grid_x0 + visible_cols * (CELL_WIDTH + 1) - 1;
-        TX grid_y0 = TOP_Y + 3;
-        TX grid_y1 = TOP_Y + 3 + VISIBLE_ROWS - 1;
+        TX grid_x1 = GRID_X0 + visible_cols * (CELL_WIDTH + 1) - 1;
+        TX grid_y1 = GRID_Y0 + VISIBLE_ROWS - 1;
 
         if (!clamp_to_grid) {
-            if (mx < grid_x0 || mx > grid_x1 || my < grid_y0 || my > grid_y1) return false;
+            if (mx < GRID_X0 || mx > grid_x1 || my < GRID_Y0 || my > grid_y1) return false;
             // Excluir las barras divisorias verticales '│' entre columnas de celdas
-            if ((mx - grid_x0) % (CELL_WIDTH + 1) == 0) return false;
+            if ((mx - GRID_X0) % (CELL_WIDTH + 1) == 0) return false;
         } else {
-            mx = std::clamp(mx, grid_x0, grid_x1);
-            my = std::clamp(my, grid_y0, grid_y1);
+            mx = std::clamp(mx, GRID_X0, grid_x1);
+            my = std::clamp(my, GRID_Y0, grid_y1);
         }
 
-        TX rel_c = (mx - grid_x0) / (CELL_WIDTH + 1);
-        TX rel_r = my - grid_y0;
+        TX rel_c = (mx - GRID_X0) / (CELL_WIDTH + 1);
+        TX rel_r = my - GRID_Y0;
         out_col = std::clamp(scroll_col + rel_c, static_cast<TX>(0), CellCoord::MAX_COLS - 1);
         out_row = std::clamp(scroll_row + rel_r, static_cast<TX>(0), CellCoord::MAX_ROWS - 1);
         return true;
@@ -366,10 +349,10 @@ struct TuiState {
     }
 
     void ensureCursorVisible() {
-        if (cursor_col < scroll_col) scroll_col = cursor_col;
-        if (cursor_col >= scroll_col + visible_cols) scroll_col = cursor_col - visible_cols + 1;
-        if (cursor_row < scroll_row) scroll_row = cursor_row;
-        if (cursor_row >= scroll_row + VISIBLE_ROWS) scroll_row = cursor_row - VISIBLE_ROWS + 1;
+        if (cursor.col < scroll_col) scroll_col = cursor.col;
+        if (cursor.col >= scroll_col + visible_cols) scroll_col = cursor.col - visible_cols + 1;
+        if (cursor.row < scroll_row) scroll_row = cursor.row;
+        if (cursor.row >= scroll_row + VISIBLE_ROWS) scroll_row = cursor.row - VISIBLE_ROWS + 1;
     }
 
     void clampScroll() {
@@ -378,14 +361,14 @@ struct TuiState {
     }
 
     void clearSelectedCells() {
-        if (has_cell_sel) {
+        if (hasCellSel()) {
             std::string r_str = selectedRangeStr();
-            engine.clearRange(sel_c0, sel_r0, sel_c1, sel_r1);
-            has_cell_sel = false;
+            engine.clearRange(sel_a.col, sel_a.row, sel_b.col, sel_b.row);
+            clearSelection();
             maybeAutoSave();
             status_banner = "Rango " + r_str + " borrado.";
         } else {
-            std::string cid = CellCoord(cursor_col, cursor_row, true).toId();
+            std::string cid = cursor.toId();
             engine.setCell(cid, "");
             maybeAutoSave();
             status_banner = "Celda " + cid + " borrada.";
@@ -396,13 +379,18 @@ struct TuiState {
         return mx >= LEFT_X + 2 && mx < LEFT_X + 2 + ROW_HEADER_W && my == TOP_Y + 1;
     }
 
+    void beginNameBoxEdit() {
+        namebox_editing = true;
+        namebox_buffer.clear();
+        mode = SpreadsheetFocusMode::GridNavigation;
+        status_banner = "Ir a celda o rango (ej. ZZ500 o A1:C5) y pulsa [Enter].";
+    }
+
     void jumpToHome() {
-        cursor_col = 0;
-        cursor_row = 0;
+        cursor = {0, 0, true};
         scroll_col = 0;
         scroll_row = 0;
-        has_cell_sel = false;
-        has_fill_sel = false;
+        clearSelection();
         point_mode = false;
         status_banner = "Salto al inicio (A1).";
     }
@@ -418,13 +406,10 @@ struct TuiState {
                 status_banner = "Rango invalido: " + s;
                 return false;
             }
-            has_cell_sel = true;
-            has_fill_sel = false;
-            has_text_sel = false;
-            sel_c0 = a.col; sel_r0 = a.row;
-            sel_c1 = b.col; sel_r1 = b.row;
-            cursor_col = a.col;
-            cursor_row = a.row;
+            sel_kind = SelectionKind::Cells;
+            sel_a = a;
+            sel_b = b;
+            cursor = a;
             ensureCursorVisible();
             status_banner = "Seleccionado rango " + a.toId() + ":" + b.toId();
             return true;
@@ -434,11 +419,8 @@ struct TuiState {
             status_banner = "Celda invalida: " + s;
             return false;
         }
-        has_cell_sel = false;
-        has_fill_sel = false;
-        has_text_sel = false;
-        cursor_col = c.col;
-        cursor_row = c.row;
+        clearSelection();
+        cursor = c;
         ensureCursorVisible();
         status_banner = "Posicionada en " + c.toId();
         return true;
@@ -451,12 +433,12 @@ struct TuiState {
     }
 
     void scrollVerticalToScreenY(TX my) {
-        scroll_row = mapScrollTrack(my, TOP_Y + 3, VISIBLE_ROWS - 1, CellCoord::MAX_ROWS - VISIBLE_ROWS);
+        scroll_row = mapScrollTrack(my, GRID_Y0, VISIBLE_ROWS - 1, CellCoord::MAX_ROWS - VISIBLE_ROWS);
         clampScroll();
     }
 
     void scrollHorizontalToScreenX(TX mx) {
-        TX track_x0 = LEFT_X + 2 + ROW_HEADER_W + 1;
+        TX track_x0 = GRID_X0 + 1;
         scroll_col = mapScrollTrack(mx, track_x0, (LEFT_X + left_w - 2) - track_x0, CellCoord::MAX_COLS - visible_cols);
         clampScroll();
     }
@@ -479,7 +461,7 @@ struct TuiState {
     }
 
     void scrollAstVerticalToY(TX my) {
-        ast_scroll_y = mapScrollTrack(my, TOP_Y + 8, AST_VIEW_H - 1, ast_graph_h - AST_VIEW_H);
+        ast_scroll_y = mapScrollTrack(my, AST_Y0, AST_VIEW_H - 1, ast_graph_h - AST_VIEW_H);
         clampAstScroll();
     }
 
@@ -489,10 +471,41 @@ struct TuiState {
         clampAstScroll();
     }
 
+    bool dragScrollbarTo(TX mx, TX my) {
+        switch (scroll_drag) {
+            case ScrollDrag::GridV: { TX p = scroll_row;   scrollVerticalToScreenY(my);   return scroll_row != p; }
+            case ScrollDrag::GridH: { TX p = scroll_col;   scrollHorizontalToScreenX(mx); return scroll_col != p; }
+            case ScrollDrag::AstV:  { TX p = ast_scroll_y; scrollAstVerticalToY(my);      return ast_scroll_y != p; }
+            case ScrollDrag::AstH:  { TX p = ast_scroll_x; scrollAstHorizontalToX(mx);    return ast_scroll_x != p; }
+            default: return false;
+        }
+    }
+
+    bool tryStartScrollbarDrag(TX mx, TX my) {
+        if (mx == LEFT_X + left_w - 1 && my >= GRID_Y0 && my < GRID_Y0 + VISIBLE_ROWS) {
+            scroll_drag = ScrollDrag::GridV;
+        } else if (my == TOP_Y + TOP_H - 1 && mx >= GRID_X0 + 1 && mx <= LEFT_X + left_w - 2) {
+            scroll_drag = ScrollDrag::GridH;
+        } else if (ast_graph_h > AST_VIEW_H && mx == right_x + right_w - 1 &&
+                   my >= AST_Y0 && my < AST_Y0 + AST_VIEW_H) {
+            scroll_drag = ScrollDrag::AstV;
+        } else if (ast_graph_w > astViewWidth() && my == TOP_Y + TOP_H - 1 &&
+                   mx >= right_x + 2 && mx <= right_x + right_w - 3) {
+            scroll_drag = ScrollDrag::AstH;
+        } else {
+            return false;
+        }
+        dragScrollbarTo(mx, my);
+        return true;
+    }
+
+    TX modalMaxIdx() const {
+        return MODAL_NEW + static_cast<TX>(config.sheet_files.size());
+    }
+
     void refreshSheetList() {
         config.refreshSheetList();
-        TX max_idx = 2 + static_cast<TX>(config.sheet_files.size());
-        modal_idx = std::clamp<TX>(modal_idx, 0, max_idx);
+        modal_idx = std::clamp<TX>(modal_idx, 0, modalMaxIdx());
     }
 
     void saveSheet(const std::string& name, bool silent = false) {
@@ -535,8 +548,8 @@ struct TuiState {
     }
 
     void deleteSelectedModalSheet() {
-        if (modal_idx < 3) return;
-        TX fidx = modal_idx - 3;
+        if (modal_idx < MODAL_FIRST_FILE) return;
+        TX fidx = modal_idx - MODAL_FIRST_FILE;
         if (fidx < static_cast<TX>(config.sheet_files.size())) {
             std::string target = config.sheet_files[static_cast<size_t>(fidx)].getValue();
             std::error_code ec;

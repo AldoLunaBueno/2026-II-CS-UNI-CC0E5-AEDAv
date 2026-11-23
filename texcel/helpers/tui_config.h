@@ -1,17 +1,19 @@
 /**
- * @file config.h
+ * @file tui_config.h
  * @ingroup texcel
  * @brief Configuración persistente y gestor de rutas de hojas (`output/sheets/`).
  */
 
-#ifndef __TEXCEL_CONFIG_H__
-#define __TEXCEL_CONFIG_H__
+#ifndef __TEXCEL_HELPERS_TUI_CONFIG_H__
+#define __TEXCEL_HELPERS_TUI_CONFIG_H__
 
-#include "../containers/vector.h"
-#include "../types.h"
+#include "../../containers/vector.h"
+#include "../../types.h"
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <vector>
 
 /**
  * @class TexcelConfig
@@ -63,22 +65,18 @@ public:
     void refreshSheetList() {
         ensureSheetsDir();
         sheet_files.clear();
+        std::vector<std::string> names;
         std::error_code ec;
         for (const auto& entry : std::filesystem::directory_iterator(sheets_dir, ec)) {
             if (entry.is_regular_file() && entry.path().extension() == SHEET_EXT) {
-                sheet_files.push_back(entry.path().stem().string());
+                names.push_back(entry.path().stem().string());
             }
         }
-        for (size_t i = 0; i < sheet_files.size(); ++i) {
-            for (size_t j = i + 1; j < sheet_files.size(); ++j) {
-                if (sheet_files[j].getValue() < sheet_files[i].getValue()) {
-                    std::string tmp = sheet_files[i].getValue();
-                    sheet_files[i].value() = sheet_files[j].getValue();
-                    sheet_files[j].value() = tmp;
-                }
-            }
+        std::sort(names.begin(), names.end());
+        for (const auto& name : names) {
+            sheet_files.push_back(name);
         }
     }
 };
 
-#endif // __TEXCEL_CONFIG_H__
+#endif // __TEXCEL_HELPERS_TUI_CONFIG_H__

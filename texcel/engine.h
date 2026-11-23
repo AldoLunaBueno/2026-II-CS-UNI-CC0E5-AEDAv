@@ -11,9 +11,6 @@
 #include "parser.h"
 #include "../containers/hash_table.h"
 #include "../containers/lists/linked_list.h"
-#include "../utilities/layouts/vertical_tree_layout.h"
-#include "../utilities/layouts/horizontal_tree_layout.h"
-#include "../utilities/ansi_style.h"
 
 /**
  * @class SpreadsheetEngine
@@ -27,7 +24,6 @@
 class SpreadsheetEngine {
 public:
     using StringVec   = Vector<VectorAscTraits<std::string>>;
-    using ValueVec    = Vector<VectorAscTraits<CellEvalValue>>;
     using DepList     = LinkedList<LinkedListAscTraits<std::string>>;
     using DepGraph    = BaseHashTable<HashTableTraits<std::string, DepList>, Callable>;
     using AstNode     = BinaryTreeNode<AstToken>;
@@ -38,36 +34,45 @@ public:
 private:
     RawTable  m_raw_table;  /**< Tabla serializable `(celda -> fórmula)` con mixins `Printable` y `Readable`. */
     CellTable m_cells;      /**< Tabla de estado evaluado de cada celda activa. */
-    DepGraph  m_inputs;     /**< `celda -> LinkedList` de celdas que lee directamente. */
     DepGraph  m_dependents; /**< `celda -> LinkedList` de celdas observadoras que dependen de ella. */
     StringVec m_logs;       /**< Historial cronológico de operaciones y propagaciones. */
-
-    static bool listContains(const DepList& lst, const std::string& target) {
-        for (const auto& node : lst) {
-            if (node.getValue() == target) return true;
-        }
-        return false;
-    }
-
-    static void listAddUnique(DepList& lst, const std::string& val) {
-        if (!listContains(lst, val)) lst.push_back(val, 0);
-    }
 
     static void listRemove(DepList& lst, const std::string& target) {
         DepList filtered;
         for (const auto& node : lst) {
-            if (node.getValue() != target) {
-                filtered.push_back(node.getValue(), 0);
-            }
+            if (node.getValue() != target) filtered.push_back(node.getValue(), 0);
         }
         lst = std::move(filtered);
     }
 
-    static std::string trim(const std::string& s) { return texcel_detail::trim(s); }
-    static std::string toUpper(std::string s)    { return texcel_detail::toUpper(std::move(s)); }
-    static bool containsStr(const StringVec& vec, const std::string& target) { return texcel_detail::containsStr(vec, target); }
-    static void addUniqueStr(StringVec& vec, const std::string& val)         { texcel_detail::addUniqueStr(vec, val); }
-    static void freeAst(AstNode* node)                                       { texcel_detail::freeAst(node); }
+    struct EvalError {
+        std::string code;
+    };
+
+    bool hasRawCell(const std::string& cid) {
+        return m_raw_table.contains(cid) && !m_raw_table[cid].empty();
+    }
+
+public:
+    static AstNode* tryParseAst(const std::string& expr, StringVec& out_refs, std::string* out_err_msg = nullptr) {
+        try {
+            FormulaParser parser(expr, out_refs);
+            return parser.parse();
+        } catch (const std::exception& e) {
+            if (out_err_msg) *out_err_msg = e.what();
+            return nullptr;
+        }
+    }
+
+private:
+
+    static bool canParseFormula(const std::string& expr) {
+        StringVec refs;
+        AstNode* ast = tryParseAst(expr, refs);
+        bool ok = (ast != nullptr);
+        texcel_detail::freeAst(ast);
+        return ok;
+    }
 
     struct ParsedAssignment {
         std::string target_cell;
@@ -78,94 +83,225 @@ private:
 
     static ParsedAssignment parseAssignment(const std::string& s, const std::string& fallback_cell) {
         ParsedAssignment res{fallback_cell, s};
+        if (s.empty() || s[0] == '\'' || s[0] == '"') return res;
         size_t eq_pos = s.find('=');
         if (eq_pos == std::string::npos) return res;
-        std::string lhs = trim(s.substr(0, eq_pos));
-        std::string rhs = trim(s.substr(eq_pos + 1));
+
+        std::string lhs = texcel_detail::trim(s.substr(0, eq_pos));
+        std::string rhs = texcel_detail::trim(s.substr(eq_pos + 1));
         if (lhs.empty()) {
-            res.expression = rhs;
+            res.expression = rhs.empty() ? "" : s;
             return res;
         }
         CellCoord c = CellCoord::parse(lhs);
-        if (c.valid) {
-            res.target_cell = c.toId();
-            res.expression = rhs;
-        } else {
+        if (!c.valid) {
             res.has_invalid_lhs = true;
             res.invalid_lhs = lhs;
+            return res;
+        }
+        res.target_cell = c.toId();
+        if (rhs.empty() || rhs[0] == '=' || rhs[0] == '\'' || texcel_detail::isPureNumber(rhs)) {
+            res.expression = rhs;
+        } else {
+            res.expression = canParseFormula(rhs) ? ("= " + rhs) : rhs;
         }
         return res;
-    }
-
-    static bool isPureNumber(const std::string& s) {
-        if (s.empty()) return false;
-        size_t i = 0;
-        if (s[i] == '+' || s[i] == '-') ++i;
-        if (i >= s.size()) return false;
-        bool has_digit = false, has_dot = false;
-        for (; i < s.size(); ++i) {
-            if (texcel_detail::isChar<std::isdigit>(s[i])) {
-                has_digit = true;
-            } else if (s[i] == '.' && !has_dot) {
-                has_dot = true;
-            } else {
-                return false;
-            }
-        }
-        return has_digit;
     }
 
     /** @brief Evalúa si una celda cumple un criterio estilo Excel (`">5"`, `"<=10"`, `"<>0"`, `"Total"`, `5`). */
     static bool matchesCriteria(const CellEvalValue& cell, bool cell_empty, const CellEvalValue& crit) {
         if (!crit.is_text) {
-            return !cell_empty && !cell.is_text && std::abs(cell.num - crit.num) < 1e-9;
+            return !cell_empty && !cell.is_text && texcel_detail::compareValues('=', cell, crit);
         }
 
         const std::string& raw_c = crit.text;
-        std::string op_str;
+        char op_code = 0;
         std::string rhs;
-
-        if (raw_c.starts_with(">=") || raw_c.starts_with("<=") || raw_c.starts_with("<>") || raw_c.starts_with("!=")) {
-            op_str = raw_c.substr(0, 2);
-            rhs = raw_c.substr(2);
-        } else if (!raw_c.empty() && (raw_c[0] == '>' || raw_c[0] == '<' || raw_c[0] == '=')) {
-            op_str = raw_c.substr(0, 1);
-            rhs = raw_c.substr(1);
-        } else {
-            if (raw_c.empty()) return cell_empty;
-            return !cell_empty && cell.asString() == raw_c;
-        }
-
-        rhs = trim(rhs);
-        if (rhs.empty()) {
-            if (op_str == "<>" || op_str == "!=") return !cell_empty;
-            if (op_str == "=") return cell_empty;
-            return false;
-        }
-
-        if (isPureNumber(rhs)) {
-            if (cell_empty || cell.is_text) {
-                return (op_str == "<>" || op_str == "!=");
+        for (const auto& info : texcel_detail::BINARY_OPS) {
+            if (info.prec != 1) continue;
+            std::string_view lex(info.lexeme);
+            if (raw_c.starts_with(lex)) {
+                op_code = info.code;
+                rhs = texcel_detail::trim(raw_c.substr(lex.size()));
+                break;
             }
-            double target = std::stod(rhs);
-            if (op_str == ">")  return cell.num > target;
-            if (op_str == "<")  return cell.num < target;
-            if (op_str == ">=") return cell.num >= target - 1e-9;
-            if (op_str == "<=") return cell.num <= target + 1e-9;
-            if (op_str == "=")  return std::abs(cell.num - target) < 1e-9;
-            if (op_str == "<>" || op_str == "!=") return std::abs(cell.num - target) >= 1e-9;
+        }
+        if (op_code == 0) {
+            return raw_c.empty() ? cell_empty : (!cell_empty && cell.asString() == raw_c);
+        }
+
+        if (rhs.empty()) {
+            if (op_code == '!') return !cell_empty;
+            if (op_code == '=') return cell_empty;
             return false;
         }
 
-        std::string lhs_str = cell_empty ? "" : cell.asString();
-        if (op_str == "=")  return !cell_empty && lhs_str == rhs;
-        if (op_str == "<>" || op_str == "!=") return cell_empty || lhs_str != rhs;
+        if (texcel_detail::isPureNumber(rhs)) {
+            if (cell_empty || cell.is_text) return op_code == '!';
+            return texcel_detail::compareValues(op_code, cell, CellEvalValue{false, std::stod(rhs), ""});
+        }
+
+        if (op_code == '=') return !cell_empty && cell.asString() == rhs;
+        if (op_code == '!') return cell_empty || cell.asString() != rhs;
         if (cell_empty) return false;
-        if (op_str == ">")  return lhs_str > rhs;
-        if (op_str == "<")  return lhs_str < rhs;
-        if (op_str == ">=") return lhs_str >= rhs;
-        if (op_str == "<=") return lhs_str <= rhs;
-        return false;
+        return texcel_detail::compareValues(op_code, CellEvalValue{true, 0.0, cell.asString()}, CellEvalValue{true, 0.0, rhs});
+    }
+
+    CellEvalValue resolveOrThrow(const std::string& cid, StringVec& visiting) {
+        std::string err;
+        CellEvalValue val = resolveCellValue(cid, visiting, err);
+        if (!err.empty()) throw EvalError{err};
+        return val;
+    }
+
+    static Vector<VectorAscTraits<AstNode*>> collectFuncArgs(const AstNode& node) {
+        Vector<VectorAscTraits<AstNode*>> args;
+        if (node.m_pChild[0]) args.push_back(node.m_pChild[0]);
+        AstNode* cur = node.m_pChild[1];
+        while (cur) {
+            if (cur->getValue().kind == AstNodeKind::ArgPair) {
+                if (cur->m_pChild[0]) args.push_back(cur->m_pChild[0]);
+                cur = cur->m_pChild[1];
+            } else {
+                args.push_back(cur);
+                break;
+            }
+        }
+        return args;
+    }
+
+    template <typename Fn>
+    void forEachArgValue(const Vector<VectorAscTraits<AstNode*>>& args, StringVec& visiting, Fn&& fn) {
+        for (size_t i = 0; i < args.size(); ++i) {
+            const AstToken& at = args[i].getValue()->getValue();
+            if (at.kind == AstNodeKind::CellRange) {
+                texcel_detail::forEachCellInRange(at.range_a, at.range_b, [&](const std::string& cid) {
+                    fn(resolveOrThrow(cid, visiting), true);
+                });
+            } else {
+                fn(at.evaluated, false);
+            }
+        }
+    }
+
+    CellEvalValue evalCountIf(const Vector<VectorAscTraits<AstNode*>>& args, StringVec& visiting) {
+        const size_t n_conds = args.size() / 2;
+        if (n_conds == 0 || args.size() % 2 != 0) throw EvalError{"#VALUE!"};
+
+        TX base_cols = 0, base_rows = 0;
+        Vector<VectorAscTraits<CellCoord>> starts;
+        Vector<VectorAscTraits<CellEvalValue>> crit_vals;
+        for (size_t k = 0; k < n_conds; ++k) {
+            const AstToken& rt = args[2 * k].getValue()->getValue();
+            CellCoord a, b;
+            if (rt.kind == AstNodeKind::CellRange) {
+                a = rt.range_a;
+                b = rt.range_b;
+            } else if (rt.kind == AstNodeKind::CellRef) {
+                a = b = CellCoord::parse(rt.text);
+            } else {
+                throw EvalError{"#VALUE!"};
+            }
+            TX c_min = std::min(a.col, b.col), c_max = std::max(a.col, b.col);
+            TX r_min = std::min(a.row, b.row), r_max = std::max(a.row, b.row);
+            TX cols = c_max - c_min + 1;
+            TX rows = r_max - r_min + 1;
+            if (k == 0) {
+                base_cols = cols;
+                base_rows = rows;
+            } else if (cols != base_cols || rows != base_rows) {
+                throw EvalError{"#VALUE!"};
+            }
+            starts.push_back(CellCoord(c_min, r_min, true));
+            crit_vals.push_back(args[2 * k + 1].getValue()->getValue().evaluated);
+        }
+
+        TX matched = 0;
+        for (TX dr = 0; dr < base_rows; ++dr) {
+            for (TX dc = 0; dc < base_cols; ++dc) {
+                bool all_match = true;
+                for (size_t k = 0; k < n_conds; ++k) {
+                    CellCoord s = starts[k].getValue();
+                    std::string cid = CellCoord(s.col + dc, s.row + dr, true).toId();
+                    bool is_empty = !hasRawCell(cid);
+                    CellEvalValue cv = is_empty ? CellEvalValue{} : resolveOrThrow(cid, visiting);
+                    if (!matchesCriteria(cv, is_empty, crit_vals[k].getValue())) {
+                        all_match = false;
+                        break;
+                    }
+                }
+                if (all_match) ++matched;
+            }
+        }
+        return CellEvalValue{false, static_cast<double>(matched), ""};
+    }
+
+    CellEvalValue evalFunction(FuncId fn,
+                               const Vector<VectorAscTraits<AstNode*>>& args,
+                               StringVec& visiting) {
+        switch (fn) {
+            case FuncId::If: {
+                if (args.size() != 3) throw EvalError{"#SYNTAX!"};
+                const CellEvalValue& cond = args[0].getValue()->getValue().evaluated;
+                bool truthy = (!cond.is_text && std::abs(cond.num) > 1e-9) ||
+                              (cond.is_text && texcel_detail::toUpper(cond.text) == "TRUE");
+                return truthy ? args[1].getValue()->getValue().evaluated
+                              : args[2].getValue()->getValue().evaluated;
+            }
+            case FuncId::Concat: {
+                std::string out_s;
+                forEachArgValue(args, visiting, [&](const CellEvalValue& ev, bool) {
+                    out_s += ev.asString();
+                });
+                return CellEvalValue{true, 0.0, out_s};
+            }
+            case FuncId::CountIf:
+            case FuncId::CountIfs:
+                return evalCountIf(args, visiting);
+            case FuncId::Sum:
+            case FuncId::Avg:
+            case FuncId::Min:
+            case FuncId::Max: {
+                double acc = 0.0, mn = 0.0, mx = 0.0;
+                TX count = 0;
+                auto foldNum = [&](double v) {
+                    if (count == 0) { mn = mx = v; }
+                    else { mn = std::min(mn, v); mx = std::max(mx, v); }
+                    acc += v;
+                    ++count;
+                };
+                forEachArgValue(args, visiting, [&](const CellEvalValue& ev, bool from_range) {
+                    if (!ev.is_text) foldNum(ev.num);
+                    else if (from_range) return;
+                    else if (ev.text.empty()) foldNum(0.0);
+                    else if (texcel_detail::isPureNumber(ev.text)) foldNum(std::stod(ev.text));
+                    else throw EvalError{"#VALUE!"};
+                });
+                if (fn == FuncId::Sum) return CellEvalValue{false, acc, ""};
+                if (fn == FuncId::Avg) return CellEvalValue{false, count > 0 ? acc / count : 0.0, ""};
+                if (fn == FuncId::Min) return CellEvalValue{false, mn, ""};
+                return CellEvalValue{false, mx, ""};
+            }
+            default:
+                throw EvalError{"#SYNTAX!"};
+        }
+    }
+
+    static CellEvalValue evalBinaryOp(char op, const CellEvalValue& lhs, const CellEvalValue& rhs) {
+        double lnum = lhs.asNumber(), rnum = rhs.asNumber();
+        switch (op) {
+            case '&': return CellEvalValue{true, 0.0, lhs.asString() + rhs.asString()};
+            case '=': case '!': case '<': case '>': case 'L': case 'G':
+                return CellEvalValue{false, texcel_detail::compareValues(op, lhs, rhs) ? 1.0 : 0.0, ""};
+            case '+': return CellEvalValue{false, lnum + rnum, ""};
+            case '-': return CellEvalValue{false, lnum - rnum, ""};
+            case '*': return CellEvalValue{false, lnum * rnum, ""};
+            case '/':
+                if (std::abs(rnum) < 1e-12) throw EvalError{"#DIV/0!"};
+                return CellEvalValue{false, lnum / rnum, ""};
+            case '^': return CellEvalValue{false, std::pow(lnum, rnum), ""};
+            default:  throw EvalError{"#OP!"};
+        }
     }
 
     /**
@@ -183,233 +319,49 @@ private:
         std::ostringstream rpn_ss;
         bool first = true;
 
-        for (PrePostIter it(root), end(nullptr); it != end; ++it) {
-            AstNode& node = *it;
-            AstToken& tok = node.value();
+        try {
+            for (PrePostIter it(root), end(nullptr); it != end; ++it) {
+                AstNode& node = *it;
+                AstToken& tok = node.value();
 
-            // 1. Fase Pre (enter): propagar tipo esperado hacia los hijos
-            if (it.phase() == Phase::Pre) {
-                if (tok.kind == AstNodeKind::BinaryOp) {
-                    ExpectedType child_exp = texcel_detail::binaryOpExpectedType(tok.op);
-                    if (node.m_pChild[0]) node.m_pChild[0]->value().expected_type = child_exp;
-                    if (node.m_pChild[1]) node.m_pChild[1]->value().expected_type = child_exp;
+                if (it.phase() == Phase::Pre) {
+                    if (tok.kind == AstNodeKind::BinaryOp) {
+                        bool child_num = texcel_detail::binaryOpIsNumeric(tok.op);
+                        if (node.m_pChild[0]) node.m_pChild[0]->value().expect_numeric = child_num;
+                        if (node.m_pChild[1]) node.m_pChild[1]->value().expect_numeric = child_num;
+                    }
+                    continue;
                 }
-                continue;
-            }
 
-            // 2. Fase Post (exit): emitir RPN, evaluar in-place y validar tipo
-            if (!first) rpn_ss << " ";
-            rpn_ss << "[" << tok.text << "]";
-            first = false;
+                if (!first) rpn_ss << " ";
+                rpn_ss << "[" << tok.text << "]";
+                first = false;
 
-            if (tok.kind == AstNodeKind::Number) {
-                tok.evaluated = CellEvalValue{false, tok.number, ""};
-            } else if (tok.kind == AstNodeKind::StringLiteral) {
-                tok.evaluated = CellEvalValue{true, 0.0, tok.func_name};
-            } else if (tok.kind == AstNodeKind::CellRef) {
-                CellEvalValue ref_val = resolveCellValue(tok.text, visiting, out_err);
-                if (!out_err.empty()) {
-                    out_rpn = rpn_ss.str();
-                    return {};
+                if (tok.kind == AstNodeKind::CellRef) {
+                    tok.evaluated = resolveOrThrow(tok.text, visiting);
+                } else if (tok.kind == AstNodeKind::FuncCall) {
+                    tok.evaluated = evalFunction(tok.func_id, collectFuncArgs(node), visiting);
+                } else if (tok.kind == AstNodeKind::BinaryOp) {
+                    if (!node.m_pChild[0] || !node.m_pChild[1]) throw EvalError{"#SYNTAX!"};
+                    tok.evaluated = evalBinaryOp(
+                        tok.op, node.m_pChild[0]->getValue().evaluated, node.m_pChild[1]->getValue().evaluated);
                 }
-                tok.evaluated = ref_val;
-            } else if (tok.kind == AstNodeKind::CellRange || tok.kind == AstNodeKind::ArgPair) {
-                // Nodos estructurales consumidos por su padre FuncCall
-            } else if (tok.kind == AstNodeKind::FuncCall) {
-                Vector<VectorAscTraits<AstNode*>> args;
-                if (node.m_pChild[0]) args.push_back(node.m_pChild[0]);
-                AstNode* cur = node.m_pChild[1];
-                while (cur) {
-                    if (cur->getValue().kind == AstNodeKind::ArgPair) {
-                        if (cur->m_pChild[0]) args.push_back(cur->m_pChild[0]);
-                        cur = cur->m_pChild[1];
+
+                // Validación de tipo propagado en Phase::Pre (ej. `"Hola" + 5` -> `#VALUE!`)
+                if (tok.expect_numeric && tok.evaluated.is_text) {
+                    if (tok.evaluated.text.empty()) {
+                        tok.evaluated = CellEvalValue{false, 0.0, ""};
+                    } else if (texcel_detail::isPureNumber(tok.evaluated.text)) {
+                        tok.evaluated = CellEvalValue{false, std::stod(tok.evaluated.text), ""};
                     } else {
-                        args.push_back(cur);
-                        break;
+                        throw EvalError{"#VALUE!"};
                     }
-                }
-
-                const std::string& fn = tok.func_name;
-                if (fn == "IF") {
-                    if (args.size() != 3) { out_err = "#SYNTAX!"; out_rpn = rpn_ss.str(); return {}; }
-                    const CellEvalValue& cond = args[0].getValue()->getValue().evaluated;
-                    bool truthy = (!cond.is_text && std::abs(cond.num) > 1e-9) ||
-                                  (cond.is_text && toUpper(cond.text) == "TRUE");
-                    tok.evaluated = truthy ? args[1].getValue()->getValue().evaluated
-                                           : args[2].getValue()->getValue().evaluated;
-                } else if (fn == "CONCAT") {
-                    std::string out_s;
-                    for (size_t i = 0; i < args.size(); ++i) {
-                        const AstToken& at = args[i].getValue()->getValue();
-                        if (at.kind == AstNodeKind::CellRange) {
-                            bool ok = texcel_detail::forEachCellInRange(
-                                CellCoord::parse(at.range_start), CellCoord::parse(at.range_end),
-                                [&](const std::string& cid) {
-                                    CellEvalValue cv = resolveCellValue(cid, visiting, out_err);
-                                    if (!out_err.empty()) return false;
-                                    out_s += cv.asString();
-                                    return true;
-                                });
-                            if (!ok) { out_rpn = rpn_ss.str(); return {}; }
-                        } else {
-                            out_s += at.evaluated.asString();
-                        }
-                    }
-                    tok.evaluated = CellEvalValue{true, 0.0, out_s};
-                } else if (fn == "SUM" || fn == "AVG" || fn == "MIN" || fn == "MAX") {
-                    double acc = 0.0, mn = 0.0, mx = 0.0;
-                    TX count = 0;
-                    auto foldNum = [&](double v) {
-                        if (count == 0) { mn = mx = v; }
-                        else { mn = std::min(mn, v); mx = std::max(mx, v); }
-                        acc += v;
-                        ++count;
-                    };
-                    for (size_t i = 0; i < args.size(); ++i) {
-                        const AstToken& at = args[i].getValue()->getValue();
-                        if (at.kind == AstNodeKind::CellRange) {
-                            bool ok = texcel_detail::forEachCellInRange(
-                                CellCoord::parse(at.range_start), CellCoord::parse(at.range_end),
-                                [&](const std::string& cid) {
-                                    CellEvalValue cv = resolveCellValue(cid, visiting, out_err);
-                                    if (!out_err.empty()) return false;
-                                    if (!cv.is_text) foldNum(cv.num);
-                                    return true;
-                                });
-                            if (!ok) { out_rpn = rpn_ss.str(); return {}; }
-                        } else {
-                            const CellEvalValue& ev = at.evaluated;
-                            if (!ev.is_text) foldNum(ev.num);
-                            else if (ev.text.empty()) foldNum(0.0);
-                            else if (isPureNumber(ev.text)) foldNum(std::stod(ev.text));
-                            else { out_err = "#VALUE!"; out_rpn = rpn_ss.str(); return {}; }
-                        }
-                    }
-                    if (fn == "SUM") tok.evaluated = CellEvalValue{false, acc, ""};
-                    else if (fn == "AVG") tok.evaluated = CellEvalValue{false, count > 0 ? acc / count : 0.0, ""};
-                    else if (fn == "MIN") tok.evaluated = CellEvalValue{false, mn, ""};
-                    else if (fn == "MAX") tok.evaluated = CellEvalValue{false, mx, ""};
-                } else if (fn == "COUNTIF" || fn == "COUNTIFS") {
-                    const size_t n_conds = args.size() / 2;
-                    if (n_conds == 0 || args.size() % 2 != 0) { out_err = "#VALUE!"; out_rpn = rpn_ss.str(); return {}; }
-
-                    TX base_cols = 0, base_rows = 0;
-                    Vector<VectorAscTraits<CellCoord>> starts;
-                    ValueVec crit_vals;
-                    for (size_t k = 0; k < n_conds; ++k) {
-                        const AstToken& rt = args[2 * k].getValue()->getValue();
-                        CellCoord a, b;
-                        if (rt.kind == AstNodeKind::CellRange) {
-                            a = CellCoord::parse(rt.range_start);
-                            b = CellCoord::parse(rt.range_end);
-                        } else if (rt.kind == AstNodeKind::CellRef) {
-                            a = b = CellCoord::parse(rt.text);
-                        } else {
-                            out_err = "#VALUE!"; out_rpn = rpn_ss.str(); return {};
-                        }
-                        TX c_min = std::min(a.col, b.col), c_max = std::max(a.col, b.col);
-                        TX r_min = std::min(a.row, b.row), r_max = std::max(a.row, b.row);
-                        TX cols = c_max - c_min + 1;
-                        TX rows = r_max - r_min + 1;
-                        if (k == 0) { base_cols = cols; base_rows = rows; }
-                        else if (cols != base_cols || rows != base_rows) {
-                            out_err = "#VALUE!"; out_rpn = rpn_ss.str(); return {};
-                        }
-                        starts.push_back(CellCoord(c_min, r_min, true));
-                        crit_vals.push_back(args[2 * k + 1].getValue()->getValue().evaluated);
-                    }
-
-                    TX matched = 0;
-                    for (TX dr = 0; dr < base_rows; ++dr) {
-                        for (TX dc = 0; dc < base_cols; ++dc) {
-                            bool all_match = true;
-                            for (size_t k = 0; k < n_conds; ++k) {
-                                CellCoord s = starts[k].getValue();
-                                std::string cid = CellCoord(s.col + dc, s.row + dr, true).toId();
-                                bool is_empty = (!m_raw_table.contains(cid) || m_raw_table[cid].empty());
-                                CellEvalValue cv;
-                                if (!is_empty) {
-                                    cv = resolveCellValue(cid, visiting, out_err);
-                                    if (!out_err.empty()) { out_rpn = rpn_ss.str(); return {}; }
-                                }
-                                if (!matchesCriteria(cv, is_empty, crit_vals[k].getValue())) {
-                                    all_match = false;
-                                    break;
-                                }
-                            }
-                            if (all_match) ++matched;
-                        }
-                    }
-                    tok.evaluated = CellEvalValue{false, static_cast<double>(matched), ""};
-                }
-            } else if (tok.kind == AstNodeKind::BinaryOp) {
-                if (!node.m_pChild[0] || !node.m_pChild[1]) {
-                    out_err = "#SYNTAX!";
-                    out_rpn = rpn_ss.str();
-                    return {};
-                }
-                const CellEvalValue& lhs = node.m_pChild[0]->getValue().evaluated;
-                const CellEvalValue& rhs = node.m_pChild[1]->getValue().evaluated;
-
-                if (tok.op == '&') {
-                    tok.evaluated = CellEvalValue{true, 0.0, lhs.asString() + rhs.asString()};
-                } else if (tok.op == '=' || tok.op == '!' || tok.op == '<' || tok.op == '>' || tok.op == 'L' || tok.op == 'G') {
-                    bool cmp_res = false;
-                    if (!lhs.is_text && !rhs.is_text) {
-                        double lnum = lhs.num, rnum = rhs.num;
-                        if (tok.op == '=') cmp_res = std::abs(lnum - rnum) < 1e-9;
-                        else if (tok.op == '!') cmp_res = std::abs(lnum - rnum) >= 1e-9;
-                        else if (tok.op == '<') cmp_res = lnum < rnum - 1e-9;
-                        else if (tok.op == '>') cmp_res = lnum > rnum + 1e-9;
-                        else if (tok.op == 'L') cmp_res = lnum <= rnum + 1e-9;
-                        else if (tok.op == 'G') cmp_res = lnum >= rnum - 1e-9;
-                    } else {
-                        std::string ls = lhs.asString(), rs = rhs.asString();
-                        if (tok.op == '=') cmp_res = (ls == rs);
-                        else if (tok.op == '!') cmp_res = (ls != rs);
-                        else if (tok.op == '<') cmp_res = (ls < rs);
-                        else if (tok.op == '>') cmp_res = (ls > rs);
-                        else if (tok.op == 'L') cmp_res = (ls <= rs);
-                        else if (tok.op == 'G') cmp_res = (ls >= rs);
-                    }
-                    tok.evaluated = CellEvalValue{false, cmp_res ? 1.0 : 0.0, ""};
-                } else {
-                    double lnum = lhs.asNumber();
-                    double rnum = rhs.asNumber();
-                    double res = 0.0;
-                    switch (tok.op) {
-                        case '+': res = lnum + rnum; break;
-                        case '-': res = lnum - rnum; break;
-                        case '*': res = lnum * rnum; break;
-                        case '/':
-                            if (std::abs(rnum) < 1e-12) {
-                                out_err = "#DIV/0!";
-                                out_rpn = rpn_ss.str();
-                                return {};
-                            }
-                            res = lnum / rnum;
-                            break;
-                        case '^': res = std::pow(lnum, rnum); break;
-                        default:
-                            out_err = "#OP!";
-                            return {};
-                    }
-                    tok.evaluated = CellEvalValue{false, res, ""};
                 }
             }
-
-            // Validación de tipo propagado en Phase::Pre (ej. `"Hola" + 5` -> `#VALUE!`)
-            if (tok.expected_type == ExpectedType::Number && tok.evaluated.is_text) {
-                if (tok.evaluated.text.empty()) {
-                    tok.evaluated = CellEvalValue{false, 0.0, ""};
-                } else if (isPureNumber(tok.evaluated.text)) {
-                    tok.evaluated = CellEvalValue{false, std::stod(tok.evaluated.text), ""};
-                } else {
-                    out_err = "#VALUE!";
-                    out_rpn = rpn_ss.str();
-                    return {};
-                }
-            }
+        } catch (const EvalError& e) {
+            out_err = e.code;
+            out_rpn = rpn_ss.str();
+            return {};
         }
 
         out_rpn = rpn_ss.str();
@@ -421,117 +373,89 @@ private:
                                         StringVec& out_refs,
                                         std::string& out_rpn,
                                         std::string& out_err,
-                                        bool& out_is_formula,
                                         std::string* out_syntax_msg = nullptr) {
-        out_is_formula = false;
         bool has_quote = (!raw.empty() && raw[0] == '\'');
         bool explicit_formula = (!raw.empty() && raw[0] == '=');
-        if (has_quote || (!explicit_formula && !isPureNumber(raw))) {
+        if (!explicit_formula) {
+            if (!has_quote && texcel_detail::isPureNumber(raw)) {
+                double val = std::stod(raw);
+                out_rpn = "[" + formatCellNumber(val) + "]";
+                return CellEvalValue{false, val, ""};
+            }
             std::string txt = has_quote ? raw.substr(1) : raw;
             out_rpn = "\"" + txt + "\"";
             return CellEvalValue{true, 0.0, txt};
         }
 
-        AstNode* ast = nullptr;
-        try {
-            FormulaParser parser(raw, out_refs);
-            ast = parser.parse();
-        } catch (const std::exception& e) {
+        AstNode* ast = tryParseAst(raw, out_refs, out_syntax_msg);
+        if (!ast) {
             out_err = "#SYNTAX!";
-            if (out_syntax_msg) *out_syntax_msg = e.what();
             return {};
         }
 
         CellEvalValue eval_res = evaluateAstPostOrder(ast, visiting, out_rpn, out_err);
-        out_is_formula = explicit_formula || (out_refs.size() > 0) || (ast && ast->m_pChild[0] != nullptr);
-        freeAst(ast);
+        texcel_detail::freeAst(ast);
         return eval_res;
     }
 
+    void unsubscribeInputs(const std::string& cid) {
+        if (!m_cells.contains(cid)) return;
+        StringVec& old_inputs = m_cells[cid].inputs;
+        for (size_t i = 0; i < old_inputs.size(); ++i) {
+            const std::string& in_id = old_inputs[i].getValue();
+            if (m_dependents.contains(in_id)) listRemove(m_dependents[in_id], cid);
+        }
+        old_inputs.clear();
+    }
+
     CellEvalValue resolveCellValue(const std::string& cell_id, StringVec& visiting, std::string& out_err) {
-        if (containsStr(visiting, cell_id)) {
+        if (texcel_detail::containsStr(visiting, cell_id)) {
             out_err = "#CYCLE!";
             return {};
         }
-        if (!m_raw_table.contains(cell_id) || m_raw_table[cell_id].empty()) {
-            return {};
-        }
+        if (!hasRawCell(cell_id)) return {};
 
         visiting.push_back(cell_id);
         std::string raw = m_raw_table[cell_id];
         StringVec refs;
         std::string rpn, local_err;
-        bool is_formula = false;
-        CellEvalValue eval_res = evaluateRawExpression(raw, visiting, refs, rpn, local_err, is_formula);
+        CellEvalValue eval_res = evaluateRawExpression(raw, visiting, refs, rpn, local_err);
         visiting.pop_back();
 
+        unsubscribeInputs(cell_id);
         SpreadsheetCell& cell = m_cells[cell_id];
         cell.id = cell_id;
         cell.raw_expression = raw;
-        cell.is_formula = is_formula;
+        cell.is_formula = (!raw.empty() && raw[0] == '=');
         cell.postorder_rpn = rpn;
+        cell.inputs = refs;
+        for (size_t i = 0; i < refs.size(); ++i) {
+            const std::string& ref_id = refs[i].getValue();
+            if (ref_id != cell_id) texcel_detail::addUniqueStr(m_dependents[ref_id], cell_id);
+        }
 
         if (!local_err.empty()) {
             cell.has_error = true;
             cell.error_msg = local_err;
-            cell.is_text = false;
-            cell.text_value.clear();
-            cell.value = 0.0;
+            cell.result = {};
             out_err = local_err;
             return {};
         }
 
         cell.has_error = false;
         cell.error_msg.clear();
-        cell.is_text = eval_res.is_text;
-        cell.text_value = eval_res.text;
-        cell.value = eval_res.num;
+        cell.result = eval_res;
         return eval_res;
     }
 
-    /** @brief Actualiza las listas enlazadas de dependencias (`m_inputs` y `m_dependents`) para `cid`. */
-    void updateDependencies(const std::string& cid, const std::string& expr) {
-        // 1. Desuscribir `cid` de la LinkedList de dependientes de sus antiguas entradas
-        if (m_inputs.contains(cid)) {
-            for (const auto& old_in : m_inputs[cid]) {
-                if (m_dependents.contains(old_in.getValue())) {
-                    listRemove(m_dependents[old_in.getValue()], cid);
-                }
-            }
-            m_inputs[cid].clear();
-        }
-
-        if (expr.empty() || expr[0] != '=') return;
-
-        // 2. Parsear nueva expresión para obtener referencias y suscribir `cid` en cada `DepList`
-        StringVec new_refs;
-        try {
-            FormulaParser parser(expr, new_refs);
-            AstNode* ast = parser.parse();
-            freeAst(ast);
-        } catch (...) {
-            return;
-        }
-
-        DepList& in_list = m_inputs[cid];
-        for (size_t i = 0; i < new_refs.size(); ++i) {
-            const std::string& ref_id = new_refs[i].getValue();
-            listAddUnique(in_list, ref_id);
-            if (ref_id != cid) {
-                listAddUnique(m_dependents[ref_id], cid);
-            }
-        }
-    }
-
-    /** @brief Reconstruye todas las listas enlazadas de dependencias (útil tras `load`). */
-    void rebuildDependencyGraph() {
-        m_inputs.clear();
-        m_dependents.clear();
-        for (const auto& entry_node : m_raw_table) {
-            std::string cid = entry_node.getValue().getKey();
-            std::string raw = entry_node.getValue().getValue();
-            if (!raw.empty()) updateDependencies(cid, raw);
-        }
+    bool recomputeCell(const std::string& cid, std::string* out_disp = nullptr) {
+        std::string prev = m_cells.contains(cid) ? m_cells[cid].displayValue() : "";
+        StringVec visiting;
+        std::string err;
+        resolveCellValue(cid, visiting, err);
+        std::string now = m_cells[cid].displayValue();
+        if (out_disp) *out_disp = now;
+        return now != prev;
     }
 
     /**
@@ -544,22 +468,15 @@ private:
 
         for (size_t qi = 0; qi < visited.size(); ++qi) {
             std::string curr_id = visited[qi].getValue();
-            if (qi > 0) {
-                if (!m_raw_table.contains(curr_id) || m_raw_table[curr_id].empty()) continue;
-                std::string prev_disp = m_cells.contains(curr_id) ? m_cells[curr_id].displayValue() : "";
-
-                StringVec eval_visiting;
-                std::string err;
-                resolveCellValue(curr_id, eval_visiting, err);
-
-                std::string now_disp = m_cells[curr_id].displayValue();
-                if (now_disp != prev_disp) {
-                    addUniqueStr(updated, curr_id + "=" + now_disp);
+            if (qi > 0 && hasRawCell(curr_id)) {
+                std::string now_disp;
+                if (recomputeCell(curr_id, &now_disp)) {
+                    texcel_detail::addUniqueStr(updated, curr_id + "=" + now_disp);
                 }
             }
             if (m_dependents.contains(curr_id)) {
                 for (const auto& dep_node : m_dependents[curr_id]) {
-                    addUniqueStr(visited, dep_node.getValue());
+                    texcel_detail::addUniqueStr(visited, dep_node.getValue());
                 }
             }
         }
@@ -585,7 +502,7 @@ public:
 
     /** @brief Reconstruye el grafo `LinkedList` y recalcula todas las celdas activas. */
     StringVec recalculateAll(const std::string& changed_id = "") {
-        rebuildDependencyGraph();
+        m_dependents.clear();
 
         BaseHashTable<HashTableTraits<std::string, std::string>, Callable> prev_display;
         for (const auto& entry_node : m_raw_table) {
@@ -595,30 +512,22 @@ public:
 
         for (const auto& entry_node : m_raw_table) {
             std::string cid = entry_node.getValue().getKey();
-            std::string raw = entry_node.getValue().getValue();
-            if (raw.empty()) continue;
-
-            StringVec visiting;
-            std::string err;
-            resolveCellValue(cid, visiting, err);
+            if (!entry_node.getValue().getValue().empty()) recomputeCell(cid);
         }
 
         StringVec updated;
         for (const auto& entry_node : m_raw_table) {
             std::string cid = entry_node.getValue().getKey();
-            std::string raw = entry_node.getValue().getValue();
-            if (raw.empty() || cid == changed_id) continue;
+            if (entry_node.getValue().getValue().empty() || cid == changed_id) continue;
 
             std::string now_disp = m_cells[cid].displayValue();
-            if (now_disp != prev_display[cid]) {
-                updated.push_back(cid + "=" + now_disp);
-            }
+            if (now_disp != prev_display[cid]) updated.push_back(cid + "=" + now_disp);
         }
         return updated;
     }
 
     /**
-     * @brief Asigna un valor o fórmula a una celda (ej. `setCell("A1", "5")`, `setCell("B1", "A1 + 4")`).
+     * @brief Asigna un valor o fórmula a una celda (ej. `setCell("A1", "5")`, `setCell("B1", "= A1 + 4")`).
      */
     bool setCell(const std::string& cell_id_raw, const std::string& expression_raw) {
         CellCoord coord = CellCoord::parse(cell_id_raw);
@@ -627,31 +536,25 @@ public:
             return false;
         }
         std::string cid = coord.toId();
-        std::string expr = trim(expression_raw);
+        std::string expr = texcel_detail::trim(expression_raw);
 
-        updateDependencies(cid, expr);
+        unsubscribeInputs(cid);
 
         if (expr.empty()) {
             m_raw_table[cid] = "";
-            m_cells[cid] = SpreadsheetCell{cid, "", 0.0, "", false, false, false, "", ""};
-            StringVec cascaded = propagateFrom(cid);
+            m_cells[cid] = SpreadsheetCell{.id = cid};
+            propagateFrom(cid);
             addLog("⌫ " + cid + " limpiada");
             return true;
         }
 
         m_raw_table[cid] = expr;
-        StringVec visiting;
-        std::string err;
-        resolveCellValue(cid, visiting, err);
+        recomputeCell(cid);
         StringVec cascaded = propagateFrom(cid);
 
         const SpreadsheetCell& cell = m_cells[cid];
         std::ostringstream log_ss;
-        if (cell.has_error) {
-            log_ss << "⚠ " << cid << " = " << expr << " ➔ " << cell.error_msg;
-        } else {
-            log_ss << "✔ " << cid << " = " << expr << " ➔ " << cell.displayValue();
-        }
+        log_ss << (cell.has_error ? "⚠ " : "✔ ") << cid << " = " << expr << " ➔ " << cell.displayValue();
         if (cascaded.size() > 0) {
             log_ss << " (↻ ";
             for (size_t i = 0; i < cascaded.size(); ++i) {
@@ -669,14 +572,13 @@ public:
      * @param cmd Cadena de comando; si no tiene `=`, se asigna a `fallback_cell`.
      */
     bool executeCommand(const std::string& cmd, const std::string& fallback_cell, std::string* out_assigned_cell = nullptr) {
-        std::string s = trim(cmd);
+        std::string s = texcel_detail::trim(cmd);
         if (s.empty()) return false;
 
         ParsedAssignment pa = parseAssignment(s, fallback_cell);
         std::string target = pa.has_invalid_lhs ? fallback_cell : pa.target_cell;
-        std::string expr   = pa.has_invalid_lhs ? s : (!pa.expression.empty() && s.find('=') == 0 ? s : pa.expression);
         if (out_assigned_cell) *out_assigned_cell = target;
-        return setCell(target, expr);
+        return setCell(target, pa.has_invalid_lhs ? s : pa.expression);
     }
 
     /** @brief Consulta el estado de una celda (retorna celda vacía por defecto si no existe). */
@@ -684,28 +586,28 @@ public:
         CellCoord c = CellCoord::parse(cell_id);
         std::string cid = c.valid ? c.toId() : cell_id;
         if (m_cells.contains(cid)) return m_cells[cid];
-        SpreadsheetCell empty;
-        empty.id = cid;
-        return empty;
-    }
-
-    static StringVec collectGraphList(DepGraph& graph, const std::string& cell_id) {
-        StringVec res;
-        if (!graph.contains(cell_id)) return res;
-        for (const auto& node : graph[cell_id]) {
-            addUniqueStr(res, node.getValue());
-        }
-        return res;
+        return SpreadsheetCell{.id = cid};
     }
 
     /** @brief Obtiene la lista de celdas de las que depende directamente `cell_id` (sus entradas). */
     StringVec getCellInputs(const std::string& cell_id) {
-        return collectGraphList(m_inputs, cell_id);
+        return getCell(cell_id).inputs;
     }
 
     /** @brief Obtiene la lista de celdas que dependen de `cell_id` desde su `LinkedList` de observadores. */
     StringVec getCellDependents(const std::string& cell_id) {
-        return collectGraphList(m_dependents, cell_id);
+        StringVec res;
+        if (!m_dependents.contains(cell_id)) return res;
+        for (const auto& node : m_dependents[cell_id]) {
+            texcel_detail::addUniqueStr(res, node.getValue());
+        }
+        return res;
+    }
+
+    /** @brief Indica si una cadena en mayúsculas corresponde a un comando administrativo de la consola. */
+    static bool isAdminCommand(const std::string& upper_cmd) {
+        return upper_cmd == "CLEAR" || upper_cmd == "QUIT" || upper_cmd == "EXIT" ||
+               upper_cmd == "Q" || upper_cmd == "SAVE" || upper_cmd == "LOAD";
     }
 
     /**
@@ -715,15 +617,8 @@ public:
      */
     EvalPreview previewCommand(const std::string& raw_input, const std::string& active_cell_id) {
         EvalPreview p;
-        std::string s = trim(raw_input);
-        if (s.empty()) return p;
-
-        // Ignorar comandos administrativos
-        std::string upper = toUpper(s);
-        if (upper == "DEMO" || upper == "CLEAR" || upper == "QUIT" || upper == "EXIT" ||
-            upper == "HELP" || upper.starts_with("SAVE") || upper.starts_with("LOAD")) {
-            return p;
-        }
+        std::string s = texcel_detail::trim(raw_input);
+        if (s.empty() || isAdminCommand(texcel_detail::toUpper(s))) return p;
 
         p.active = true;
         ParsedAssignment pa = parseAssignment(s, active_cell_id);
@@ -744,9 +639,8 @@ public:
         StringVec visiting;
         visiting.push_back(p.target_cell);
         std::string rpn, err, syntax_msg;
-        bool is_formula = false;
         CellEvalValue eval_res = evaluateRawExpression(
-            p.expression, visiting, p.referenced_cells, rpn, err, is_formula, &syntax_msg);
+            p.expression, visiting, p.referenced_cells, rpn, err, &syntax_msg);
 
         p.postorder_rpn = rpn;
         if (!err.empty()) {
@@ -756,58 +650,14 @@ public:
         }
 
         p.valid = true;
-        p.is_text = eval_res.is_text;
-        p.value = eval_res.num;
-        p.formatted_value = eval_res.asString();
+        p.result = eval_res;
         return p;
-    }
-
-    /**
-     * @brief Proyecta el AST completo de una expresión usando `VerticalTreeLayout` o `HorizontalTreeLayout`.
-     */
-    VisualGraph buildAstVisualGraph(const std::string& raw_expr, bool horizontal) const {
-        std::string expr = texcel_detail::trim(raw_expr);
-        if (expr.empty()) return {};
-        if (!expr.empty() && expr[0] == '=') expr = texcel_detail::trim(expr.substr(1));
-        if (expr.empty() || expr[0] == '"') return {};
-
-        AstNode* ast = nullptr;
-        try {
-            StringVec refs;
-            FormulaParser parser(expr, refs);
-            ast = parser.parse();
-        } catch (...) {
-            return {};
-        }
-        if (!ast) return {};
-
-        struct AstTreeView {
-            AstNode* m_root;
-            AstNode* getRoot() const { return m_root; }
-        };
-
-        auto fmt = [](const AstToken& tok, TreeRole role) -> std::string {
-            if (role == TreeRole::Root) return styled("[" + tok.text + "]").bright_yellow().bold().str();
-            if (role == TreeRole::Leaf) return styled(tok.text).bright_cyan().str();
-            return styled(tok.text).bright_green().bold().str();
-        };
-
-        VisualGraph vg;
-        if (horizontal) {
-            HorizontalTreeLayout<decltype(fmt)> layout(fmt, true);
-            vg = layout(AstTreeView{ast});
-        } else {
-            VerticalTreeLayout<decltype(fmt)> layout(fmt, 3, false);
-            vg = layout(AstTreeView{ast});
-        }
-        freeAst(ast);
-        return vg;
     }
 
     /** @brief Limpia un rango rectangular de celdas y propaga dependencias. */
     void clearRange(TX c0, TX r0, TX c1, TX r1) {
         texcel_detail::forEachCellInRange(CellCoord(c0, r0, true), CellCoord(c1, r1, true), [&](const std::string& cid) {
-            if (m_raw_table.contains(cid) && !m_raw_table[cid].empty()) {
+            if (hasRawCell(cid)) {
                 setCell(cid, "");
             }
         });
@@ -850,7 +700,6 @@ public:
                     bool next_is_paren = (p < expr.size() && expr[p] == '(');
                     bool next_is_alpha = (p < expr.size() && texcel_detail::isChar<std::isalpha>(expr[p]));
                     if (p > row_start && !next_is_paren && !next_is_alpha) {
-                        std::string col_part = expr.substr(col_start, (expr[col_start + (p - col_start)] == '$') ? 0 : 0);
                         std::string raw_tok = expr.substr(i, p - i);
                         CellCoord coord = CellCoord::parse(raw_tok);
                         if (coord.valid) {
@@ -881,7 +730,7 @@ public:
      */
     TX autoFillRange(TX c0, TX r0, TX c1, TX r1) {
         std::string src_id = CellCoord(c0, r0, true).toId();
-        if (!m_raw_table.contains(src_id) || m_raw_table[src_id].empty()) return 0;
+        if (!hasRawCell(src_id)) return 0;
 
         SpreadsheetCell src_cell = getCell(src_id);
         std::string src_raw = m_raw_table[src_id];
@@ -892,13 +741,13 @@ public:
         bool is_series = false;
         double series_base = 0.0, series_step = 0.0;
         bool fill_vertical = (rmax - rmin) >= (cmax - cmin);
-        if (!src_cell.is_formula && !src_cell.is_text && isPureNumber(src_raw)) {
+        if (!src_cell.is_formula && !src_cell.result.is_text && texcel_detail::isPureNumber(src_raw)) {
             series_base = std::stod(src_raw);
             TX nc = fill_vertical ? c0 : (c0 + (c1 >= c0 ? 1 : -1));
             TX nr = fill_vertical ? (r0 + (r1 >= r0 ? 1 : -1)) : r0;
             if (nc >= cmin && nc <= cmax && nr >= rmin && nr <= rmax) {
                 std::string next_id = CellCoord(nc, nr, true).toId();
-                if (m_raw_table.contains(next_id) && isPureNumber(m_raw_table[next_id])) {
+                if (m_raw_table.contains(next_id) && texcel_detail::isPureNumber(m_raw_table[next_id])) {
                     series_step = std::stod(m_raw_table[next_id]) - series_base;
                     is_series = true;
                 }
@@ -914,11 +763,10 @@ public:
                 TX drow = r - r0;
 
                 if (src_cell.is_formula) {
-                    std::string shifted = shiftFormulaRefs(src_raw, dcol, drow);
-                    setCell(dst_id, (!shifted.empty() && shifted[0] == '=') ? shifted : ("= " + shifted));
+                    setCell(dst_id, shiftFormulaRefs(src_raw, dcol, drow));
                 } else if (is_series) {
                     TX step_idx = fill_vertical ? drow : dcol;
-                    setCell(dst_id, SpreadsheetCell::formatNumber(series_base + step_idx * series_step));
+                    setCell(dst_id, formatCellNumber(series_base + step_idx * series_step));
                 } else {
                     setCell(dst_id, src_raw);
                 }
@@ -932,16 +780,8 @@ public:
     void clear() {
         m_raw_table.clear();
         m_cells.clear();
-        m_inputs.clear();
         m_dependents.clear();
         addLog("Hoja de cálculo reiniciada");
-    }
-
-    /** @brief Carga el caso demostrativo explicado por el profesor Ernesto Cuadros-Vargas. */
-    void loadProfessorDemo() {
-        setCell("A1", "5");
-        setCell("B1", "A1 + 4");
-        setCell("D4", "A1 + B1");
     }
 };
 

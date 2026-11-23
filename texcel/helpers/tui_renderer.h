@@ -13,6 +13,8 @@
 #include "../../utilities/ansi_style.h"
 #include "../../utilities/ansi_metrics.h"
 #include "../../utilities/clipped_graph_renderer.h"
+#include "../../utilities/layouts/vertical_tree_layout.h"
+#include "../../utilities/layouts/horizontal_tree_layout.h"
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
@@ -45,7 +47,7 @@ inline void drawWindowLineWithSelection(TuiState& st, TX win_id, TX start_x, TX 
         st.win_lines[win_id][abs_y] = plain;
     }
 
-    if (!st.has_text_sel || st.text_win != win_id || !st.isSelectableWindowRow(win_id, abs_y)) {
+    if (!st.hasTextSel() || st.text_win != win_id || !st.isSelectableWindowRow(win_id, abs_y)) {
         gotoxy(st.ros(), start_x, abs_y);
         st.ros() << fitWidth(styled_line, inner_w);
         return;
@@ -72,8 +74,8 @@ inline void drawWindowLineWithSelection(TuiState& st, TX win_id, TX start_x, TX 
     }
 
     // Tono de sombreado de fondo propio según la ventana:
-    // Ventana 2 (Inspector): petróleo cian (color8 23), Ventana 3 (Consola): verde bosque (color8 22), Ventana 4 (Eventos): índigo (color8 53)
-    uint8_t bg_tone = (win_id == 2) ? 23 : ((win_id == 3) ? 22 : 53);
+    // Inspector: petróleo cian (23), Consola: verde bosque (22), Eventos: índigo (53)
+    uint8_t bg_tone = (win_id == TuiState::WIN_INSPECTOR) ? 23 : ((win_id == TuiState::WIN_CONSOLE) ? 22 : 53);
 
     std::string before = utf8Slice(padded, 0, static_cast<size_t>(c_start));
     std::string after  = utf8Slice(padded, static_cast<size_t>(c_end) + 1, inner_w);
@@ -173,27 +175,87 @@ inline void renderHeaderBar(TuiState& st, const EvalPreview& preview) {
     st.ros() << fitWidth(oss.str(), static_cast<size_t>(st.total_width));
 }
 
+struct GridRenderCtx {
+    const EvalPreview& preview;
+    std::string active_id;
+    std::string preview_target_id;
+    TX sel_cmin = 0, sel_rmin = 0, sel_cmax = 0, sel_rmax = 0;
+    SpreadsheetEngine::StringVec inputs;
+    SpreadsheetEngine::StringVec dependents;
+};
+
+inline std::string renderGridCell(TuiState& st, const GridRenderCtx& ctx, TX col_idx, TX row_idx) {
+    std::string cid = CellCoord(col_idx, row_idx, true).toId();
+    SpreadsheetCell cell = st.engine.getCell(cid);
+
+    bool is_cursor      = (cid == ctx.active_id);
+    bool is_target_cell = st.point_mode && (cid == ctx.preview_target_id);
+    bool in_sel         = (st.hasCellSel() || st.hasFillSel()) &&
+                          (col_idx >= ctx.sel_cmin && col_idx <= ctx.sel_cmax &&
+                           row_idx >= ctx.sel_rmin && row_idx <= ctx.sel_rmax);
+
+    std::string val_text = cell.displayValue();
+    bool is_text_disp = cell.result.is_text;
+    if ((is_target_cell || (!st.point_mode && is_cursor)) && ctx.preview.active && ctx.preview.valid) {
+        val_text = ctx.preview.result.asString();
+        is_text_disp = ctx.preview.result.is_text;
+    }
+
+    bool is_bool_true = false, is_bool_false = false;
+    if (!cell.has_error && is_text_disp) {
+        std::string upper_val = texcel_detail::toUpper(val_text);
+        if (upper_val == "TRUE")       { val_text = "■"; is_bool_true = true; }
+        else if (upper_val == "FALSE") { val_text = "□"; is_bool_false = true; }
+    }
+
+    std::string formatted = alignCell(val_text, TuiState::CELL_WIDTH, !cell.has_error && !is_text_disp);
+    bool is_fill_tip = st.hasFillSel() && (col_idx == st.sel_b.col && row_idx == st.sel_b.row);
+    if (is_fill_tip && formatted.size() >= 2) {
+        bool left = (st.sel_b.col < st.sel_a.col);
+        bool up   = (st.sel_b.row < st.sel_a.row);
+        std::string ramp = up ? (left ? "◤" : "◥") : (left ? "◣" : "◢");
+        formatted = left ? (ramp + formatted.substr(1)) : (formatted.substr(0, formatted.size() - 1) + ramp);
+    }
+
+    if (is_cursor)                                     return styled(formatted).badge_cyan();
+    if ((st.hasFillSel() && in_sel) || is_target_cell) return styled(formatted).badge_green();
+    if (st.hasCellSel() && in_sel)                     return styled(formatted).badge_blue();
+    if (texcel_detail::containsStr(ctx.inputs, cid))   return styled(formatted).badge_yellow();
+    if (texcel_detail::containsStr(ctx.dependents, cid)) return styled(formatted).bright_magenta().bold().underline();
+    if (cell.has_error)                                return styled(formatted).bright_red().bold();
+    if (is_bool_true || cell.is_formula)               return styled(formatted).bright_green().bold();
+    if (is_bool_false)                                 return styled(formatted).dim();
+    if (!val_text.empty())                             return styled(formatted).bright_white();
+    return styled(alignCell("·", TuiState::CELL_WIDTH, false)).dim();
+}
+
 inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
     bool is_focused = (st.mode == SpreadsheetFocusMode::GridNavigation);
     drawWindowFrame(st, TuiState::LEFT_X, TuiState::TOP_Y, st.left_w, TuiState::TOP_H, "Hoja de Calculo", is_focused);
 
-    std::string active_id = CellCoord(st.cursor_col, st.cursor_row, true).toId();
+    std::string active_id = st.cursor.toId();
     std::string preview_target_id = active_id;
     if (preview.active && CellCoord::parse(preview.target_cell).valid) {
         preview_target_id = preview.target_cell;
         if (!st.point_mode) active_id = preview_target_id;
     }
 
-    auto inputs     = preview.active ? preview.referenced_cells : st.engine.getCellInputs(active_id);
-    auto dependents = st.engine.getCellDependents(active_id);
+    GridRenderCtx ctx{
+        preview,
+        active_id,
+        preview_target_id,
+        0, 0, 0, 0,
+        preview.active ? preview.referenced_cells : st.engine.getCellInputs(active_id),
+        st.engine.getCellDependents(active_id)
+    };
     const size_t inner_w = static_cast<size_t>(st.left_w - 4);
 
-    TX sel_cmin = 0, sel_rmin = 0, sel_cmax = 0, sel_rmax = 0;
-    bool any_rect_sel = st.has_cell_sel || st.has_fill_sel;
+    bool any_rect_sel = st.hasCellSel() || st.hasFillSel();
     if (any_rect_sel) {
-        normalizeCellRange(st.sel_c0, st.sel_r0, st.sel_c1, st.sel_r1, sel_cmin, sel_rmin, sel_cmax, sel_rmax);
+        normalizeCellRange(st.sel_a.col, st.sel_a.row, st.sel_b.col, st.sel_b.row,
+                           ctx.sel_cmin, ctx.sel_rmin, ctx.sel_cmax, ctx.sel_rmax);
     }
-    bool has_multi_sel = any_rect_sel && (sel_cmin != sel_cmax || sel_rmin != sel_rmax);
+    bool has_multi_sel = any_rect_sel && (ctx.sel_cmin != ctx.sel_cmax || ctx.sel_rmin != ctx.sel_rmax);
 
     {
         std::ostringstream hdr_ss;
@@ -211,14 +273,10 @@ inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
             TX col_idx = st.scroll_col + c;
             std::string hdr = alignCell(CellCoord::colToLabel(col_idx), TuiState::CELL_WIDTH, false);
             hdr_ss << styled("│").gray();
-            bool col_in_sel = st.has_cell_sel && (col_idx >= sel_cmin && col_idx <= sel_cmax);
-            if (col_in_sel) {
-                hdr_ss << styled(hdr).badge_blue();
-            } else if (col_idx == st.cursor_col) {
-                hdr_ss << styled(hdr).bright_cyan().bold();
-            } else {
-                hdr_ss << styled(hdr).white().bold();
-            }
+            bool col_in_sel = st.hasCellSel() && (col_idx >= ctx.sel_cmin && col_idx <= ctx.sel_cmax);
+            if (col_in_sel)                    hdr_ss << styled(hdr).badge_blue();
+            else if (col_idx == st.cursor.col) hdr_ss << styled(hdr).bright_cyan().bold();
+            else                               hdr_ss << styled(hdr).white().bold();
         }
         gotoxy(st.ros(), TuiState::LEFT_X + 2, TuiState::TOP_Y + 1);
         st.ros() << fitWidth(hdr_ss.str(), inner_w);
@@ -240,89 +298,19 @@ inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
 
         std::ostringstream row_lbl;
         row_lbl << std::setw(4) << (row_idx + 1) << "    ";
-        bool row_in_sel = st.has_cell_sel && (row_idx >= sel_rmin && row_idx <= sel_rmax);
-        if (row_in_sel) {
-            row_ss << styled(row_lbl.str()).badge_blue();
-        } else if (row_idx == st.cursor_row) {
-            row_ss << styled(row_lbl.str()).bright_cyan().bold();
-        } else {
-            row_ss << styled(row_lbl.str()).gray();
-        }
+        bool row_in_sel = st.hasCellSel() && (row_idx >= ctx.sel_rmin && row_idx <= ctx.sel_rmax);
+        if (row_in_sel)                    row_ss << styled(row_lbl.str()).badge_blue();
+        else if (row_idx == st.cursor.row) row_ss << styled(row_lbl.str()).bright_cyan().bold();
+        else                               row_ss << styled(row_lbl.str()).gray();
 
         for (TX c = 0; c < st.visible_cols; ++c) {
-            TX col_idx = st.scroll_col + c;
-            std::string cid = CellCoord(col_idx, row_idx, true).toId();
-            SpreadsheetCell cell = st.engine.getCell(cid);
-
-            bool is_cursor      = (cid == active_id);
-            bool is_target_cell = st.point_mode && (cid == preview_target_id);
-            bool is_in_rect_sel = st.has_cell_sel &&
-                                  (col_idx >= sel_cmin && col_idx <= sel_cmax && row_idx >= sel_rmin && row_idx <= sel_rmax);
-            bool is_in_fill_sel = st.has_fill_sel &&
-                                  (col_idx >= sel_cmin && col_idx <= sel_cmax && row_idx >= sel_rmin && row_idx <= sel_rmax);
-            bool is_fill_tip    = st.has_fill_sel && (col_idx == st.sel_c1 && row_idx == st.sel_r1);
-            bool is_input_ref   = texcel_detail::containsStr(inputs, cid);
-            bool is_dependent   = texcel_detail::containsStr(dependents, cid);
-
-            std::string val_text = cell.displayValue();
-            bool is_text_disp = cell.is_text;
-            if ((is_target_cell || (!st.point_mode && is_cursor)) && preview.active && preview.valid) {
-                val_text = preview.formatted_value;
-                is_text_disp = preview.is_text;
-            }
-            bool is_bool_true = false, is_bool_false = false;
-            if (!cell.has_error && is_text_disp) {
-                std::string upper_val = texcel_detail::toUpper(val_text);
-                if (upper_val == "TRUE") {
-                    val_text = "■";
-                    is_bool_true = true;
-                } else if (upper_val == "FALSE") {
-                    val_text = "□";
-                    is_bool_false = true;
-                }
-            }
-            std::string formatted = alignCell(val_text, TuiState::CELL_WIDTH, !cell.has_error && !is_text_disp);
-
-            if (is_fill_tip && formatted.size() >= 2) {
-                bool left = (st.sel_c1 < st.sel_c0);
-                bool up   = (st.sel_r1 < st.sel_r0);
-                std::string ramp = up ? (left ? "◤" : "◥") : (left ? "◣" : "◢");
-                if (left) formatted = ramp + formatted.substr(1);
-                else      formatted = formatted.substr(0, formatted.size() - 1) + ramp;
-            }
-
-            row_ss << styled("│").gray();
-            if (is_cursor) {
-                row_ss << styled(formatted).badge_cyan();
-            } else if (is_in_fill_sel) {
-                row_ss << styled(formatted).badge_green();
-            } else if (is_in_rect_sel) {
-                row_ss << styled(formatted).badge_blue();
-            } else if (is_target_cell) {
-                row_ss << styled(formatted).badge_green();
-            } else if (is_input_ref) {
-                row_ss << styled(formatted).badge_yellow();
-            } else if (is_dependent) {
-                row_ss << styled(formatted).bright_magenta().bold().underline();
-            } else if (cell.has_error) {
-                row_ss << styled(formatted).bright_red().bold();
-            } else if (is_bool_true) {
-                row_ss << styled(formatted).bright_green().bold();
-            } else if (is_bool_false) {
-                row_ss << styled(formatted).dim();
-            } else if (cell.is_formula) {
-                row_ss << styled(formatted).bright_green().bold();
-            } else if (!val_text.empty()) {
-                row_ss << styled(formatted).bright_white();
-            } else {
-                row_ss << styled(alignCell("·", TuiState::CELL_WIDTH, false)).dim();
-            }
+            row_ss << styled("│").gray() << renderGridCell(st, ctx, st.scroll_col + c, row_idx);
         }
-        gotoxy(st.ros(), TuiState::LEFT_X + 2, TuiState::TOP_Y + 3 + r);
+        gotoxy(st.ros(), TuiState::LEFT_X + 2, TuiState::GRID_Y0 + r);
         st.ros() << fitWidth(row_ss.str(), inner_w);
     }
 
-    gotoxy(st.ros(), TuiState::LEFT_X + 2, TuiState::TOP_Y + 3 + TuiState::VISIBLE_ROWS);
+    gotoxy(st.ros(), TuiState::LEFT_X + 2, TuiState::GRID_Y0 + TuiState::VISIBLE_ROWS);
     st.ros() << std::string(inner_w, ' ');
 
     gotoxy(st.ros(), TuiState::LEFT_X + 2, TuiState::TOP_Y + TuiState::TOP_H - 2);
@@ -334,10 +322,10 @@ inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
     st.ros() << fitWidth(leg.str(), inner_w);
 
     // Mini-scrollbars de la Matriz (vertical y horizontal)
-    drawVerticalScrollbar(st, TuiState::LEFT_X + st.left_w - 1, TuiState::TOP_Y + 3,
+    drawVerticalScrollbar(st, TuiState::LEFT_X + st.left_w - 1, TuiState::GRID_Y0,
                           TuiState::VISIBLE_ROWS, st.scroll_row, CellCoord::MAX_ROWS - TuiState::VISIBLE_ROWS);
 
-    TX h_x0 = TuiState::LEFT_X + 2 + TuiState::ROW_HEADER_W + 1;
+    TX h_x0 = TuiState::GRID_X0 + 1;
     TX h_len = (TuiState::LEFT_X + st.left_w - 2) - h_x0 + 1;
     if (h_len >= 10) {
         drawHorizontalScrollbar(st, h_x0, TuiState::TOP_Y + TuiState::TOP_H - 1,
@@ -346,8 +334,37 @@ inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
     }
 }
 
+/** @brief Proyecta el AST de una expresión hacia un `VisualGraph` coloreado para el Inspector. */
+inline VisualGraph buildAstVisualGraph(const std::string& raw_expr, bool horizontal) {
+    std::string expr = texcel_detail::trim(raw_expr);
+    if (expr.empty()) return {};
+    if (expr[0] == '=') expr = texcel_detail::trim(expr.substr(1));
+    if (expr.empty() || expr[0] == '"') return {};
+
+    SpreadsheetEngine::StringVec refs;
+    SpreadsheetEngine::AstNode* ast = SpreadsheetEngine::tryParseAst(expr, refs);
+    if (!ast) return {};
+
+    struct AstTreeView {
+        SpreadsheetEngine::AstNode* m_root;
+        SpreadsheetEngine::AstNode* getRoot() const { return m_root; }
+    };
+
+    auto fmt = [](const AstToken& tok, TreeRole role) -> std::string {
+        if (role == TreeRole::Root) return styled("[" + tok.text + "]").bright_yellow().bold().str();
+        if (role == TreeRole::Leaf) return styled(tok.text).bright_cyan().str();
+        return styled(tok.text).bright_green().bold().str();
+    };
+
+    VisualGraph vg = horizontal
+        ? HorizontalTreeLayout<decltype(fmt)>(fmt, true)(AstTreeView{ast})
+        : VerticalTreeLayout<decltype(fmt)>(fmt, 3, false)(AstTreeView{ast});
+    texcel_detail::freeAst(ast);
+    return vg;
+}
+
 inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
-    std::string inspect_id = CellCoord(st.cursor_col, st.cursor_row, true).toId();
+    std::string inspect_id = st.cursor.toId();
     if (preview.active && CellCoord::parse(preview.target_cell).valid) {
         inspect_id = preview.target_cell;
     }
@@ -361,7 +378,7 @@ inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
 
     std::string raw_fx = showing_preview ? preview.expression : cell.raw_expression;
     std::string val_str = showing_preview
-        ? (preview.valid ? preview.formatted_value : preview.error_msg)
+        ? (preview.valid ? preview.result.asString() : preview.error_msg)
         : (cell.raw_expression.empty() ? "(vacia)" : cell.displayValue());
     std::string rpn_str   = showing_preview ? preview.postorder_rpn : cell.postorder_rpn;
 
@@ -369,11 +386,11 @@ inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
     const size_t val_max = (inner_w > 14) ? (inner_w - 13) : 20;
 
     auto putLine = [&](TX rel_y, const std::string& content) {
-        drawWindowLineWithSelection(st, 2, st.right_x + 2, TuiState::TOP_Y + rel_y, content, inner_w);
+        drawWindowLineWithSelection(st, TuiState::WIN_INSPECTOR, st.right_x + 2, TuiState::TOP_Y + rel_y, content, inner_w);
     };
 
-    bool is_fx = cell.is_formula || (showing_preview && !preview.is_text && !raw_fx.empty() && raw_fx[0] == '=');
-    bool is_txt = showing_preview ? preview.is_text : cell.is_text;
+    bool is_fx = cell.is_formula || (showing_preview && !preview.result.is_text && !raw_fx.empty() && raw_fx[0] == '=');
+    bool is_txt = showing_preview ? preview.result.is_text : cell.result.is_text;
     std::string kind_badge = raw_fx.empty()
         ? styled("Celda vacia").dim().str()
         : (is_fx
@@ -383,7 +400,7 @@ inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
 
     std::string fx_display = "∅";
     if (!raw_fx.empty()) {
-        std::string prefix = (!raw_fx.empty() && raw_fx[0] == '=') ? "" : "= ";
+        std::string prefix = (raw_fx[0] == '=') ? "" : "= ";
         fx_display = (is_txt && !is_fx)
             ? clipPlain(raw_fx, val_max)
             : (prefix + clipPlain(raw_fx, val_max > 2 ? val_max - 2 : val_max));
@@ -414,7 +431,7 @@ inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
     putLine(7, styled("PostOrder: ").gray().str() + styled(rpn_disp).bright_green().str());
 
     VisualGraph vg = (!is_txt || is_fx)
-        ? st.engine.buildAstVisualGraph(raw_fx, st.ast_horizontal)
+        ? buildAstVisualGraph(raw_fx, st.ast_horizontal)
         : VisualGraph{};
     st.ast_graph_w = vg.width;
     st.ast_graph_h = vg.height;
@@ -438,7 +455,7 @@ inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
 
     // Scrollbars del navegador AST en los bordes de Ventana 2 cuando hay desbordamiento
     if (vg.height > TuiState::AST_VIEW_H) {
-        drawVerticalScrollbar(st, st.right_x + st.right_w - 1, TuiState::TOP_Y + 8,
+        drawVerticalScrollbar(st, st.right_x + st.right_w - 1, TuiState::AST_Y0,
                               TuiState::AST_VIEW_H, st.ast_scroll_y, vg.height - TuiState::AST_VIEW_H);
     }
     if (vg.width > static_cast<TX>(inner_w)) {
@@ -451,6 +468,50 @@ inline void renderInspectorWindow(TuiState& st, const EvalPreview& preview) {
     }
 }
 
+inline std::string renderCommandInput(TuiState& st, const std::string& active_id, bool is_focused, size_t text_slot) {
+    const size_t max_in = (text_slot > 1) ? (text_slot - 1) : text_slot;
+    st.input_cursor = std::min(st.input_cursor, st.input_buffer.size());
+    std::string cursor_block = is_focused ? styled("█").bright_green().blink().str() : "";
+
+    if (st.input_buffer.empty()) {
+        if (is_focused) return cursor_block + styled("Ej: = A1 + 4  o  5  o  Ctrl+U limpiar").dim().str();
+        std::string cell_preview = st.formatCellForInput(active_id);
+        if (!cell_preview.empty()) return styled(clipPlain(cell_preview, max_in)).dim().str();
+        return styled("[Enter] o [=] para editar " + active_id).dim().str();
+    }
+    if (!is_focused) {
+        return styled(clipPlain(st.input_buffer, max_in)).bright_white().bold().str();
+    }
+
+    size_t view_start = (st.input_cursor > max_in) ? (st.input_cursor - max_in) : 0;
+    std::string vis = st.input_buffer.substr(view_start, max_in);
+    size_t rel_cur = st.input_cursor - view_start;
+    if (rel_cur >= vis.size()) {
+        return styled(vis).bright_white().bold().str() + cursor_block;
+    }
+    return styled(vis.substr(0, rel_cur)).bright_white().bold().str() +
+           styled(std::string(1, vis[rel_cur])).badge_green().str() +
+           styled(vis.substr(rel_cur + 1)).bright_white().bold().str();
+}
+
+inline std::string renderCommandStatus(TuiState& st, const EvalPreview& preview, const std::string& active_id, size_t inner_w) {
+    if (st.point_mode) {
+        std::string pinfo = preview.valid
+            ? ("= " + preview.result.asString() + "  (Point Mode: operador +-*/ o [Enter])")
+            : ("Point Mode [" + active_id + "]");
+        return styled(clipPlain(pinfo, inner_w)).dim().str();
+    }
+    if (preview.active) {
+        return (TuiState::isFormulaBuffer(st.input_buffer) && preview.valid)
+            ? styled(clipPlain("= " + preview.result.asString(), inner_w)).dim().str()
+            : "";
+    }
+    SpreadsheetCell cur_cell = st.engine.getCell(active_id);
+    return (cur_cell.is_formula && !cur_cell.has_error)
+        ? styled(clipPlain("= " + cur_cell.displayValue(), inner_w)).dim().str()
+        : "";
+}
+
 inline void renderCommandWindow(TuiState& st, const EvalPreview& preview) {
     bool is_focused = (st.mode == SpreadsheetFocusMode::CommandConsole);
     drawWindowFrame(st, TuiState::LEFT_X, TuiState::BOT_Y, st.left_w, TuiState::BOT_H,
@@ -459,11 +520,10 @@ inline void renderCommandWindow(TuiState& st, const EvalPreview& preview) {
 
     const size_t inner_w = static_cast<size_t>(st.left_w - 4);
     auto putLine = [&](TX rel_y, const std::string& content) {
-        drawWindowLineWithSelection(st, 3, TuiState::LEFT_X + 2, TuiState::BOT_Y + rel_y, content, inner_w);
+        drawWindowLineWithSelection(st, TuiState::WIN_CONSOLE, TuiState::LEFT_X + 2, TuiState::BOT_Y + rel_y, content, inner_w);
     };
 
     std::string active_id = st.activeCellId();
-
     const size_t box_inner = (inner_w > 2) ? (inner_w - 2) : 20;
     std::string prompt_label = active_id + " ❯ ";
     const size_t prefix_len = visible_length(prompt_label);
@@ -472,68 +532,18 @@ inline void renderCommandWindow(TuiState& st, const EvalPreview& preview) {
     std::string prompt_prefix = is_focused
         ? styled(prompt_label).bright_green().bold().str()
         : styled(prompt_label).cyan().str();
-
-    std::string cursor_block = is_focused ? styled("█").bright_green().blink().str() : "";
-    std::string cell_preview_raw = (!is_focused && st.input_buffer.empty())
-        ? st.formatCellForInput(active_id)
-        : "";
-    const size_t max_in = (text_slot > 1) ? (text_slot - 1) : text_slot;
-    st.input_cursor = std::min(st.input_cursor, st.input_buffer.size());
-
-    std::string input_rendered;
-    if (!st.input_buffer.empty()) {
-        if (is_focused) {
-            size_t view_start = (st.input_cursor > max_in) ? (st.input_cursor - max_in) : 0;
-            std::string vis = st.input_buffer.substr(view_start, max_in);
-            size_t rel_cur = st.input_cursor - view_start;
-
-            std::string before = vis.substr(0, rel_cur);
-            if (rel_cur < vis.size()) {
-                std::string cur_ch(1, vis[rel_cur]);
-                std::string after = vis.substr(rel_cur + 1);
-                input_rendered = styled(before).bright_white().bold().str() +
-                                 styled(cur_ch).badge_green().str() +
-                                 styled(after).bright_white().bold().str();
-            } else {
-                input_rendered = styled(vis).bright_white().bold().str() + cursor_block;
-            }
-        } else {
-            input_rendered = styled(clipPlain(st.input_buffer, max_in)).bright_white().bold().str();
-        }
-    } else if (is_focused) {
-        input_rendered = cursor_block + styled("Ej: = A1 + 4  o  5  o  Ctrl+U limpiar").dim().str();
-    } else if (!cell_preview_raw.empty()) {
-        input_rendered = styled(clipPlain(cell_preview_raw, max_in)).dim().str();
-    } else {
-        input_rendered = styled("[Enter] o [=] para editar " + active_id).dim().str();
-    }
+    std::string input_rendered = renderCommandInput(st, active_id, is_focused, text_slot);
 
     std::string h_bar = repeatGlyph("─", box_inner);
     putLine(1, styled("╭" + h_bar + "╮").gray().str());
     putLine(2, styled("│ ").gray().str() + prompt_prefix + fitWidth(input_rendered, text_slot) + styled("│").gray().str());
     putLine(3, styled("╰" + h_bar + "╯").gray().str());
-
-    if (st.point_mode) {
-        std::string pinfo = preview.valid
-            ? ("= " + preview.formatted_value + "  (Point Mode: operador +-*/ o [Enter])")
-            : ("Point Mode [" + active_id + "]");
-        putLine(4, styled(clipPlain(pinfo, inner_w)).dim().str());
-    } else if (preview.active) {
-        putLine(4, (TuiState::isFormulaBuffer(st.input_buffer) && preview.valid)
-            ? styled(clipPlain("= " + preview.formatted_value, inner_w)).dim().str()
-            : "");
-    } else {
-        SpreadsheetCell cur_cell = st.engine.getCell(active_id);
-        putLine(4, (cur_cell.is_formula && !cur_cell.has_error)
-            ? styled(clipPlain("= " + cur_cell.displayValue(), inner_w)).dim().str()
-            : "");
-    }
-
+    putLine(4, renderCommandStatus(st, preview, active_id, inner_w));
     putLine(5, "");
     putLine(6, styled("Ejemplos: ").gray().bold().str() +
                styled("5 │ = A1 + 4 │ = A1 + B1 │ [Tab] Point Mode").dim().str());
     putLine(7, styled("Comandos: ").gray().bold().str() +
-               styled("SUM / CONCAT / COUNTIF(S) / & │ demo │ clear │ quit").dim().str());
+               styled("SUM / CONCAT / COUNTIF(S) / & │ clear │ save │ load │ quit").dim().str());
 }
 
 inline void renderActivityWindow(TuiState& st) {
@@ -556,14 +566,14 @@ inline void renderActivityWindow(TuiState& st) {
             if (line.starts_with("✔")) styled_line = styled(clipped).bright_green().str();
             else if (line.starts_with("⚠") || line.starts_with("✖")) styled_line = styled(clipped).bright_red().str();
             else styled_line = styled(clipped).white().str();
-            drawWindowLineWithSelection(st, 4, st.right_x + 2, abs_y, styled_line, inner_w);
+            drawWindowLineWithSelection(st, TuiState::WIN_ACTIVITY, st.right_x + 2, abs_y, styled_line, inner_w);
         } else {
-            drawWindowLineWithSelection(st, 4, st.right_x + 2, abs_y, "", inner_w);
+            drawWindowLineWithSelection(st, TuiState::WIN_ACTIVITY, st.right_x + 2, abs_y, "", inner_w);
         }
     }
 
     std::string footer = "Total ops: " + std::to_string(total) + " │ Ciclos: protegidos";
-    drawWindowLineWithSelection(st, 4, st.right_x + 2, TuiState::BOT_Y + TuiState::BOT_H - 2, styled(footer).dim().str(), inner_w);
+    drawWindowLineWithSelection(st, TuiState::WIN_ACTIVITY, st.right_x + 2, TuiState::BOT_Y + TuiState::BOT_H - 2, styled(footer).dim().str(), inner_w);
 }
 
 inline void renderFileManagerModal(TuiState& st) {
@@ -585,20 +595,22 @@ inline void renderFileManagerModal(TuiState& st) {
     std::string auto_txt = st.config.autosave
         ? styled("[ON] ").bright_green().bold().str()
         : styled("[OFF]").gray().str();
-    putRow(1, st.modal_idx == 0, "[A] Autoguardado al editar : " + (st.modal_idx == 0 ? std::string(st.config.autosave ? "[ON]" : "[OFF]") : auto_txt));
-    putRow(2, st.modal_idx == 1, "[S] Guardar hoja actual (" + st.config.current_sheet + TexcelConfig::SHEET_EXT + ")");
+    putRow(1, st.modal_idx == TuiState::MODAL_AUTOSAVE,
+           "[A] Autoguardado al editar : " + (st.modal_idx == TuiState::MODAL_AUTOSAVE ? std::string(st.config.autosave ? "[ON]" : "[OFF]") : auto_txt));
+    putRow(2, st.modal_idx == TuiState::MODAL_SAVE,
+           "[S] Guardar hoja actual (" + st.config.current_sheet + TexcelConfig::SHEET_EXT + ")");
 
     if (st.modal_new_mode) {
         putRow(3, true, "Nueva hoja (Enter): " + st.modal_new_name + "█");
     } else {
-        putRow(3, st.modal_idx == 2, "[N] Crear nueva hoja limpia...");
+        putRow(3, st.modal_idx == TuiState::MODAL_NEW, "[N] Crear nueva hoja limpia...");
     }
 
     gotoxy(st.ros(), mx + 2, my + 4);
     st.ros() << fitWidth(styled(makeSectionHeader("Hojas guardadas en output/sheets/", inner_w)).gray().str(), inner_w);
 
     const TX list_rows = modal_h - 8;
-    TX file_cursor = (st.modal_idx >= 3) ? (st.modal_idx - 3) : 0;
+    TX file_cursor = (st.modal_idx >= TuiState::MODAL_FIRST_FILE) ? (st.modal_idx - TuiState::MODAL_FIRST_FILE) : 0;
     TX scroll_f = (file_cursor >= list_rows) ? (file_cursor - list_rows + 1) : 0;
 
     if (st.config.sheet_files.size() == 0) {
@@ -610,7 +622,7 @@ inline void renderFileManagerModal(TuiState& st) {
             if (idx < static_cast<TX>(st.config.sheet_files.size())) {
                 std::string fname = st.config.sheet_files[static_cast<size_t>(idx)].getValue();
                 std::string tag = (fname == st.config.current_sheet) ? " ★ (actual)" : "";
-                putRow(5 + i, st.modal_idx == 3 + idx, fname + TexcelConfig::SHEET_EXT + tag);
+                putRow(5 + i, st.modal_idx == TuiState::MODAL_FIRST_FILE + idx, fname + TexcelConfig::SHEET_EXT + tag);
             } else {
                 gotoxy(st.ros(), mx + 2, my + 5 + i);
                 st.ros() << std::string(inner_w, ' ');
@@ -633,7 +645,7 @@ inline void renderAll(TuiState& st, bool force_clear = false) {
 
     std::ostringstream frame_buf;
     if ((resized || force_clear) && st.interactive_alt_screen) {
-        frame_buf << "\033[2J\033[1;1H\033[s";
+        Ansi::clearAndSaveOrigin(frame_buf);
     }
     st.render_os = &frame_buf;
 
@@ -651,7 +663,7 @@ inline void renderAll(TuiState& st, bool force_clear = false) {
     gotoxy(st.ros(), 0, end_y);
 
     st.render_os = &st.os;
-    st.os << "\033[?2026h" << frame_buf.str() << "\033[?2026l" << std::flush;
+    Ansi::flushSynchronizedFrame(st.os, frame_buf.str());
 }
 
 } // namespace texcel_tui

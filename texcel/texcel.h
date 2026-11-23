@@ -10,8 +10,6 @@
 #include "types.h"
 #include "parser.h"
 #include "engine.h"
-#include "config.h"
-#include "clipboard.h"
 #include "tui.h"
 
 #endif // __TEXCEL_H__

@@ -10,6 +10,7 @@
 #include "../containers/trees/binary_tree.h"
 #include "../containers/vector.h"
 #include <string>
+#include <string_view>
 #include <sstream>
 #include <iomanip>
 #include <cmath>
@@ -99,6 +100,11 @@ enum class AstNodeKind : TX {
     ArgPair       = 6  /**< Espina binaria de argumentos `,` para `FuncCall`. */
 };
 
+/** @brief Identificador numérico de función soportada en fórmulas. */
+enum class FuncId : uint8_t {
+    None = 0, Sum, Avg, Min, Max, Concat, If, CountIf, CountIfs
+};
+
 /** @brief Formatea un valor numérico de forma compacta (sin ceros decimales sobrantes). */
 inline std::string formatCellNumber(double v) {
     if (std::isnan(v) || std::isinf(v)) return "#NUM!";
@@ -112,16 +118,6 @@ inline std::string formatCellNumber(double v) {
     if (!s.empty() && s.back() == '.') s.pop_back();
     return s;
 }
-
-/**
- * @enum ExpectedType
- * @brief Tipo esperado propagado desde el nodo padre hacia sus hijos durante `Phase::Pre`.
- */
-enum class ExpectedType : TX {
-    Any    = 0, /**< Sin restricción (raíz o contexto libre). */
-    Number = 1, /**< Contexto aritmético (`+`, `-`, `*`, `/`, `^`): texto no numérico produce `#VALUE!`. */
-    Text   = 2  /**< Contexto textual (`&`, `CONCAT`). */
-};
 
 /**
  * @struct CellEvalValue
@@ -148,14 +144,13 @@ struct CellEvalValue {
  */
 struct AstToken {
     AstNodeKind   kind = AstNodeKind::Number;
-    std::string   text;       /**< Representación textual (`"A1"`, `"+"`, `"4"`, `"SUM(A1:B2)"`). */
-    double        number = 0; /**< Valor numérico cuando `kind == AstNodeKind::Number`. */
+    std::string   text;       /**< Representación textual (`"A1"`, `"+"`, `"4"`, `"SUM"`). */
     char          op = 0;     /**< Operador cuando `kind == AstNodeKind::BinaryOp`. */
-    std::string   func_name;  /**< Nombre de función o contenido de `StringLiteral`. */
-    std::string   range_start;/**< Inicio de rango (`A1`). */
-    std::string   range_end;  /**< Fin de rango (`B2`). */
-    ExpectedType  expected_type = ExpectedType::Any;       /**< Propagado hacia abajo en `Phase::Pre`. */
-    CellEvalValue evaluated;                               /**< Resultado calculado hacia arriba en `Phase::Post`. */
+    FuncId        func_id = FuncId::None; /**< Identificador de función cuando `kind == AstNodeKind::FuncCall`. */
+    CellCoord     range_a;    /**< Inicio de rango cuando `kind == AstNodeKind::CellRange`. */
+    CellCoord     range_b;    /**< Fin de rango cuando `kind == AstNodeKind::CellRange`. */
+    bool          expect_numeric = false; /**< Propagado hacia abajo en `Phase::Pre`. */
+    CellEvalValue evaluated;              /**< Resultado calculado hacia arriba en `Phase::Post`. */
 
     auto operator<=>(const AstToken& other) const {
         return text <=> other.text;
@@ -164,9 +159,6 @@ struct AstToken {
     friend std::ostream& operator<<(std::ostream& os, const AstToken& t) {
         return os << t.text;
     }
-    friend std::istream& operator>>(std::istream& is, AstToken& t) {
-        return is >> t.text;
-    }
 };
 
 /**
@@ -174,38 +166,28 @@ struct AstToken {
  * @brief Estado completo de una celda: expresión original, valor evaluado, errores y metadatos del AST.
  */
 struct SpreadsheetCell {
-    std::string id;            /**< Coordenada canónica (`"A1"`). */
-    std::string raw_expression;/**< Fórmula o valor ingresado detrás de la celda (`"A1 + 4"`). */
-    double      value = 0.0;   /**< Resultado numérico calculado (`9`). */
-    std::string text_value;    /**< Resultado textual cuando `is_text == true`. */
-    bool        is_text = false;
-    bool        is_formula = false;
-    bool        has_error = false;
-    std::string error_msg;     /**< `#CYCLE!`, `#DIV/0!`, `#SYNTAX!`, `#REF!`. */
-    std::string postorder_rpn; /**< Secuencia en PostOrder generada por `BinaryTreeIterator`. */
+    std::string   id;            /**< Coordenada canónica (`"A1"`). */
+    std::string   raw_expression;/**< Fórmula o valor ingresado detrás de la celda (`"= A1 + 4"`). */
+    CellEvalValue result;        /**< Resultado numérico o textual calculado. */
+    bool          is_formula = false;
+    bool          has_error = false;
+    std::string   error_msg;     /**< `#CYCLE!`, `#DIV/0!`, `#SYNTAX!`, `#REF!`. */
+    std::string   postorder_rpn; /**< Secuencia en PostOrder generada por `BinaryTreeIterator`. */
+    Vector<VectorAscTraits<std::string>> inputs; /**< Celdas referenciadas directamente. */
 
     auto operator<=>(const SpreadsheetCell& other) const {
         return id <=> other.id;
-    }
-
-    /** @brief Formatea el valor numérico de forma compacta (sin ceros decimales sobrantes). */
-    static std::string formatNumber(double v) {
-        return formatCellNumber(v);
     }
 
     /** @brief Texto que debe mostrarse dentro de la celda en la matriz. */
     std::string displayValue() const {
         if (raw_expression.empty()) return "";
         if (has_error) return error_msg;
-        if (is_text) return text_value;
-        return formatNumber(value);
+        return result.asString();
     }
 
     friend std::ostream& operator<<(std::ostream& os, const SpreadsheetCell& c) {
         return os << c.raw_expression;
-    }
-    friend std::istream& operator>>(std::istream& is, SpreadsheetCell& c) {
-        return is >> c.raw_expression;
     }
 };
 
@@ -214,15 +196,13 @@ struct SpreadsheetCell {
  * @brief Resultado de previsualización en vivo mientras el usuario escribe en la consola de comandos.
  */
 struct EvalPreview {
-    bool        active = false;
-    bool        valid = false;
-    bool        is_text = false;
-    std::string target_cell;
-    std::string expression;
-    double      value = 0.0;
-    std::string formatted_value;
-    std::string error_msg;
-    std::string postorder_rpn;
+    bool          active = false;
+    bool          valid = false;
+    std::string   target_cell;
+    std::string   expression;
+    CellEvalValue result;
+    std::string   error_msg;
+    std::string   postorder_rpn;
     Vector<VectorAscTraits<std::string>> referenced_cells;
 };
 
@@ -242,38 +222,83 @@ inline std::string toUpper(std::string s) {
     return s;
 }
 
-inline bool containsStr(const StringVec& vec, const std::string& target) {
-    for (size_t i = 0; i < vec.size(); ++i) {
-        if (vec[i].getValue() == target) return true;
+template <typename Container>
+inline bool containsStr(const Container& c, const std::string& target) {
+    for (const auto& node : c) {
+        if (node.getValue() == target) return true;
     }
     return false;
 }
 
-inline void addUniqueStr(StringVec& vec, const std::string& val) {
-    if (!containsStr(vec, val)) vec.push_back(val);
+template <typename Container>
+inline void addUniqueStr(Container& c, const std::string& val) {
+    if (!containsStr(c, val)) c.push_back(val, 0);
+}
+
+inline bool isPureNumber(const std::string& s) {
+    if (s.empty()) return false;
+    size_t i = (s[0] == '+' || s[0] == '-') ? 1 : 0;
+    if (i >= s.size()) return false;
+    bool has_digit = false, has_dot = false;
+    for (; i < s.size(); ++i) {
+        if (isChar<std::isdigit>(s[i])) {
+            has_digit = true;
+        } else if (s[i] == '.' && !has_dot) {
+            has_dot = true;
+        } else {
+            return false;
+        }
+    }
+    return has_digit;
+}
+
+/** @brief Compara dos valores (numéricos con tolerancia o textuales) usando código de operador (`=`, `!`, `<`, `>`, `L`, `G`). */
+inline bool compareValues(char op_code, const CellEvalValue& lhs, const CellEvalValue& rhs) {
+    constexpr double EPS = 1e-9;
+    if (!lhs.is_text && !rhs.is_text) {
+        switch (op_code) {
+            case '=': return std::abs(lhs.num - rhs.num) < EPS;
+            case '!': return std::abs(lhs.num - rhs.num) >= EPS;
+            case '<': return lhs.num < rhs.num - EPS;
+            case '>': return lhs.num > rhs.num + EPS;
+            case 'L': return lhs.num <= rhs.num + EPS;
+            case 'G': return lhs.num >= rhs.num - EPS;
+            default:  return false;
+        }
+    }
+    std::string ls = lhs.asString(), rs = rhs.asString();
+    switch (op_code) {
+        case '=': return ls == rs;
+        case '!': return ls != rs;
+        case '<': return ls < rs;
+        case '>': return ls > rs;
+        case 'L': return ls <= rs;
+        case 'G': return ls >= rs;
+        default:  return false;
+    }
 }
 
 struct OpInfo {
-    const char*  lexeme;
-    char         code;
-    TX           prec;
-    ExpectedType expected = ExpectedType::Number;
-    bool         right_assoc = false;
+    const char* lexeme;
+    char        code;
+    TX          prec;
+    bool        numeric = true;
+    bool        right_assoc = false;
 };
 
 inline constexpr OpInfo BINARY_OPS[] = {
     // 1. comparación
-    {"<>", '!', 1, ExpectedType::Any}, {"!=", '!', 1, ExpectedType::Any},
-    {"<=", 'L', 1, ExpectedType::Any}, {">=", 'G', 1, ExpectedType::Any},
-    {"=",  '=', 1, ExpectedType::Any}, {"<",  '<', 1, ExpectedType::Any}, {">",  '>', 1, ExpectedType::Any},
+    {"<>", '!', 1, false}, {"!=", '!', 1, false},
+    {"<=", 'L', 1, false}, {">=", 'G', 1, false},
+    {"=",  '=', 1, false}, {"<",  '<', 1, false}, {">",  '>', 1, false},
     // 2. concatenación
-    {"&",  '&', 2, ExpectedType::Text},
+    {"&",  '&', 2, false},
     // 3. suma y resta
     {"+",  '+', 3}, {"-",  '-', 3},
     // 4. división y multiplicación
     {"*",  '*', 4}, {"/",  '/', 4},
-    // 5. potenciación (aquí sí mantienes el true)
-    {"^",  '^', 5, ExpectedType::Number, true}
+    // 5. potenciación (asociativa a la derecha)
+    {"^",  '^', 5, true, true}
 };
 
 inline bool isBinaryOpChar(char ch) {
@@ -283,11 +308,11 @@ inline bool isBinaryOpChar(char ch) {
     return false;
 }
 
-inline ExpectedType binaryOpExpectedType(char code) {
+inline bool binaryOpIsNumeric(char code) {
     for (const auto& op : BINARY_OPS) {
-        if (op.code == code) return op.expected;
+        if (op.code == code) return op.numeric;
     }
-    return ExpectedType::Any;
+    return false;
 }
 
 inline void freeAst(AstNode* node) {

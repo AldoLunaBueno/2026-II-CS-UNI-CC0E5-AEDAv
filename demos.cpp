@@ -4,6 +4,7 @@
  * @brief Implementación de las funciones de demostración declaradas en `demos.h`.
  */
 
+#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <ostream>
@@ -888,7 +889,38 @@ void DemoSpreadsheet() {
     SpreadsheetTUI tui(engine, cout);
     // Si hay TTY ejecuta con pausa visual breve; en CI/redirección corre instantáneo
     TX delay_ms = isatty(STDOUT_FILENO) ? 180 : 0;
-    tui.runAnimatedDemo(delay_ms);
+    tui.initScreen();
+    struct DemoStep {
+        SpreadsheetFocusMode mode; TX col; TX row;
+        string typing; bool commit; string banner;
+    };
+    const DemoStep steps[] = {
+        {SpreadsheetFocusMode::CommandConsole, 0, 0, "A1 = 5",       true,  "Paso 1: Ingresando valor directo A1 = 5"},
+        {SpreadsheetFocusMode::CommandConsole, 1, 0, "B1 = A1 + 4",  false, "Paso 2: Tipeando formula dependiente B1 = A1 + 4 (Preview en vivo)"},
+        {SpreadsheetFocusMode::CommandConsole, 1, 0, "B1 = A1 + 4",  true,  "Paso 2: B1 muestra 9 y guarda detras fx: A1 + 4"},
+        {SpreadsheetFocusMode::CommandConsole, 3, 3, "D4 = A1 + B1", false, "Paso 3: Encadenando operacion D4 = A1 + B1 (Preview en vivo)"},
+        {SpreadsheetFocusMode::CommandConsole, 3, 3, "D4 = A1 + B1", true,  "Paso 3: D4 muestra 14 y el Inspector dibuja su BinaryTree AST"},
+        {SpreadsheetFocusMode::GridNavigation, 0, 0, "",             false, "Modo Navegacion: Inspeccionando A1 y sus dependientes (B1, D4)"},
+        {SpreadsheetFocusMode::CommandConsole, 0, 0, "A1 = 8",       true,  "Paso 4: Actualizando A1 = 8 -> Propagacion automatica a B1(12) y D4(20)"},
+        {SpreadsheetFocusMode::GridNavigation, 3, 3, "",             false, "Demo completada: D4 = 20 (fx: A1 + B1)."}
+    };
+
+    tui.renderAll();
+    auto& st = tui.state();
+    for (const auto& step : steps) {
+        st.mode          = step.mode;
+        st.cursor        = {step.col, step.row, true};
+        st.input_buffer  = step.typing;
+        st.status_banner = step.banner;
+        tui.renderAll();
+        if (delay_ms > 0) this_thread::sleep_for(chrono::milliseconds(delay_ms));
+        if (step.commit) {
+            texcel_tui::handleCommandSubmit(st, step.typing);
+            st.input_buffer.clear();
+            tui.renderAll();
+            if (delay_ms > 0) this_thread::sleep_for(chrono::milliseconds(delay_ms));
+        }
+    }
 
     // Verificar persistencia con los mixins Printable / Readable de HashTable
     init_directories();
@@ -921,7 +953,6 @@ void DemoSpreadsheet() {
 
 void RunInteractiveSpreadsheet() {
     SpreadsheetEngine engine;
-    //engine.loadProfessorDemo();
     SpreadsheetTUI tui(engine, cout);
     tui.runInteractive();
 }

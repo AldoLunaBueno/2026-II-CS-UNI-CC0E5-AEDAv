@@ -1,13 +1,15 @@
 /**
- * @file clipboard.h
+ * @file tui_clipboard.h
  * @ingroup texcel
- * @brief Utilidades de portapapeles (OSC 52 y herramientas nativas de Linux).
+ * @brief Utilidades de portapapeles para la TUI (OSC 52 y herramientas nativas de Linux).
  */
 
-#ifndef __TEXCEL_CLIPBOARD_H__
-#define __TEXCEL_CLIPBOARD_H__
+#ifndef __TEXCEL_HELPERS_TUI_CLIPBOARD_H__
+#define __TEXCEL_HELPERS_TUI_CLIPBOARD_H__
 
-#include "../types.h"
+#include "../../types.h"
+#include "tui_text.h"
+#include <cstdint>
 #include <cstdio>
 #include <ostream>
 #include <string>
@@ -21,7 +23,8 @@ namespace TexcelClipboard {
 inline std::string base64Encode(const std::string& in) {
     static constexpr char tbl[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     std::string out;
-    TX val = 0, valb = -6;
+    uint32_t val = 0;
+    int valb = -6;
     for (unsigned char c : in) {
         val = (val << 8) + c;
         valb += 8;
@@ -37,7 +40,7 @@ inline std::string base64Encode(const std::string& in) {
 
 inline void copy(std::ostream& os, const std::string& text) {
     if (text.empty()) return;
-    os << "\033]52;c;" << base64Encode(text) << "\a" << std::flush;
+    texcel_tui::writeOsc52Clipboard(os, base64Encode(text));
     const char* cmds[] = {
         "command -v wl-copy >/dev/null 2>&1 && wl-copy >/dev/null 2>&1",
         "command -v xsel >/dev/null 2>&1 && xsel --clipboard --input >/dev/null 2>&1",
@@ -53,4 +56,4 @@ inline void copy(std::ostream& os, const std::string& text) {
 
 } // namespace TexcelClipboard
 
-#endif // __TEXCEL_CLIPBOARD_H__
+#endif // __TEXCEL_HELPERS_TUI_CLIPBOARD_H__

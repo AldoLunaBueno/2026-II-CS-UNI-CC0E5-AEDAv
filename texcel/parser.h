@@ -10,6 +10,7 @@
 #include "types.h"
 #include <cstring>
 #include <memory>
+#include <vector>
 
 /**
  * @class FormulaParser
@@ -20,6 +21,32 @@ class FormulaParser {
         void operator()(texcel_detail::AstNode* n) const { texcel_detail::freeAst(n); }
     };
     using AstPtr = std::unique_ptr<texcel_detail::AstNode, AstDeleter>;
+
+    struct FuncSpec {
+        const char* name;
+        FuncId      id;
+        size_t      min_args;
+        size_t      max_args; // 0 = ilimitado
+        bool        even_args;
+    };
+
+    static inline constexpr FuncSpec FUNCTIONS[] = {
+        {"SUM",      FuncId::Sum,      1, 0, false},
+        {"AVG",      FuncId::Avg,      1, 0, false},
+        {"MIN",      FuncId::Min,      1, 0, false},
+        {"MAX",      FuncId::Max,      1, 0, false},
+        {"CONCAT",   FuncId::Concat,   1, 0, false},
+        {"IF",       FuncId::If,       3, 3, false},
+        {"COUNTIF",  FuncId::CountIf,  2, 2, false},
+        {"COUNTIFS", FuncId::CountIfs, 2, 0, true},
+    };
+
+    static const FuncSpec* findFuncSpec(const std::string& ident) {
+        for (const auto& fn : FUNCTIONS) {
+            if (ident == fn.name) return &fn;
+        }
+        return nullptr;
+    }
 
     std::string m_src;
     size_t      m_pos = 0;
@@ -115,8 +142,8 @@ private:
         if (c == '+') { get(); return parseUnary(); }
         if (c == '-') {
             get();
-            AstToken zero{AstNodeKind::Number, "0", 0.0};
-            AstToken neg{AstNodeKind::BinaryOp, "-", 0.0, '-'};
+            AstToken zero{AstNodeKind::Number, "0"};
+            AstToken neg{AstNodeKind::BinaryOp, "-", '-'};
             return makeNode(neg, makeNode(zero), parseUnary());
         }
         return parsePrimary();
@@ -124,54 +151,44 @@ private:
 
     // Todas las funciones usan la misma espina binaria: FuncCall(arg0, ArgPair(arg1, ...))
     AstPtr parseFunctionCall(const std::string& ident) {
-        bool known = (ident == "SUM" || ident == "AVG" || ident == "MIN" || ident == "MAX" ||
-                      ident == "CONCAT" || ident == "IF" || ident == "COUNTIF" || ident == "COUNTIFS");
-        if (!known) throw std::runtime_error("Función desconocida: " + ident);
+        const FuncSpec* spec = findFuncSpec(ident);
+        if (!spec) throw std::runtime_error("Función desconocida: " + ident);
 
-        Vector<VectorAscTraits<texcel_detail::AstNode*>> raw_args;
-        try {
-            if (peek() != ')') {
-                while (true) {
-                    raw_args.push_back(parseBinary(1).release());
-                    char sep = peek();
-                    if (sep == ',') { get(); continue; }
-                    if (sep == ')') { get(); break; }
-                    throw std::runtime_error("Se esperaba ',' o ')' en " + ident);
-                }
-            } else {
-                get();
+        std::vector<AstPtr> args;
+        if (peek() != ')') {
+            while (true) {
+                args.push_back(parseBinary(1));
+                char sep = peek();
+                if (sep == ',') { get(); continue; }
+                if (sep == ')') { get(); break; }
+                throw std::runtime_error("Se esperaba ',' o ')' en " + ident);
             }
-        } catch (...) {
-            for (size_t i = 0; i < raw_args.size(); ++i) texcel_detail::freeAst(raw_args[i].getValue());
-            throw;
+        } else {
+            get();
         }
 
-        size_t argc = raw_args.size();
-        auto failArity = [&](const std::string& msg) {
-            for (size_t i = 0; i < argc; ++i) texcel_detail::freeAst(raw_args[i].getValue());
-            throw std::runtime_error(msg);
-        };
-        if (argc == 0) failArity(ident + " requiere al menos 1 argumento");
-        if (ident == "IF" && argc != 3) failArity("IF requiere exactamente 3 argumentos");
-        if (ident == "COUNTIF" && argc != 2) failArity("COUNTIF requiere exactamente 2 argumentos");
-        if (ident == "COUNTIFS" && (argc < 2 || argc % 2 != 0)) failArity("COUNTIFS requiere pares (rango, criterio)");
+        size_t argc = args.size();
+        if (argc < spec->min_args || (spec->max_args > 0 && argc > spec->max_args)) {
+            throw std::runtime_error(ident + ": número inválido de argumentos");
+        }
+        if (spec->even_args && (argc % 2 != 0)) {
+            throw std::runtime_error(ident + " requiere pares (rango, criterio)");
+        }
 
         AstPtr right_spine = nullptr;
         if (argc >= 2) {
-            right_spine = AstPtr(raw_args[argc - 1].getValue());
+            right_spine = std::move(args.back());
             for (size_t i = argc - 1; i > 1; --i) {
-                AstToken pair_tok;
-                pair_tok.kind = AstNodeKind::ArgPair;
-                pair_tok.text = ",";
-                right_spine = makeNode(pair_tok, AstPtr(raw_args[i - 1].getValue()), std::move(right_spine));
+                AstToken pair_tok{AstNodeKind::ArgPair, ","};
+                right_spine = makeNode(pair_tok, std::move(args[i - 1]), std::move(right_spine));
             }
         }
 
         AstToken fn_tok;
         fn_tok.kind = AstNodeKind::FuncCall;
-        fn_tok.func_name = ident;
+        fn_tok.func_id = spec->id;
         fn_tok.text = ident;
-        return makeNode(fn_tok, AstPtr(raw_args[0].getValue()), std::move(right_spine));
+        return makeNode(fn_tok, std::move(args[0]), std::move(right_spine));
     }
 
     // Primary := '(' Binary ')' | '"' String '"' | Number | Func(...) | TRUE | FALSE | CellRef | CellRange
@@ -199,7 +216,7 @@ private:
             AstToken tok;
             tok.kind = AstNodeKind::StringLiteral;
             tok.text = "\"" + str_val + "\"";
-            tok.func_name = str_val;
+            tok.evaluated = CellEvalValue{true, 0.0, str_val};
             return makeNode(tok);
         }
 
@@ -215,8 +232,8 @@ private:
             double val = std::stod(m_src.substr(start, m_pos - start));
             AstToken tok;
             tok.kind = AstNodeKind::Number;
-            tok.number = val;
-            tok.text = SpreadsheetCell::formatNumber(val);
+            tok.text = formatCellNumber(val);
+            tok.evaluated = CellEvalValue{false, val, ""};
             return makeNode(tok);
         }
 
@@ -227,10 +244,11 @@ private:
                 return parseFunctionCall(ident);
             }
             if (ident == "TRUE" || ident == "FALSE") {
+                std::string bval = (ident == "TRUE") ? "True" : "False";
                 AstToken tok;
                 tok.kind = AstNodeKind::StringLiteral;
-                tok.func_name = (ident == "TRUE") ? "True" : "False";
-                tok.text = "\"" + tok.func_name + "\"";
+                tok.text = "\"" + bval + "\"";
+                tok.evaluated = CellEvalValue{true, 0.0, bval};
                 return makeNode(tok);
             }
 
@@ -245,9 +263,9 @@ private:
                 registerRangeRefs(a, b);
                 AstToken tok;
                 tok.kind = AstNodeKind::CellRange;
-                tok.range_start = a.toId();
-                tok.range_end = b.toId();
-                tok.text = tok.range_start + ":" + tok.range_end;
+                tok.range_a = a;
+                tok.range_b = b;
+                tok.text = a.toId() + ":" + b.toId();
                 return makeNode(tok);
             }
 
