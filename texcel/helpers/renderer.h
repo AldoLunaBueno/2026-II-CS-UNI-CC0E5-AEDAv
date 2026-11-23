@@ -1,14 +1,14 @@
 /**
- * @file tui_renderer.h
+ * @file renderer.h
  * @ingroup texcel
  * @brief Funciones puras de renderizado 2D de las 4 ventanas y del modal flotante sobre `TuiState`.
  */
 
-#ifndef __TEXCEL_HELPERS_TUI_RENDERER_H__
-#define __TEXCEL_HELPERS_TUI_RENDERER_H__
+#ifndef __TEXCEL_HELPERS_RENDERER_H__
+#define __TEXCEL_HELPERS_RENDERER_H__
 
-#include "tui_state.h"
-#include "tui_text.h"
+#include "state.h"
+#include "text.h"
 #include "../../utilities/gotoxy.h"
 #include "../../utilities/ansi_style.h"
 #include "../../utilities/ansi_metrics.h"

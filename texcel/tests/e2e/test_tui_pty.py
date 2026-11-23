@@ -18,7 +18,7 @@ import tempfile
 import termios
 import time
 
-# Constantes de layout de texcel_tui::TuiState (texcel/helpers/tui_state.h)
+# Constantes de layout de texcel_tui::TuiState (texcel/helpers/state.h)
 LEFT_X = 0
 TOP_Y = 1
 ROW_HEADER_W = 8

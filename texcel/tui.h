@@ -3,15 +3,15 @@
  * @ingroup texcel
  * @brief Orquestador de la interfaz multi-ventana en consola (TUI reactiva) para Texcel.
  *
- * Estructura acíclica: `tui.h` -> `helpers/{tui_state.h, tui_renderer.h, tui_input.h}` -> `engine.h`.
+ * Estructura acíclica: `tui.h` -> `helpers/{state.h, renderer.h, input.h}` -> `engine.h`.
  */
 
 #ifndef __TEXCEL_TUI_H__
 #define __TEXCEL_TUI_H__
 
-#include "helpers/tui_state.h"
-#include "helpers/tui_renderer.h"
-#include "helpers/tui_input.h"
+#include "helpers/state.h"
+#include "helpers/renderer.h"
+#include "helpers/input.h"
 #include "../utilities/gotoxy.h"
 #include <cerrno>
 #include <csignal>

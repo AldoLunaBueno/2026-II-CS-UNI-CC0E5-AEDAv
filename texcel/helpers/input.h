@@ -1,14 +1,14 @@
 /**
- * @file tui_input.h
+ * @file input.h
  * @ingroup texcel
  * @brief Despachadores independientes de entrada (teclado, ratón SGR, modal, Point Mode y comandos) sobre `TuiState`.
  */
 
-#ifndef __TEXCEL_HELPERS_TUI_INPUT_H__
-#define __TEXCEL_HELPERS_TUI_INPUT_H__
+#ifndef __TEXCEL_HELPERS_INPUT_H__
+#define __TEXCEL_HELPERS_INPUT_H__
 
-#include "tui_state.h"
-#include "tui_text.h"
+#include "state.h"
+#include "text.h"
 #include "../../utilities/gotoxy.h"
 #include <algorithm>
 #include <cctype>

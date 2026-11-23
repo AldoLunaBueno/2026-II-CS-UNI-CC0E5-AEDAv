@@ -1,4 +1,4 @@
-#include "../../helpers/tui_text.h"
+#include "../../helpers/text.h"
 #include "../../../utilities/ansi_style.h"
 #include <cassert>
 #include <iostream>

@@ -1,11 +1,11 @@
 /**
- * @file tui_text.h
+ * @file text.h
  * @ingroup texcel
  * @brief Utilidades puras de texto UTF-8, recorte ANSI y normalización de rangos para la TUI de Texcel.
  */
 
-#ifndef __TEXCEL_HELPERS_TUI_TEXT_H__
-#define __TEXCEL_HELPERS_TUI_TEXT_H__
+#ifndef __TEXCEL_HELPERS_TEXT_H__
+#define __TEXCEL_HELPERS_TEXT_H__
 
 #include "../../types.h"
 #include "../../utilities/ansi_metrics.h"

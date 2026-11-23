@@ -1,14 +1,14 @@
 /**
- * @file tui_clipboard.h
+ * @file clipboard.h
  * @ingroup texcel
  * @brief Utilidades de portapapeles para la TUI (OSC 52 y herramientas nativas de Linux).
  */
 
-#ifndef __TEXCEL_HELPERS_TUI_CLIPBOARD_H__
-#define __TEXCEL_HELPERS_TUI_CLIPBOARD_H__
+#ifndef __TEXCEL_HELPERS_CLIPBOARD_H__
+#define __TEXCEL_HELPERS_CLIPBOARD_H__
 
 #include "../../types.h"
-#include "tui_text.h"
+#include "text.h"
 #include <cstdint>
 #include <cstdio>
 #include <ostream>

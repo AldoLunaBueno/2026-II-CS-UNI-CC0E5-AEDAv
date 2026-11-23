@@ -1,16 +1,16 @@
 /**
- * @file tui_state.h
+ * @file state.h
  * @ingroup texcel
  * @brief Estado compartido y helpers de geometría/persistencia para la TUI de Texcel.
  */
 
-#ifndef __TEXCEL_HELPERS_TUI_STATE_H__
-#define __TEXCEL_HELPERS_TUI_STATE_H__
+#ifndef __TEXCEL_HELPERS_STATE_H__
+#define __TEXCEL_HELPERS_STATE_H__
 
 #include "../engine.h"
-#include "tui_config.h"
-#include "tui_clipboard.h"
-#include "tui_text.h"
+#include "config.h"
+#include "clipboard.h"
+#include "text.h"
 #include "../../types.h"
 #include <algorithm>
 #include <cctype>

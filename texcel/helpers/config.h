@@ -1,11 +1,11 @@
 /**
- * @file tui_config.h
+ * @file config.h
  * @ingroup texcel
  * @brief Configuración persistente y gestor de rutas de hojas (`output/sheets/`).
  */
 
-#ifndef __TEXCEL_HELPERS_TUI_CONFIG_H__
-#define __TEXCEL_HELPERS_TUI_CONFIG_H__
+#ifndef __TEXCEL_HELPERS_CONFIG_H__
+#define __TEXCEL_HELPERS_CONFIG_H__
 
 #include "../../containers/vector.h"
 #include "../../types.h"
