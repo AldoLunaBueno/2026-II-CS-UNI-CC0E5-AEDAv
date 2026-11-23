@@ -51,6 +51,14 @@ class FormulaParser {
     std::string m_src;
     size_t      m_pos = 0;
     texcel_detail::StringVec& m_refs;
+    texcel_detail::StringSet  m_seen_refs;
+
+    void addRef(const std::string& cid) {
+        if (!m_seen_refs.contains(cid)) {
+            m_seen_refs[cid] = true;
+            m_refs.push_back(cid);
+        }
+    }
 
     static bool isIdentChar(char ch) {
         return texcel_detail::isChar<std::isalnum>(ch) || ch == '$';
@@ -84,7 +92,7 @@ class FormulaParser {
 
     void registerRangeRefs(const CellCoord& a, const CellCoord& b) {
         texcel_detail::forEachCellInRange(a, b, [&](const std::string& cid) {
-            texcel_detail::addUniqueStr(m_refs, cid);
+            addRef(cid);
         });
     }
 
@@ -270,7 +278,7 @@ private:
             }
 
             std::string cid = a.toId();
-            texcel_detail::addUniqueStr(m_refs, cid);
+            addRef(cid);
             AstToken tok;
             tok.kind = AstNodeKind::CellRef;
             tok.text = cid;

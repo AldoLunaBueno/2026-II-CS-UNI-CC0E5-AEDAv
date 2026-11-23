@@ -477,13 +477,19 @@ private:
 
     StringVec collectAndMarkDirtySubgraph(const std::string& root_id) {
         StringVec affected;
+        texcel_detail::StringSet seen;
+        seen[root_id] = true;
         affected.push_back(root_id);
         for (size_t qi = 0; qi < affected.size(); ++qi) {
             std::string curr_id = affected[qi].getValue();
             if (m_cells.contains(curr_id)) m_cells[curr_id].dirty = true;
             if (m_dependents.contains(curr_id)) {
                 for (const auto& dep_node : m_dependents[curr_id]) {
-                    texcel_detail::addUniqueStr(affected, dep_node.getValue());
+                    const std::string& dep_id = dep_node.getValue();
+                    if (!seen.contains(dep_id)) {
+                        seen[dep_id] = true;
+                        affected.push_back(dep_id);
+                    }
                 }
             }
         }
@@ -510,7 +516,7 @@ private:
             if (!hasRawCell(curr_id)) continue;
             std::string now_disp;
             if (recomputeCell(curr_id, &now_disp)) {
-                texcel_detail::addUniqueStr(updated, curr_id + "=" + now_disp);
+                updated.push_back(curr_id + "=" + now_disp);
             }
         }
         return updated;

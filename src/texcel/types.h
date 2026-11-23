@@ -8,6 +8,7 @@
 #define __TEXCEL_TYPES_H__
 
 #include "../containers/trees/binary_tree.h"
+#include "../containers/hash_table.h"
 #include "../containers/vector.h"
 #include <string>
 #include <string_view>
@@ -209,6 +210,7 @@ struct EvalPreview {
 
 namespace texcel_detail {
 using StringVec = Vector<VectorAscTraits<std::string>>;
+using StringSet = BaseHashTable<HashTableTraits<std::string, bool>, Callable>;
 using AstNode   = BinaryTreeNode<AstToken>;
 
 inline std::string trim(const std::string& s) {
