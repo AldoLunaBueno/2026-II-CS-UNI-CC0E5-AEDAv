@@ -119,7 +119,7 @@ El archivo `output/sheets/.config` guarda:
 
 ## 6. Compilación, Ejecución y Pruebas
 
-Desde la raíz del repositorio:
+Desde la raíz del repositorio (compilado con `-std=c++23 -O2` según el [`Makefile`](../Makefile)):
 
 ```bash
 # Compilar y ejecutar Texcel en modo interactivo
@@ -180,3 +180,4 @@ En Modo 2 (`CommandConsole`), [`insertOrReplaceRefAtCursor`](../src/texcel/helpe
 ### 7. Renderizado sin parpadeo, selección confinada y portapapeles
 - **Buffer de frame único:** `TuiState::ros()` acumula todas las secuencias ANSI del frame en memoria y las envía a `std::ostream` en un solo `flush` envuelto en sincronización de terminal (`\033[?2026h ... \033[?2026l`), evitando parpadeos al redimensionar (`SIGWINCH`) o arrastrar.
 - **Copia limpia entre ventanas:** al sombrear texto con el ratón en el Navegador AST, Inspector o Consola, [`stripDividerGlyphs`](../src/texcel/helpers/text.h) elimina los caracteres de borde (`│`, `─`, `╭`, etc.) antes de enviar el texto a [`TexcelClipboard::copy`](../src/texcel/helpers/clipboard.h) (vía OSC 52 y `wl-copy`/`xsel`/`xclip`).
+- **Indicador de carga animado (`TexcelLoadingSpinner`):** [`SpreadsheetTUI::runInteractive`](../src/texcel/tui.h) dibuja primero la interfaz vacía antes de cargar la hoja de inicio; cuando una carga o recálculo supera `80 ms`, [`TexcelLoadingSpinner`](../src/texcel/helpers/loading_anim.h) anima en un hilo auxiliar el spinner Braille (`⠋ ⠙ ⠹ …`) junto con un texto con *shimmer* RGB y tiempo transcurrido dentro de la Ventana 3 (*Fórmula*).

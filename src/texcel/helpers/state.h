@@ -10,6 +10,7 @@
 #include "../engine.h"
 #include "config.h"
 #include "clipboard.h"
+#include "loading_anim.h"
 #include "text.h"
 #include "../../types.h"
 #include <algorithm>
@@ -689,8 +690,10 @@ struct TuiState {
             status_banner = "Archivo '" + name + TexcelConfig::SHEET_EXT + "' no encontrado.";
             return false;
         }
+        TexcelLoadingSpinner<TuiState> spinner(*this, "Leyendo \"" + name + TexcelConfig::SHEET_EXT + "\"…");
         engine.clear();
         ifs >> engine.rawTable();
+        spinner.setLabel("Evaluando fórmulas…");
         engine.recalculateAll();
         config.current_sheet = name;
         config.saveConfig();

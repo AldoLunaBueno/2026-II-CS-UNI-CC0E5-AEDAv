@@ -1,5 +1,5 @@
 CXX        := g++
-CXXFLAGS   := -std=c++23
+CXXFLAGS   := -std=c++23 -O2
 TARGET     := main
 SRCS       := src/main.cpp src/demos/demos.cpp
 HEADERS    := src/demos/demos.h src/types.h $(wildcard src/texcel/*.h) $(wildcard src/texcel/helpers/*.h) src/utilities/clipped_graph_renderer.h

@@ -84,12 +84,11 @@ public:
         } guard{m_st.os, orig_term, old_sa, m_st.interactive_alt_screen};
 
         m_st.config.loadConfig();
-        if (m_st.config.autosave && std::filesystem::exists(m_st.config.sheetPath(m_st.config.current_sheet))) {
-            m_st.loadSheet(m_st.config.current_sheet);
-        }
-
         m_st.updateLayout();
         renderAll(true);
+        if (m_st.config.autosave && std::filesystem::exists(m_st.config.sheetPath(m_st.config.current_sheet))) {
+            if (m_st.loadSheet(m_st.config.current_sheet)) renderAll();
+        }
 
         bool running = true;
         while (running && !m_st.should_exit) {

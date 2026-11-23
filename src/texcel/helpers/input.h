@@ -40,7 +40,11 @@ inline bool handleCommandSubmit(TuiState& st, const std::string& raw_cmd) {
     if (upper == "LOAD") { st.loadSheet(st.config.current_sheet); return true; }
 
     std::string assigned_id;
-    bool ok = st.engine.executeCommand(cmd, st.cursor.toId(), &assigned_id);
+    bool ok = false;
+    {
+        TexcelLoadingSpinner<TuiState> spinner(st, "Evaluando " + st.cursor.toId() + "…");
+        ok = st.engine.executeCommand(cmd, st.cursor.toId(), &assigned_id);
+    }
     if (ok) st.maybeAutoSave();
 
     CellCoord dest = CellCoord::parse(assigned_id);
@@ -138,7 +142,10 @@ inline bool tryToggleBooleanCell(TuiState& st, TX gc, TX gr, TX rel_x_in_cell) {
     if (upper_raw != "TRUE" && upper_raw != "FALSE") return false;
 
     std::string next_val = (upper_raw == "TRUE") ? "FALSE" : "TRUE";
-    st.engine.setCell(cid, next_val);
+    {
+        TexcelLoadingSpinner<TuiState> spinner(st, "Propagando cambios…");
+        st.engine.setCell(cid, next_val);
+    }
     st.maybeAutoSave();
     st.clearSelection();
     st.cursor = {gc, gr, true};
