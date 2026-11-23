@@ -160,7 +160,7 @@ public:
     StyledBuilder& add(const M& mod) { return append(to_sgr_code(mod)); }
 
     std::string str() const {
-        return m_sgr.empty() ? m_text : "\033[" + m_sgr + "m" + m_text + "\033[0m";
+        return m_sgr.empty() ? m_text : "\033[" + m_sgr + "m" + m_text + RESET;
     }
 
     operator std::string() const { return str(); }
