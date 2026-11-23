@@ -553,8 +553,9 @@ public:
         StringVec cascaded = propagateFrom(cid);
 
         const SpreadsheetCell& cell = m_cells[cid];
+        std::string log_expr = (!expr.empty() && expr[0] == '=') ? texcel_detail::trim(expr.substr(1)) : expr;
         std::ostringstream log_ss;
-        log_ss << (cell.has_error ? "⚠ " : "✔ ") << cid << " = " << expr << " ➔ " << cell.displayValue();
+        log_ss << (cell.has_error ? "⚠ " : "✔ ") << cid << " = " << log_expr << " ➔ " << cell.displayValue();
         if (cascaded.size() > 0) {
             log_ss << " (↻ ";
             for (size_t i = 0; i < cascaded.size(); ++i) {

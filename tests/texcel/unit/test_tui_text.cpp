@@ -13,13 +13,16 @@ int main() {
     assert(visible_length(fitWidth(colored_txt, 4)) == 4);
     assert(stripAnsi(fitWidth(colored_txt, 4)) == "Hola");
 
-    // 2. alignCell con caracteres UTF-8 multibyte (· = 2 bytes, 1 columna visual; ■/□ = 3 bytes, 1 columna visual)
+    // 2. alignCell y clipPlain con caracteres UTF-8 multibyte (· = 2 bytes, ↑/↓/│/■ = 3 bytes, 1 columna visual)
     std::string dot_cell = alignCell("·", 9, false);
     assert(visible_length(dot_cell) == 9);
     assert(visible_length(alignCell("■", 9, false)) == 9);
     assert(visible_length(alignCell("□", 9, false)) == 9);
     std::string num_cell = alignCell("42", 9, true);
     assert(visible_length(num_cell) == 9);
+    std::string modal_help = "[↑/↓] Mover │ [Enter] OK │ [Supr] Borrar │ [Esc] Cerrar";
+    assert(clipPlain(modal_help, 56) == modal_help);
+    assert(visible_length(clipPlain("✔ A1 = 8 ➔ 8", 8)) == 8);
 
     // 3. Normalizacion de rangos
     TX cmin, rmin, cmax, rmax;

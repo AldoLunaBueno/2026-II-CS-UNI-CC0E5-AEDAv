@@ -60,7 +60,7 @@ SubtreeLayout layout_binary_contours(NodeVec& nodes, TX node_id, TX cell_width, 
         }
 
         // 2. Separación para que las ramas diagonales del padre no colisionen
-        TX needed_branch_span = 2 * (std::max(left_label_len, label_len) + cell_width - 1);
+        TX needed_branch_span = left_label_len + label_len + 2 * cell_width;
         TX curr_span = (right_node->x + S) - left_node->x;
         if (curr_span < needed_branch_span) {
             S += (needed_branch_span - curr_span);
@@ -72,8 +72,8 @@ SubtreeLayout layout_binary_contours(NodeVec& nodes, TX node_id, TX cell_width, 
             if (rn) rn->x += S;
         }
 
-        // Centrar el padre exactamente sobre sus dos hijos
-        node->x = (left_node->x + right_node->x) / 2;
+        // Centrar el ancho del padre entre el borde derecho del hijo izquierdo y el borde izquierdo del derecho
+        node->x = (left_node->x + left_label_len + right_node->x - label_len) / 2;
 
         // Fusionar contornos
         res.node_ids.push_back(node_id);

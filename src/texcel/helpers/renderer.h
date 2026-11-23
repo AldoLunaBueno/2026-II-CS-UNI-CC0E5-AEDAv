@@ -147,7 +147,9 @@ inline void drawWindowFrame(TuiState& st, TX x, TX y, TX w, TX h,
 inline void renderHeaderBar(TuiState& st, const EvalPreview& preview) {
     gotoxy(st.ros(), 0, 0);
     std::string mode_badge;
-    if (st.point_mode) {
+    if (st.modal_open) {
+        mode_badge = styled(fitWidth(" GESTOR DE HOJAS (MODAL) ", 27)).badge_cyan();
+    } else if (st.point_mode) {
         mode_badge = styled(fitWidth(" POINT MODE: APUNTAR CELDA ", 27)).badge_yellow();
     } else if (st.mode == SpreadsheetFocusMode::GridNavigation) {
         mode_badge = styled(fitWidth(" MODO 1: NAVEGACION MATRIZ ", 27)).badge_cyan();
@@ -230,7 +232,7 @@ inline std::string renderGridCell(TuiState& st, const GridRenderCtx& ctx, TX col
 }
 
 inline void renderGridWindow(TuiState& st, const EvalPreview& preview) {
-    bool is_focused = (st.mode == SpreadsheetFocusMode::GridNavigation);
+    bool is_focused = !st.modal_open && (st.mode == SpreadsheetFocusMode::GridNavigation);
     drawWindowFrame(st, TuiState::LEFT_X, TuiState::TOP_Y, st.left_w, TuiState::TOP_H, "Hoja de Calculo", is_focused);
 
     std::string active_id = st.cursor.toId();
@@ -350,7 +352,8 @@ inline VisualGraph buildAstVisualGraph(const std::string& raw_expr, bool horizon
         SpreadsheetEngine::AstNode* getRoot() const { return m_root; }
     };
 
-    auto fmt = [](const AstToken& tok, TreeRole role) -> std::string {
+    auto fmt = [](const SpreadsheetEngine::AstNode& node, TreeRole role) -> std::string {
+        const AstToken& tok = node.getValue();
         if (role == TreeRole::Root) return styled("[" + tok.text + "]").bright_yellow().bold().str();
         if (role == TreeRole::Leaf) return styled(tok.text).bright_cyan().str();
         return styled(tok.text).bright_green().bold().str();
@@ -476,7 +479,12 @@ inline std::string renderCommandInput(TuiState& st, const std::string& active_id
     if (st.input_buffer.empty()) {
         if (is_focused) return cursor_block + styled("Ej: = A1 + 4  o  5  o  Ctrl+U limpiar").dim().str();
         std::string cell_preview = st.formatCellForInput(active_id);
-        if (!cell_preview.empty()) return styled(clipPlain(cell_preview, max_in)).dim().str();
+        if (!cell_preview.empty()) {
+            std::string clipped = clipPlain(cell_preview, max_in);
+            return (cell_preview[0] == '=')
+                ? styled(clipped).bright_cyan().str()
+                : styled(clipped).white().str();
+        }
         return styled("[Enter] o [=] para editar " + active_id).dim().str();
     }
     if (!is_focused) {
@@ -513,7 +521,7 @@ inline std::string renderCommandStatus(TuiState& st, const EvalPreview& preview,
 }
 
 inline void renderCommandWindow(TuiState& st, const EvalPreview& preview) {
-    bool is_focused = (st.mode == SpreadsheetFocusMode::CommandConsole);
+    bool is_focused = !st.modal_open && (st.mode == SpreadsheetFocusMode::CommandConsole);
     drawWindowFrame(st, TuiState::LEFT_X, TuiState::BOT_Y, st.left_w, TuiState::BOT_H,
                     "Consola & Editor de Formulas",
                     is_focused);
@@ -539,7 +547,13 @@ inline void renderCommandWindow(TuiState& st, const EvalPreview& preview) {
     putLine(2, styled("│ ").gray().str() + prompt_prefix + fitWidth(input_rendered, text_slot) + styled("│").gray().str());
     putLine(3, styled("╰" + h_bar + "╯").gray().str());
     putLine(4, renderCommandStatus(st, preview, active_id, inner_w));
-    putLine(5, "");
+    std::string banner = clipPlain(st.status_banner, inner_w);
+    std::string styled_banner = banner.starts_with("✔")
+        ? styled(banner).bright_green().str()
+        : (banner.find("Error") != std::string::npos || banner.find("invalid") != std::string::npos || banner.find("No se") != std::string::npos)
+            ? styled(banner).bright_yellow().str()
+            : styled(banner).cyan().str();
+    putLine(5, styled_banner);
     putLine(6, styled("Ejemplos: ").gray().bold().str() +
                styled("5 │ = A1 + 4 │ = A1 + B1 │ [Tab] Point Mode").dim().str());
     putLine(7, styled("Comandos: ").gray().bold().str() +
@@ -633,7 +647,7 @@ inline void renderFileManagerModal(TuiState& st) {
     gotoxy(st.ros(), mx + 2, my + modal_h - 2);
     std::string help = st.modal_new_mode
         ? "Escribe el nombre y pulsa [Enter] │ [Esc] Cancelar"
-        : "[↑/↓] Navegar │ [Enter] Seleccionar │ [Supr] Borrar │ [Esc] Cerrar";
+        : "[↑/↓] Mover │ [Enter] OK │ [Supr] Borrar │ [Esc] Cerrar";
     st.ros() << fitWidth(styled(clipPlain(help, inner_w)).dim().str(), inner_w);
 }
 

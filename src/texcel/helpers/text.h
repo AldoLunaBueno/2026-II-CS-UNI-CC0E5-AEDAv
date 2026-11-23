@@ -91,11 +91,11 @@ inline std::string makeSectionHeader(const std::string& title, size_t width) {
     return s;
 }
 
-/** @brief Trunca texto plano a `max_len` bytes añadiendo `~` si se recorta. */
+/** @brief Trunca texto plano a `max_len` columnas visuales UTF-8 añadiendo `~` si se recorta. */
 inline std::string clipPlain(const std::string& s, size_t max_len) {
-    if (s.size() <= max_len) return s;
-    if (max_len <= 2) return s.substr(0, max_len);
-    return s.substr(0, max_len - 1) + "~";
+    if (visible_length(s) <= max_len) return s;
+    if (max_len <= 2) return utf8Slice(s, 0, max_len);
+    return utf8Slice(s, 0, max_len - 1) + "~";
 }
 
 /** @brief Alinea (derecha o centrado) un texto plano en una celda de ancho visual `w`. */
