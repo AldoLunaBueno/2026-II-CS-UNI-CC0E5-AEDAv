@@ -3,8 +3,8 @@ CXXFLAGS   := -std=c++23
 TARGET     := main
 SRCS       := main.cpp demos.cpp
 HEADERS    := demos.h types.h $(wildcard texcel/*.h) $(wildcard texcel/helpers/*.h) utilities/clipped_graph_renderer.h
-TEST_SRCS  := $(wildcard texcel/tests/unit/*.cpp)
-E2E_SRCS   := $(wildcard texcel/tests/e2e/*.py)
+TEST_SRCS  := $(wildcard tests/*/unit/*.cpp)
+E2E_SRCS   := $(wildcard tests/*/e2e/*.py)
 PR_OUT     := tmp/pr_comment.md
 PR_SCRIPT  := scripts/gen_pr_comment.sh
 DOCS_PORT  ?= 8000

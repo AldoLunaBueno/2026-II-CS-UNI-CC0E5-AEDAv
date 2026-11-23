@@ -1,4 +1,4 @@
-#include "../../helpers/text.h"
+#include "../../../texcel/helpers/text.h"
 #include "../../../utilities/ansi_style.h"
 #include <cassert>
 #include <iostream>

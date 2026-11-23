@@ -133,14 +133,14 @@ make test-unit
 make test-e2e
 ```
 
-La suite de pruebas en [`texcel/tests/`](../texcel/tests/) cubre:
-- **Unitarias (`texcel/tests/unit/`)**:
+La suite de pruebas en [`tests/texcel/`](../tests/texcel/) cubre:
+- **Unitarias (`tests/texcel/unit/`)**:
   - `test_eval_prepost.cpp`: evaluación PostOrder, precedencia, unarios, concatenación `&` y funciones.
   - `test_deps_persistence.cpp`: propagación reactiva, ciclos `#CYCLE!` y persistencia `.txl`.
   - `test_ranges_autofill.cpp`: rangos, `COUNTIF`/`COUNTIFS` y Auto-Fill con referencias `$`.
   - `test_tui_navigation.cpp`: Name Box, scrollbars, inserción de referencias en cursor, confirmación al hacer clic y modos de enfoque.
   - `test_tui_text.cpp`: utilidades de texto y truncado ANSI.
-- **End-to-End (`texcel/tests/e2e/test_tui_pty.py`)**: pruebas automatizadas sobre pseudoterminal (PTY) real verificando el flujo interactivo completo.
+- **End-to-End (`tests/texcel/e2e/test_tui_pty.py`)**: pruebas automatizadas sobre pseudoterminal (PTY) real verificando el flujo interactivo completo.
 
 ---
 
