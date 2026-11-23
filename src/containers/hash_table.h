@@ -123,6 +123,13 @@ public:
     Value& operator[](const Key& key);
 
     /**
+     * @brief Busca `key` en la tabla sin construir un `Value{}` temporal.
+     * @param key Clave a consultar.
+     * @return Puntero mutable al valor asociado, o `nullptr` si no existe.
+     */
+    Value* find(const Key& key);
+
+    /**
      * @brief Verifica si `key` existe en la tabla.
      * @param key Clave a consultar.
      * @return `true` si la clave está presente, `false` en caso contrario.
@@ -142,15 +149,25 @@ public:
 template <typename Traits, template <typename> typename... Mixins>
 auto BaseHashTable<Traits, Mixins...>::operator[](const Key& key) -> Value& {
     std::lock_guard lock(m_mutex);
+    Pair* pair_found = m_data.find_by(key, [](const Pair& e, const Key& k) {
+        return e.getKey() <=> k;
+    });
+    if (pair_found) return pair_found->value();
     return m_data.find_or_insert(Pair(key, Value{}), 0)->value();
 }
 
 template <typename Traits, template <typename> typename... Mixins>
-bool BaseHashTable<Traits, Mixins...>::contains(const Key& key) {
+auto BaseHashTable<Traits, Mixins...>::find(const Key& key) -> Value* {
     std::lock_guard lock(m_mutex);
-    Pair target(key, Value{});
-    Pair* pair_found = m_data.find(target);
-    return pair_found != nullptr;
+    Pair* pair_found = m_data.find_by(key, [](const Pair& e, const Key& k) {
+        return e.getKey() <=> k;
+    });
+    return pair_found ? &(pair_found->value()) : nullptr;
+}
+
+template <typename Traits, template <typename> typename... Mixins>
+bool BaseHashTable<Traits, Mixins...>::contains(const Key& key) {
+    return find(key) != nullptr;
 }
 
 template <typename Traits, template <typename> typename... Mixins>

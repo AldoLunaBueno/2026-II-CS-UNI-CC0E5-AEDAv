@@ -50,7 +50,8 @@ private:
     };
 
     bool hasRawCell(const std::string& cid) {
-        return m_raw_table.contains(cid) && !m_raw_table[cid].empty();
+        const std::string* raw = m_raw_table.find(cid);
+        return raw && !raw->empty();
     }
 
 public:
@@ -160,13 +161,12 @@ private:
 
     CellEvalValue readCellForEval(const std::string& cid, StringVec& visiting, bool& out_is_empty) {
         if (texcel_detail::containsStr(visiting, cid)) throw EvalError{"#CYCLE!"};
-        if (m_cells.contains(cid)) {
-            const SpreadsheetCell& cached = m_cells[cid];
-            if (!cached.dirty) {
-                out_is_empty = cached.raw_expression.empty();
+        if (const SpreadsheetCell* cached = m_cells.find(cid)) {
+            if (!cached->dirty) {
+                out_is_empty = cached->raw_expression.empty();
                 if (out_is_empty) return {};
-                if (cached.has_error) throw EvalError{cached.error_msg};
-                return cached.result;
+                if (cached->has_error) throw EvalError{cached->error_msg};
+                return cached->result;
             }
         }
         out_is_empty = !hasRawCell(cid);
@@ -418,11 +418,12 @@ private:
     }
 
     void unsubscribeInputs(const std::string& cid) {
-        if (!m_cells.contains(cid)) return;
-        StringVec& old_inputs = m_cells[cid].inputs;
+        SpreadsheetCell* cell_ptr = m_cells.find(cid);
+        if (!cell_ptr) return;
+        StringVec& old_inputs = cell_ptr->inputs;
         for (size_t i = 0; i < old_inputs.size(); ++i) {
             const std::string& in_id = old_inputs[i].getValue();
-            if (m_dependents.contains(in_id)) listRemove(m_dependents[in_id], cid);
+            if (DepList* deps = m_dependents.find(in_id)) listRemove(*deps, cid);
         }
         old_inputs.clear();
     }
@@ -432,20 +433,19 @@ private:
             out_err = "#CYCLE!";
             return {};
         }
-        if (m_cells.contains(cell_id)) {
-            const SpreadsheetCell& cached = m_cells[cell_id];
-            if (!cached.dirty) {
-                if (cached.has_error) {
-                    out_err = cached.error_msg;
-                    return {};
-                }
-                return cached.result;
+        SpreadsheetCell* existing = m_cells.find(cell_id);
+        if (existing && !existing->dirty) {
+            if (existing->has_error) {
+                out_err = existing->error_msg;
+                return {};
             }
+            return existing->result;
         }
-        if (!hasRawCell(cell_id)) return {};
+        const std::string* raw_ptr = m_raw_table.find(cell_id);
+        if (!raw_ptr || raw_ptr->empty()) return {};
 
-        std::string raw = m_raw_table[cell_id];
-        bool same_expr = m_cells.contains(cell_id) && m_cells[cell_id].raw_expression == raw;
+        std::string raw = *raw_ptr;
+        bool same_expr = (existing != nullptr && existing->raw_expression == raw);
 
         visiting.push_back(cell_id);
         StringVec refs;
@@ -457,7 +457,7 @@ private:
         if (!same_expr) {
             unsubscribeInputs(cell_id);
         }
-        SpreadsheetCell& cell = m_cells[cell_id];
+        SpreadsheetCell& cell = existing ? *existing : m_cells[cell_id];
         if (!same_expr) {
             cell.id = cell_id;
             cell.raw_expression = raw;
@@ -493,9 +493,9 @@ private:
         affected.push_back(root_id);
         for (size_t qi = 0; qi < affected.size(); ++qi) {
             std::string curr_id = affected[qi].getValue();
-            if (m_cells.contains(curr_id)) m_cells[curr_id].dirty = true;
-            if (m_dependents.contains(curr_id)) {
-                for (const auto& dep_node : m_dependents[curr_id]) {
+            if (SpreadsheetCell* c = m_cells.find(curr_id)) c->dirty = true;
+            if (DepList* deps = m_dependents.find(curr_id)) {
+                for (const auto& dep_node : *deps) {
                     const std::string& dep_id = dep_node.getValue();
                     if (!seen.contains(dep_id)) {
                         seen[dep_id] = true;
@@ -507,12 +507,38 @@ private:
         return affected;
     }
 
-    bool recomputeCell(const std::string& cid, std::string* out_disp = nullptr) {
-        std::string prev = m_cells.contains(cid) ? m_cells[cid].displayValue() : "";
+    static bool cellStateEqual(const SpreadsheetCell& a, const SpreadsheetCell& b) {
+        if (a.raw_expression.empty() && b.raw_expression.empty()) return true;
+        if (a.raw_expression.empty() != b.raw_expression.empty()) return false;
+        if (a.has_error != b.has_error) return false;
+        if (a.has_error) return a.error_msg == b.error_msg;
+        if (a.result.is_text != b.result.is_text) return false;
+        if (a.result.is_text) return a.result.text == b.result.text;
+        return a.result.num == b.result.num;
+    }
+
+    void evalCellQuiet(const std::string& cid) {
         StringVec visiting;
         std::string err;
         resolveCellValue(cid, visiting, err);
-        std::string now = m_cells.contains(cid) ? m_cells[cid].displayValue() : "";
+    }
+
+    bool recomputeCell(const std::string& cid, std::string* out_disp = nullptr) {
+        SpreadsheetCell* before_ptr = m_cells.find(cid);
+        bool had_before = (before_ptr != nullptr);
+        SpreadsheetCell prev_copy;
+        if (had_before) {
+            prev_copy.raw_expression = before_ptr->raw_expression;
+            prev_copy.has_error      = before_ptr->has_error;
+            prev_copy.error_msg      = before_ptr->error_msg;
+            prev_copy.result         = before_ptr->result;
+        }
+        evalCellQuiet(cid);
+        SpreadsheetCell* after_ptr = m_cells.find(cid);
+        if (!had_before && !after_ptr) return false;
+        if (had_before && after_ptr && cellStateEqual(prev_copy, *after_ptr)) return false;
+        std::string prev = had_before ? prev_copy.displayValue() : "";
+        std::string now  = after_ptr  ? after_ptr->displayValue() : "";
         if (out_disp) *out_disp = now;
         return now != prev;
     }
@@ -561,13 +587,14 @@ public:
         BaseHashTable<HashTableTraits<std::string, std::string>, Callable> prev_display;
         for (const auto& entry_node : m_raw_table) {
             std::string cid = entry_node.getValue().getKey();
-            prev_display[cid] = m_cells.contains(cid) ? m_cells[cid].displayValue() : "";
+            const SpreadsheetCell* c = m_cells.find(cid);
+            prev_display[cid] = c ? c->displayValue() : "";
         }
         m_cells.clear();
 
         for (const auto& entry_node : m_raw_table) {
             std::string cid = entry_node.getValue().getKey();
-            if (!entry_node.getValue().getValue().empty()) recomputeCell(cid);
+            if (!entry_node.getValue().getValue().empty()) evalCellQuiet(cid);
         }
 
         StringVec updated;
@@ -594,7 +621,7 @@ public:
         std::string expr = texcel_detail::trim(expression_raw);
 
         unsubscribeInputs(cid);
-        if (m_cells.contains(cid)) m_cells[cid].raw_expression.clear();
+        if (SpreadsheetCell* c = m_cells.find(cid)) c->raw_expression.clear();
         StringVec affected = collectAndMarkDirtySubgraph(cid);
 
         if (expr.empty()) {
@@ -606,7 +633,7 @@ public:
         }
 
         m_raw_table[cid] = expr;
-        recomputeCell(cid);
+        evalCellQuiet(cid);
         StringVec cascaded = propagateAffected(affected);
 
         const SpreadsheetCell& cell = m_cells[cid];
@@ -643,7 +670,7 @@ public:
     SpreadsheetCell getCell(const std::string& cell_id) {
         CellCoord c = CellCoord::parse(cell_id);
         std::string cid = c.valid ? c.toId() : cell_id;
-        if (m_cells.contains(cid)) return m_cells[cid];
+        if (const SpreadsheetCell* found = m_cells.find(cid)) return *found;
         return SpreadsheetCell{.id = cid};
     }
 
@@ -655,8 +682,9 @@ public:
     /** @brief Obtiene la lista de celdas que dependen de `cell_id` desde su `LinkedList` de observadores. */
     StringVec getCellDependents(const std::string& cell_id) {
         StringVec res;
-        if (!m_dependents.contains(cell_id)) return res;
-        for (const auto& node : m_dependents[cell_id]) {
+        const DepList* deps = m_dependents.find(cell_id);
+        if (!deps) return res;
+        for (const auto& node : *deps) {
             texcel_detail::addUniqueStr(res, node.getValue());
         }
         return res;

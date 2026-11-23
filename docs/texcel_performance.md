@@ -14,6 +14,7 @@ Registro histórico de los hitos de optimización del motor de **Texcel**, medid
 | [H0](#h0--punto-cero-línea-base) | Punto cero (línea base) | 2026-11-23 | 21.30 | 932.49 | 4724.05 | 12.22 | 19.73 | 2035.12 | 3236.44 | 9.45 | **10990.80** |
 | [H1](#h1--conjunto-avl-en-bfs-y-rangos) | Conjunto AVL en BFS y rangos | 2026-11-23 | 21.43 | 903.37 | 1275.92 | 8.92 | 18.41 | 1782.47 | 2939.75 | 9.82 | **6960.09** |
 | [H2](#h2--preservación-del-grafo-de-dependencias-en-propagación) | Preservación de grafo en propagación | 2026-11-23 | 21.32 | 973.88 | 1106.58 | 13.00 | 19.46 | 1854.23 | 762.14 | 8.10 | **4758.71** |
+| [H3](#h3--búsqueda-directa-en-basehashtable-y-eliminación-de-lookupsformateos-redundantes) | `find_by` / `find` sin `Value{}` | 2026-11-23 | 21.32 | 470.55 | 337.59 | 10.59 | 19.23 | 1055.15 | 221.31 | 10.60 | **2146.34** |
 
 ---
 
@@ -50,3 +51,16 @@ En otras palabras: **un cambio numérico estaba destruyendo y reconstruyendo tod
 3. Cuando la celda editada directamente en `setCell` sí cambia (o al iniciar en `recalculateAll`), `setCell` limpia previamente `m_cells[cid].raw_expression` tras `unsubscribeInputs(cid)` para forzar que solo esa celda reconstruya sus aristas; además, dado que `unsubscribeInputs` ya removió apariciones previas y `m_seen_refs` garantiza unicidad en `refs`, la suscripción en `m_dependents[ref_id]` inserta directamente sin escaneo lineal previo.
 
 **El impacto:** El `Edit→Fin` de la hoja Mixta cayó de **2,939.75 ms** a **762.14 ms** (**3.86× más rápido** respecto a H1 y **4.25×** respecto a H0), y el total global se redujo de **6,960.09 ms** a **4,758.71 ms**.
+
+### H3 — Búsqueda directa en `BaseHashTable` y eliminación de lookups/formateos redundantes
+**El problema:** Incluso tras preservar la topología del grafo en H2, cada evaluación seguía pagando tres costos ocultos en nuestras estructuras y en el motor:
+1. `BaseHashTable` ([`src/containers/hash_table.h`](../src/containers/hash_table.h)) solo ofrecía `contains(key)` y `operator[](key)`. Ambos construían un objeto `HashEntry<Key, Value>(key, Value{})` temporal completo antes de bajar por el `BaseAVLTree` (creando `SpreadsheetCell` o `LinkedList` vacíos con sus propios `std::mutex` y `Vector` solo para consultar una clave), además de realizar dos comparaciones por nivel en `BaseBinaryTree::find` ([`src/containers/trees/binary_tree.h`](../src/containers/trees/binary_tree.h)) y adquirir un doble lock cuando `operator[]` llamaba a `find_or_insert`.
+2. Al no existir `find(key) -> Value*`, [`src/texcel/engine.h`](../src/texcel/engine.h) repetía el patrón `if (tabla.contains(k)) { ... tabla[k] ... }` en `hasRawCell`, `readCellForEval`, `resolveCellValue`, `collectAndMarkDirtySubgraph` y `unsubscribeInputs`, ejecutando de 2 a 4 recorridos AVL por cada lectura lógica de celda o lista de dependientes.
+3. En `recalculateAll`, el bucle llamaba a `recomputeCell`, que formateaba dos `std::ostringstream` (`prev` y `now` vía `displayValue()`) por cada una de las 20,000 celdas aunque su resultado no se usara en ese paso.
+
+**La solución:** Mejorar directamente los contenedores del curso sin abandonar `BaseAVLTree` ni `BaseHashTable`:
+1. En `BaseBinaryTree` ([`src/containers/trees/binary_tree.h`](../src/containers/trees/binary_tree.h)), se agregó `find_by(key, cmp)` con comparación de tres vías (`<=>`): busca por clave heterogénea sin construir `value_type` y reduce a la mitad las comparaciones de cadena en cada nivel del AVL.
+2. En `BaseHashTable` ([`src/containers/hash_table.h`](../src/containers/hash_table.h)), se implementó `Value* find(const Key&)` apoyado en `find_by`, `contains` pasó a delegar en `find`, y `operator[]` consulta primero `find_by` bajo un único `lock_guard` antes de recurrir a `find_or_insert`.
+3. En `SpreadsheetEngine` ([`src/texcel/engine.h`](../src/texcel/engine.h)), se reemplazaron los patrones `contains + operator[]` por punteros de una sola búsqueda (`find`) y se separó `evalCellQuiet` (usada en `recalculateAll` y en la celda raíz de `setCell`) de `recomputeCell` (que además compara primero los campos crudos con `cellStateEqual` antes de invocar `displayValue()`).
+
+**El impacto:** `Recalc` y `Edit→Fin` cayeron a más de la mitad en ambos escenarios: Simple bajó de **2,114.78 ms** a **840.07 ms** (`Edit→Fin` **337.59 ms**), Mixta bajó de **2,643.93 ms** a **1,306.28 ms** (`Edit→Fin` **221.31 ms**), y la suma total se redujo de **4,758.71 ms** a **2,146.34 ms** (**5.12× más rápido** respecto a H0).

@@ -244,6 +244,23 @@ public:
     }
 
     /**
+     * @brief Busca un elemento mediante una clave heterogénea usando un comparador de tres vías (`<=>`).
+     * @param key Clave a buscar sin construir un `value_type` completo.
+     * @param cmp Comparador `(const value_type&, const K&) -> std::weak_ordering / strong_ordering`.
+     * @return Puntero mutable al valor encontrado, o `nullptr` si no existe.
+     */
+    template <typename K, typename ThreeWay>
+    value_type* find_by(const K& key, ThreeWay cmp) {
+        NodePtr node = m_pRoot;
+        while (node) {
+            auto ord = cmp(node->getValue(), key);
+            if (ord == 0) return &(node->value());
+            node = node->m_pChild[ord > 0];
+        }
+        return nullptr;
+    }
+
+    /**
      * @brief Busca un valor equivalente en el árbol o lo inserta si no existe, en un solo recorrido.
      * @param value Valor a buscar o insertar.
      * @param ref Referencia asociada en caso de inserción (por defecto `0`).
