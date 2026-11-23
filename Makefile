@@ -1,8 +1,8 @@
 CXX        := g++
 CXXFLAGS   := -std=c++23
 TARGET     := main
-SRCS       := main.cpp demos.cpp
-HEADERS    := demos.h types.h $(wildcard texcel/*.h) $(wildcard texcel/helpers/*.h) utilities/clipped_graph_renderer.h
+SRCS       := src/main.cpp src/demos/demos.cpp
+HEADERS    := src/demos/demos.h src/types.h $(wildcard src/texcel/*.h) $(wildcard src/texcel/helpers/*.h) src/utilities/clipped_graph_renderer.h
 TEST_SRCS  := $(wildcard tests/*/unit/*.cpp)
 E2E_SRCS   := $(wildcard tests/*/e2e/*.py)
 PR_OUT     := tmp/pr_comment.md

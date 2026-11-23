@@ -1,4 +1,4 @@
-#include "../../../texcel/texcel.h"
+#include "../../../src/texcel/texcel.h"
 #include <cassert>
 #include <iostream>
 #include <sstream>

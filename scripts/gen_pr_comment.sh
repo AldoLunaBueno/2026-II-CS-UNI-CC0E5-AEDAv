@@ -23,8 +23,8 @@ with open('$INPUT_FILE', 'r', encoding='utf-8') as f:
 
 # 1. Reemplazar rutas relativas por URLs absolutas de GitHub
 content = content.replace('(docs/', '(${RAW_BASE}/docs/')
-content = content.replace('(containers/', '(${BLOB_BASE}/containers/')
-content = content.replace('(utilities/', '(${BLOB_BASE}/utilities/')
+content = content.replace('(src/containers/', '(${BLOB_BASE}/src/containers/')
+content = content.replace('(src/utilities/', '(${BLOB_BASE}/src/utilities/')
 
 # 2. Extraer los elementos del TOC: - [Título](#slug)
 toc_pattern = re.compile(r'^\s*-\s*\[(.*?)\]\(#(.*?)\)', re.MULTILINE)

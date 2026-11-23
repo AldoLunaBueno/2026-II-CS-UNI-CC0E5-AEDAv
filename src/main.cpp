@@ -4,7 +4,7 @@
  * @brief Punto de entrada principal que ejecuta las demostraciones del repositorio.
  */
 
-#include "demos.h"
+#include "demos/demos.h"
 #include <string_view>
 
 using namespace std;

@@ -6,8 +6,8 @@
 
 #ifndef __DEMOS_H__
 #define __DEMOS_H__
-#include "types.h"
-#include "containers/trees/heap.h"
+#include "../types.h"
+#include "../containers/trees/heap.h"
 
 /** @brief Demostración de operaciones y renderizado de `Vector`. */
 void DemoVector();

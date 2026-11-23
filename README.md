@@ -408,7 +408,7 @@ flowchart LR
 
 ### 6. Arquitectura del Motor Modular de Layouts 2D y Roles Semánticos
 
-El subsistema de proyección geométrica en [`utilities/layouts/`](utilities/layouts) desacopla de manera estricta la topología espacial de cualquier contenedor respecto a su estilizado y coloración en terminal:
+El subsistema de proyección geométrica en [`utilities/layouts/`](src/utilities/layouts) desacopla de manera estricta la topología espacial de cualquier contenedor respecto a su estilizado y coloración en terminal:
 
 ```mermaid
 flowchart TB
@@ -487,7 +487,7 @@ flowchart TB
 
 #### A. ¿Cómo avanza el Recorrido de Euler por el contorno de un árbol?
 
-El iterador [`BinaryTreeIterator<T, Order, Dir>`](containers/trees/binary_tree.h) modela el recorrido como una caminata continua por el **contorno exterior** del árbol. Al rodear el perímetro de cualquier subárbol, el iterador toca cada nodo exactamente en **3 momentos (fases)**:
+El iterador [`BinaryTreeIterator<T, Order, Dir>`](src/containers/trees/binary_tree.h) modela el recorrido como una caminata continua por el **contorno exterior** del árbol. Al rodear el perímetro de cualquier subárbol, el iterador toca cada nodo exactamente en **3 momentos (fases)**:
 - **🟢 Fase `0` (`FirstPhase` = `Phase::Pre` = `0b100`):** al bajar por el costado izquierdo del nodo (antes de visitar su subárbol izquierdo `I`).
 - **🟡 Fase `1` (`Phase::In` = `0b010`):** al pasar por debajo del nodo (después de volver de `I` y antes de bajar a su subárbol derecho `D`).
 - **🔴 Fase `2` (`LastPhase` = `Phase::Post` = `0b001`):** al subir por el costado derecho del nodo (después de volver de `D`, listo para regresar a su padre `P`).
@@ -566,7 +566,7 @@ flowchart TB
 
 #### C. Puente entre Fases y Órdenes: Codificación en Máscara Binaria
 
-Numerar las fases como `0`, `1` y `2` es un recurso didáctico para distinguir los tres contactos al rodear un nodo, pero en el código ([`containers/trees/binary_tree.h`](containers/trees/binary_tree.h)) cada fase es una potencia de 2 que ocupa **una posición de bit exclusiva** dentro de un número binario de 3 cifras (`Phase::Pre = 0b100`, `Phase::In = 0b010`, `Phase::Post = 0b001`). Así, cualquier orden de recorrido [`Order`](containers/trees/binary_tree.h) funciona como un panel de 3 interruptores donde cada cifra binaria **enciende (`1`)** o **apaga (`0`)** la parada del iterador en esa fase mediante `while (m_ptr && !(m_phase & Ord))`:
+Numerar las fases como `0`, `1` y `2` es un recurso didáctico para distinguir los tres contactos al rodear un nodo, pero en el código ([`containers/trees/binary_tree.h`](src/containers/trees/binary_tree.h)) cada fase es una potencia de 2 que ocupa **una posición de bit exclusiva** dentro de un número binario de 3 cifras (`Phase::Pre = 0b100`, `Phase::In = 0b010`, `Phase::Post = 0b001`). Así, cualquier orden de recorrido [`Order`](src/containers/trees/binary_tree.h) funciona como un panel de 3 interruptores donde cada cifra binaria **enciende (`1`)** o **apaga (`0`)** la parada del iterador en esa fase mediante `while (m_ptr && !(m_phase & Ord))`:
 
 ![Puente entre Fases y Máscara Binaria](docs/images/euler_bitmask.svg)
 
@@ -631,7 +631,7 @@ Un contenedor concreto puede incorporar mixins mutantes como `Applicable` (que m
 <details>
 <summary>🔍 Ver implementación de conceptos C++20 y ensamblado de BaseView</summary>
 
-Mediante metaprogramación de conceptos C++20 en [`containers/core/general_container.h`](containers/core/general_container.h), el sistema clasifica y filtra los mixins en tiempo de compilación:
+Mediante metaprogramación de conceptos C++20 en [`containers/core/general_container.h`](src/containers/core/general_container.h), el sistema clasifica y filtra los mixins en tiempo de compilación:
 
 ```cpp
 template <template <typename> typename M, typename Traits>
@@ -669,7 +669,7 @@ class BaseView :
 
 1. Si el contenedor tiene `Callable`, `Searchable` o `Printable` (que solo dependen de `IterableCore`), la vista los **hereda automáticamente**.
 2. Si el contenedor tiene `Applicable`, `Readable` o `Reversible` (que dependen de `ContainerCore`), `FilterViewMixin` los transforma en `IgnoredMixin`, descartándolos a nivel de tipos sin overhead de memoria.
-3. Se verifica formalmente con `static_assert` en [`demos.cpp`](demos.cpp):
+3. Se verifica formalmente con `static_assert` en [`demos.cpp`](src/demos/demos.cpp):
    ```cpp
    static_assert(IsCallableWith<RevView, ...>);    // ✔️ Callable permitido en vista
    static_assert(IsSearchableWith<RevView, ...>);  // ✔️ Searchable permitido en vista
@@ -709,7 +709,7 @@ El mixin `Reversible` reemplaza y amplía la funcionalidad del antiguo `ReverseC
 
 #### E. Vistas de Recorridos en Árboles con `tree.traverse<Order, Direction>()`
 
-En [`containers/trees/binary_tree.h`](containers/trees/binary_tree.h), `BaseBinaryTree` ofrece el método plantilla `.traverse()`:
+En [`containers/trees/binary_tree.h`](src/containers/trees/binary_tree.h), `BaseBinaryTree` ofrece el método plantilla `.traverse()`:
 ```cpp
 template <Order Ord, Direction Dir = Direction::Asc>
 auto traverse() const {
@@ -728,7 +728,7 @@ Cualquiera de los 14 recorridos de Euler es accesible de inmediato como un objet
 
 ### 3. Mecanismo de Rebalanceo AVL por Rotación Unificada (rotate_up)
 
-En [`containers/trees/avl_tree.h`](containers/trees/avl_tree.h), `BaseAVLTree` implementa el auto-balanceo extendiendo `BaseBinaryTree` mediante el patrón **Template Method**:
+En [`containers/trees/avl_tree.h`](src/containers/trees/avl_tree.h), `BaseAVLTree` implementa el auto-balanceo extendiendo `BaseBinaryTree` mediante el patrón **Template Method**:
 1. Las operaciones de mutación (`insert` y `remove`) delegan la restauración del árbol al hook virtual `rebalance(node)`.
 2. Al insertar o eliminar, `BaseAVLTree::rebalance(node)` asciende por los ancestros actualizando `m_height = 1 + std::max(h_izq, h_der)`.
 3. Cuando detecta un nodo desbalanceado $Z$ con factor de balance $|bf(Z)| > 1$ (donde $bf = h \text{izq} - h \text{der}$):
@@ -796,7 +796,7 @@ Para solventar esto de manera limpia y polimórfica:
        this->rebuild(); // Hook de restauración del invariante
    }
    ```
-3. En [`containers/trees/heap.h`](containers/trees/heap.h), `BaseHeap` sobreescribe `rebuild()`:
+3. En [`containers/trees/heap.h`](src/containers/trees/heap.h), `BaseHeap` sobreescribe `rebuild()`:
    ```cpp
    template <typename Traits, template <typename> typename... Mixins>
    void BaseHeap<Traits, Mixins...>::rebuild() {
@@ -810,7 +810,7 @@ Para solventar esto de manera limpia y polimórfica:
 
 ### 5. Subsistema de Renderizado ASCII en Consola (sketch y ConsoleGraphRenderer)
 
-El subsistema visual en [`utilities/render.h`](utilities/render.h) separa la representación lógica del grafo de su renderizado visual:
+El subsistema visual en [`utilities/render.h`](src/utilities/render.h) separa la representación lógica del grafo de su renderizado visual:
 
 ![Pipeline de Renderizado ASCII](docs/images/render_pipeline.svg)
 
@@ -848,7 +848,7 @@ Ejemplo de salida en terminal:
 
 ### 6. Contenedor Asociativo HashTable y Protocolo de Serialización en Capas
 
-[`HashTable`](containers/hash_table.h) provee una interfaz asociativa clave-valor construida sobre la arquitectura genérica del repositorio. Internamente, `BaseHashTable` compone una instancia de `BaseAVLTree` para garantizar búsquedas, inserciones y validaciones de pertenencia en $O(\log N)$ con sincronización concurrente (`m_mutex`).
+[`HashTable`](src/containers/hash_table.h) provee una interfaz asociativa clave-valor construida sobre la arquitectura genérica del repositorio. Internamente, `BaseHashTable` compone una instancia de `BaseAVLTree` para garantizar búsquedas, inserciones y validaciones de pertenencia en $O(\log N)$ con sincronización concurrente (`m_mutex`).
 
 #### A. Arquitectura de Serialización Multicapa (Unwrapping I/O)
 
@@ -984,7 +984,7 @@ Aunque `BaseHashTable` delega su almacenamiento en `BaseAVLTree`, el operador de
 
 ### 7. Contenedor Criptográfico MerkleTree y Pruebas de Auditoría
 
-[`MerkleTree`](containers/trees/merkle_tree.h) implementa un árbol de autenticación criptográfica basado en la arquitectura de nodos y contenedores del repositorio (`GeneralContainer` con `BinaryTreeNode`). Permite registrar colecciones inmutables de transacciones o bloques de datos, computar de forma jerárquica la raíz criptográfica (*Merkle Root*) mediante funciones hash criptográficas (como SHA-256), y generar pruebas de inclusión en $O(\log N)$ con preservación total de privacidad.
+[`MerkleTree`](src/containers/trees/merkle_tree.h) implementa un árbol de autenticación criptográfica basado en la arquitectura de nodos y contenedores del repositorio (`GeneralContainer` con `BinaryTreeNode`). Permite registrar colecciones inmutables de transacciones o bloques de datos, computar de forma jerárquica la raíz criptográfica (*Merkle Root*) mediante funciones hash criptográficas (como SHA-256), y generar pruebas de inclusión en $O(\log N)$ con preservación total de privacidad.
 
 ![Árbol Merkle y Prueba de Auditoría](docs/images/merkle_tree_proof.svg)
 
@@ -1060,7 +1060,7 @@ sequenceDiagram
 
 ### 8. Subsistema Modular de Layouts 2D y Roles Semánticos
 
-El directorio [`utilities/layouts/`](utilities/layouts) implementa una arquitectura desacoplada que separa la formulación geométrica de los grafos en 2D de la presentación tipográfica y cromática:
+El directorio [`utilities/layouts/`](src/utilities/layouts) implementa una arquitectura desacoplada que separa la formulación geométrica de los grafos en 2D de la presentación tipográfica y cromática:
 
 ![Arquitectura Modular de Layouts 2D y Roles](docs/images/layout_hierarchy.svg)
 
@@ -1069,7 +1069,7 @@ El directorio [`utilities/layouts/`](utilities/layouts) implementa una arquitect
 1. **La Capa de Layout es Neutra**:
    Las clases derivadas de `BaseLayout` (`VerticalTreeLayout`, `HorizontalTreeLayout`, `CircularListLayout`, `MerkleTreeLayout`) tienen una única responsabilidad: calcular las coordenadas espaciales $(X, Y)$, los contornos de subárboles para evitar solapamientos y las aristas dirigidas/no dirigidas. Por defecto utilizan `DefaultNodeFormatter`, proyectando texto plano sin secuencias de escape ANSI.
 2. **Inyección de Estilos por el Cliente**:
-   El cliente inyecta una función o lambda que recibe el nodo (o texto) y su **rol semántico** (`enum class Role`), devolviendo una cadena con el formato deseado mediante el motor tipográfico [`ansi_style.h`](utilities/ansi_style.h).
+   El cliente inyecta una función o lambda que recibe el nodo (o texto) y su **rol semántico** (`enum class Role`), devolviendo una cadena con el formato deseado mediante el motor tipográfico [`ansi_style.h`](src/utilities/ansi_style.h).
 
 ---
 
@@ -1079,9 +1079,9 @@ Cada layout define su propio `enum class` de roles semánticos mutuamente excluy
 
 | Layout | Enum de Rol | Valores del Enum | Clases CSS (`to_css_class`) | Propósito Topológico |
 | :--- | :--- | :--- | :--- | :--- |
-| [`TreeLayout`](utilities/layouts/tree_layout.h) | `TreeRole` | `Root`, `Leaf`, `Left`, `Right` | `"root"`, `"leaf"`, `"left"`, `"right"` | Distingue la raíz, las hojas terminales y las ramas internas izquierda/derecha. |
-| [`CircularListLayout`](utilities/layouts/circular_list_layout.h) | `CircularListRole` | `Head`, `Tail`, `Node` | `"head"`, `"tail"`, `"node"` | Identifica el inicio de la lista circular, el último nodo antes del cierre, y nodos intermedios. |
-| [`MerkleTreeLayout`](utilities/layouts/merkle_tree_layout.h) | `MerkleRole` | `Root`, `Internal`, `Leaf`, `CloneLeaf`, `Data`, `CloneData` | `"root"`, `"internal"`, `"leaf"`, `"clone-leaf"`, `"data"`, `"clone-data"` | Distingue la raíz criptográfica, hashes internos, hojas de hash originales o clonadas, y nodos de transacción base. |
+| [`TreeLayout`](src/utilities/layouts/tree_layout.h) | `TreeRole` | `Root`, `Leaf`, `Left`, `Right` | `"root"`, `"leaf"`, `"left"`, `"right"` | Distingue la raíz, las hojas terminales y las ramas internas izquierda/derecha. |
+| [`CircularListLayout`](src/utilities/layouts/circular_list_layout.h) | `CircularListRole` | `Head`, `Tail`, `Node` | `"head"`, `"tail"`, `"node"` | Identifica el inicio de la lista circular, el último nodo antes del cierre, y nodos intermedios. |
+| [`MerkleTreeLayout`](src/utilities/layouts/merkle_tree_layout.h) | `MerkleRole` | `Root`, `Internal`, `Leaf`, `CloneLeaf`, `Data`, `CloneData` | `"root"`, `"internal"`, `"leaf"`, `"clone-leaf"`, `"data"`, `"clone-data"` | Distingue la raíz criptográfica, hashes internos, hojas de hash originales o clonadas, y nodos de transacción base. |
 
 El cliente utiliza la sentencia `switch (role)` nativa de C++23, lo que permite al compilador verificar de forma exhaustiva (`-Wswitch`) que todos los roles sean atendidos:
 
@@ -1103,7 +1103,7 @@ auto painter = [](const std::string& text, MerkleRole role) {
 
 #### C. Motor Tipográfico ANSI y Ancho Visual (`ansi_style.h`)
 
-[`utilities/ansi_style.h`](utilities/ansi_style.h) implementa el repertorio completo de estilos y secuencias de escape ANSI para terminales modernas:
+[`utilities/ansi_style.h`](src/utilities/ansi_style.h) implementa el repertorio completo de estilos y secuencias de escape ANSI para terminales modernas:
 - **Builder Fluido `styled(...)`**: Encadenamiento legible de modificaciones (`styled("texto").bold().underline().bright_yellow()`).
 - **Soporte TrueColor de 24 Bits**: Colores RGB directos (`rgb(r, g, b)`, `hex("#RRGGBB")`).
 - **Prevención de Gris por `Bold` con `pure_black()`**:
@@ -1118,7 +1118,7 @@ auto painter = [](const std::string& text, MerkleRole role) {
 
 #### D. Lienzo Matricial `Canvas2D` y Trazado de Conexiones Verticales `│`
 
-[`Canvas2D`](utilities/render.h) administra una matriz direccionable $(x, y)$ donde cada celda almacena un glifo UTF-8 junto a sus atributos ANSI:
+[`Canvas2D`](src/utilities/render.h) administra una matriz direccionable $(x, y)$ donde cada celda almacena un glifo UTF-8 junto a sus atributos ANSI:
 - **Sin Desfases Geométricos**: Al escribir cadenas formateadas con ANSI en las coordenadas del nodo, las secuencias de escape se asocian a la primera celda visible sin avanzar columnas espaciales en la matriz.
 - **Conexiones Verticales Puras (`│`)**: `MerkleTreeLayout` proyecta aristas verticales con alineación milimétrica entre cada hoja de hash y su dato original subyacente.
 
@@ -1319,7 +1319,7 @@ mtree.draw(
 
 ## 🧮 IV. Texcel — Hoja de Cálculo Reactiva en Consola
 
-**Texcel** (`texcel/`) aplica los contenedores, iteradores y layouts 2D del repositorio (`HashTable`, `BinaryTree`, `LinkedList`, `Vector`, `VerticalTreeLayout`/`HorizontalTreeLayout` y `ClippedGraphRenderer`) en una hoja de cálculo TUI multi-ventana con:
+**Texcel** (`src/texcel/`) aplica los contenedores, iteradores y layouts 2D del repositorio (`HashTable`, `BinaryTree`, `LinkedList`, `Vector`, `VerticalTreeLayout`/`HorizontalTreeLayout` y `ClippedGraphRenderer`) en una hoja de cálculo TUI multi-ventana con:
 
 - Matriz dispersa (`A1..ZZ999`) con soporte de ratón SGR, *Name Box*, mini-scrollbars proporcionales y *Auto-Fill*.
 - Compilación de fórmulas a `BinaryTreeNode<AstToken>` y evaluación in-place en `Order::PrePostOrder` (`+`, `-`, `*`, `/`, `^`, `&`, comparaciones, `SUM`, `AVG`, `MIN`, `MAX`, `IF`, `COUNTIF`/`COUNTIFS`).

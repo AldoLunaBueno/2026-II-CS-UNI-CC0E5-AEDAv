@@ -1,5 +1,5 @@
-#include "../../../texcel/helpers/text.h"
-#include "../../../utilities/ansi_style.h"
+#include "../../../src/texcel/helpers/text.h"
+#include "../../../src/utilities/ansi_style.h"
 #include <cassert>
 #include <iostream>
 
