@@ -299,6 +299,10 @@ Imagina una hoja donde `A1 = 10` y `B1 = 20` (ya listos) y tenemos estas 5 fórm
 3. **Siguiente paso:** el *Hilo 2* calcula `E1 = 20 + 25 = 45`. La cola `ready` queda vacía.
 4. **Cierre de ciclos:** como `F1` y `G1` siguen con `in_degree == 1`, nunca entraron a `ready`. Al ver que `completed < n`, el hilo principal las evalúa secuencialmente al final y ambas reciben `#CYCLE!`.
 
+![Ordenación Topológica Paralela (Algoritmo de Kahn · 4 Hilos)](images/texcel_kahn_parallel.svg)
+
+*(En el diagrama animado se muestra un DAG de 11 tareas `A..K` ejecutado por 4 hilos en 4 ciclos reales; si abres [texcel_kahn_parallel.svg](images/texcel_kahn_parallel.svg) directamente en el navegador, puedes pausar y recorrer cada ciclo/subpaso con `◀` / `▶` o clic).*
+
 #### 3. Puente hacia el exterior: una hoja por instancia ([`state.h`](../src/texcel/helpers/state.h))
 Un detalle clave de diseño: `SpreadsheetEngine` gestiona **una sola hoja activa en memoria**. El soporte multi-hoja no vive dentro del motor de cálculo, sino en la capa superior ([`TuiState`](../src/texcel/helpers/state.h#L214) y [`TexcelConfig`](../src/texcel/helpers/config.h#L26-L165)), que coordina múltiples archivos `.txl` en `output/sheets/`:
 

@@ -896,6 +896,8 @@ private:
      * @brief Evalúa un conjunto de celdas sucias en paralelo mediante ordenación topológica dinámica (Kahn).
      *
      * Cualquier nodo que no alcance `in_degree == 0` (ciclos `#CYCLE!`) se resuelve al final en el hilo principal.
+     *
+     * @image html texcel_kahn_parallel.svg "Ordenación topológica paralela (Algoritmo de Kahn) en evalDirtyGraphParallel"
      */
     void evalDirtyGraphParallel(const std::vector<SpreadsheetCell*>& targets, bool build_rpn) {
         const size_t n = targets.size();
@@ -1278,6 +1280,8 @@ public:
 
     /**
      * @brief Reconstruye en paralelo el `BaseAVLTree` de `m_cells` y `m_dependents` y evalúa todas las fórmulas activas.
+     *
+     * @image html texcel_kahn_parallel.svg "Ordenación topológica paralela (Algoritmo de Kahn) para evaluación concurrente del DAG"
      */
     StringVec recalculateAll(const std::string& = "") {
         m_dependents.clear();
