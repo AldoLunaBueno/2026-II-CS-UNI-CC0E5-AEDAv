@@ -1,7 +1,7 @@
 /**
  * @file parser.h
  * @ingroup texcel
- * @brief Parser de fórmulas por Precedence Climbing hacia `BinaryTreeNode<AstToken>`.
+ * @brief Parser de fórmulas por Precedence Climbing hacia `BinaryTreeNode<AstToken>` con referencias de rango compactas.
  */
 
 #ifndef __TEXCEL_PARSER_H__
@@ -10,11 +10,12 @@
 #include "types.h"
 #include <cstring>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 /**
  * @class FormulaParser
- * @brief Parser compacto por Precedence Climbing con gestión RAII y árbol binario uniforme de argumentos.
+ * @brief Parser compacto por Precedence Climbing con gestión RAII, catálogo unificado y rangos `O(1)`.
  */
 class FormulaParser {
     struct AstDeleter {
@@ -22,35 +23,10 @@ class FormulaParser {
     };
     using AstPtr = std::unique_ptr<texcel_detail::AstNode, AstDeleter>;
 
-    struct FuncSpec {
-        const char* name;
-        FuncId      id;
-        size_t      min_args;
-        size_t      max_args; // 0 = ilimitado
-        bool        even_args;
-    };
-
-    static inline constexpr FuncSpec FUNCTIONS[] = {
-        {"SUM",      FuncId::Sum,      1, 0, false},
-        {"AVG",      FuncId::Avg,      1, 0, false},
-        {"MIN",      FuncId::Min,      1, 0, false},
-        {"MAX",      FuncId::Max,      1, 0, false},
-        {"CONCAT",   FuncId::Concat,   1, 0, false},
-        {"IF",       FuncId::If,       3, 3, false},
-        {"COUNTIF",  FuncId::CountIf,  2, 2, false},
-        {"COUNTIFS", FuncId::CountIfs, 2, 0, true},
-    };
-
-    static const FuncSpec* findFuncSpec(const std::string& ident) {
-        for (const auto& fn : FUNCTIONS) {
-            if (ident == fn.name) return &fn;
-        }
-        return nullptr;
-    }
-
-    std::string m_src;
-    size_t      m_pos = 0;
+    std::string               m_src;
+    size_t                    m_pos = 0;
     texcel_detail::StringVec* m_refs = nullptr;
+    texcel_detail::RangeVec*  m_ranges = nullptr;
     texcel_detail::StringSet  m_seen_refs;
 
     void addRef(const std::string& cid) {
@@ -58,6 +34,16 @@ class FormulaParser {
         if (!m_seen_refs.contains(cid)) {
             m_seen_refs[cid] = true;
             m_refs->push_back(cid);
+        }
+    }
+
+    void addRangeRef(const CellCoord& a, const CellCoord& b) {
+        if (m_ranges) {
+            texcel_detail::addUniqueRange(*m_ranges, CellRangeRect(a, b));
+        } else if (m_refs) {
+            texcel_detail::forEachCellInRange(a, b, [&](const std::string& cid) {
+                addRef(cid);
+            });
         }
     }
 
@@ -91,13 +77,6 @@ class FormulaParser {
         return texcel_detail::toUpper(m_src.substr(start, m_pos - start));
     }
 
-    void registerRangeRefs(const CellCoord& a, const CellCoord& b) {
-        if (!m_refs) return;
-        texcel_detail::forEachCellInRange(a, b, [&](const std::string& cid) {
-            addRef(cid);
-        });
-    }
-
     bool peekBinaryOp(texcel_detail::OpInfo& out, size_t& op_len) {
         skipSpaces();
         if (m_pos >= m_src.size()) return false;
@@ -113,8 +92,82 @@ class FormulaParser {
     }
 
 public:
-    FormulaParser(const std::string& src, texcel_detail::StringVec* refs = nullptr) : m_src(src), m_refs(refs) {}
-    FormulaParser(const std::string& src, texcel_detail::StringVec& refs) : m_src(src), m_refs(&refs) {}
+    FormulaParser(const std::string& src,
+                  texcel_detail::StringVec* refs = nullptr,
+                  texcel_detail::RangeVec* ranges = nullptr)
+        : m_src(src), m_refs(refs), m_ranges(ranges) {}
+
+    FormulaParser(const std::string& src, texcel_detail::StringVec& refs)
+        : m_src(src), m_refs(&refs), m_ranges(nullptr) {}
+
+    /**
+     * @brief Completa automáticamente paréntesis de cierre faltantes al final de una fórmula (`=SUM(A1:A5` -> `=SUM(A1:A5)`).
+     */
+    static std::string balanceTrailingParens(const std::string& src) {
+        std::string trimmed = texcel_detail::trim(src);
+        if (trimmed.empty() || trimmed[0] == '\'') return src;
+        bool is_formula = (trimmed[0] == '=');
+        if (!is_formula) {
+            size_t eq = trimmed.find('=');
+            if (eq == std::string::npos || !CellCoord::parse(trimmed.substr(0, eq)).valid) return src;
+        }
+        bool in_quotes = false;
+        int depth = 0;
+        for (size_t i = 0; i < src.size(); ++i) {
+            char c = src[i];
+            if (c == '\\' && in_quotes && i + 1 < src.size()) { ++i; continue; }
+            if (c == '"') { in_quotes = !in_quotes; continue; }
+            if (!in_quotes) {
+                if (c == '(') ++depth;
+                else if (c == ')' && depth > 0) --depth;
+            }
+        }
+        if (depth > 0 && !in_quotes) {
+            return src + std::string(static_cast<size_t>(depth), ')');
+        }
+        return src;
+    }
+
+    /**
+     * @brief Detecta la función activa y el índice de argumento (0-based) en la posición `cursor_pos` para *calltips* TUI.
+     */
+    static const TexcelFuncInfo* detectActiveCalltip(std::string_view buf, size_t cursor_pos, size_t& out_arg_idx) {
+        out_arg_idx = 0;
+        size_t lim = std::min(cursor_pos, buf.size());
+        struct CallFrame { std::string fn_name; size_t arg_idx = 0; };
+        std::vector<CallFrame> stack;
+        bool in_quotes = false;
+
+        for (size_t i = 0; i < lim; ++i) {
+            char c = buf[i];
+            if (c == '\\' && in_quotes && i + 1 < lim) { ++i; continue; }
+            if (c == '"') { in_quotes = !in_quotes; continue; }
+            if (in_quotes) continue;
+
+            if (c == '(') {
+                size_t end_id = i;
+                while (end_id > 0 && texcel_detail::isChar<std::isspace>(buf[end_id - 1])) --end_id;
+                size_t start_id = end_id;
+                while (start_id > 0 && isIdentChar(buf[start_id - 1])) --start_id;
+                std::string ident = texcel_detail::toUpper(std::string(buf.substr(start_id, end_id - start_id)));
+                stack.push_back(CallFrame{std::move(ident), 0});
+            } else if (c == ')') {
+                if (!stack.empty()) stack.pop_back();
+            } else if (c == ',' && !stack.empty()) {
+                ++stack.back().arg_idx;
+            }
+        }
+
+        for (auto it = stack.rbegin(); it != stack.rend(); ++it) {
+            if (!it->fn_name.empty()) {
+                if (const TexcelFuncInfo* info = findTexcelFunc(it->fn_name)) {
+                    out_arg_idx = it->arg_idx;
+                    return info;
+                }
+            }
+        }
+        return nullptr;
+    }
 
     texcel_detail::AstNode* parse() {
         skipSpaces();
@@ -128,7 +181,6 @@ public:
     }
 
 private:
-    // Precedence Climbing sobre BINARY_OPS
     AstPtr parseBinary(TX min_prec) {
         AstPtr left = parseUnary();
         while (true) {
@@ -147,7 +199,6 @@ private:
         return left;
     }
 
-    // Unary := ('+' | '-') Unary | Primary
     AstPtr parseUnary() {
         char c = peek();
         if (c == '+') { get(); return parseUnary(); }
@@ -160,9 +211,8 @@ private:
         return parsePrimary();
     }
 
-    // Todas las funciones usan la misma espina binaria: FuncCall(arg0, ArgPair(arg1, ...))
     AstPtr parseFunctionCall(const std::string& ident) {
-        const FuncSpec* spec = findFuncSpec(ident);
+        const TexcelFuncInfo* spec = findTexcelFunc(ident);
         if (!spec) throw std::runtime_error("Función desconocida: " + ident);
 
         std::vector<AstPtr> args;
@@ -202,7 +252,6 @@ private:
         return makeNode(fn_tok, std::move(args[0]), std::move(right_spine));
     }
 
-    // Primary := '(' Binary ')' | '"' String '"' | Number | Func(...) | TRUE | FALSE | CellRef | CellRange
     AstPtr parsePrimary() {
         char c = peek();
         if (c == '(') {
@@ -227,7 +276,7 @@ private:
             AstToken tok;
             tok.kind = AstNodeKind::StringLiteral;
             tok.text = "\"" + str_val + "\"";
-            tok.evaluated = CellEvalValue{true, 0.0, str_val};
+            tok.evaluated = CellEvalValue{true, 0.0, str_val, ""};
             return makeNode(tok);
         }
 
@@ -244,7 +293,7 @@ private:
             AstToken tok;
             tok.kind = AstNodeKind::Number;
             tok.text = formatCellNumber(val);
-            tok.evaluated = CellEvalValue{false, val, ""};
+            tok.evaluated = CellEvalValue{false, val, "", ""};
             return makeNode(tok);
         }
 
@@ -259,19 +308,18 @@ private:
                 AstToken tok;
                 tok.kind = AstNodeKind::StringLiteral;
                 tok.text = "\"" + bval + "\"";
-                tok.evaluated = CellEvalValue{true, 0.0, bval};
+                tok.evaluated = CellEvalValue{true, 0.0, bval, ""};
                 return makeNode(tok);
             }
 
             CellCoord a = CellCoord::parse(ident);
             if (!a.valid) throw std::runtime_error("Celda inválida: " + ident);
 
-            // Rango A1:B2 reconocido en un único punto
             if (peek() == ':') {
                 get();
                 CellCoord b = CellCoord::parse(readIdent());
                 if (!b.valid) throw std::runtime_error("Rango inválido");
-                registerRangeRefs(a, b);
+                addRangeRef(a, b);
                 AstToken tok;
                 tok.kind = AstNodeKind::CellRange;
                 tok.range_a = a;

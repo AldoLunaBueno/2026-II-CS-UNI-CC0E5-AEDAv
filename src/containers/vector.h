@@ -11,8 +11,8 @@
 #include "core/general_iterator.h"
 #include "core/general_node.h"
 #include "core/mixins.h"
-
-using namespace std;
+#include <stdexcept>
+#include <utility>
 
 /**
  * @class VectorForwardIterator
@@ -108,7 +108,7 @@ public:
      * @brief Construye el vector a partir de una lista de pares `(valor, ref)`.
      * @param values Lista inicializadora de pares `(valor, ref)` para cada `Node`.
      */
-    BaseVector(initializer_list<pair<value_type, Ref>> values) {
+    BaseVector(std::initializer_list<std::pair<value_type, Ref>> values) {
         for (const auto &v : values)
             push_back(v.first, v.second);
     }

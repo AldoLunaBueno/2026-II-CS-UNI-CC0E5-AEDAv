@@ -13,7 +13,7 @@ int main() {
     assert(visible_length(fitWidth(colored_txt, 4)) == 4);
     assert(stripAnsi(fitWidth(colored_txt, 4)) == "Hola");
 
-    // 2. alignCell y clipPlain con caracteres UTF-8 multibyte (· = 2 bytes, ↑/↓/│/■ = 3 bytes, 1 columna visual)
+    // 2. alignCell y clipPlain con caracteres UTF-8 multibyte de ancho 1 (·, ■, □, ↑, ↓, ✔)
     std::string dot_cell = alignCell("·", 9, false);
     assert(visible_length(dot_cell) == 9);
     assert(visible_length(alignCell("■", 9, false)) == 9);
@@ -24,7 +24,22 @@ int main() {
     assert(clipPlain(modal_help, 56) == modal_help);
     assert(visible_length(clipPlain("✔ A1 = 8 ➔ 8", 8)) == 8);
 
-    // 3. Normalizacion de rangos
+    // 3. Emojis y caracteres Wide de 2 columnas visuales (📂, 💾, 🗑) + secuencias OSC 52
+    std::string log_emoji = "📂 Cargada hoja: default.txl";
+    assert(Ansi::codepointWidth(0x1F4C2u) == 2); // 📂
+    assert(Ansi::codepointWidth(0x1F4BEu) == 2); // 💾
+    assert(Ansi::codepointWidth(0x1F5D1u) == 2); // 🗑
+    assert(Ansi::codepointWidth(0x2714u) == 1);  // ✔
+    assert(visible_length("📂") == 2);
+    assert(visible_length(fitWidth(log_emoji, 20)) == 20);
+    // Recorte sobre columna impar en medio de un emoji de ancho 2 rellena con espacio sin desbordar
+    assert(visible_length(fitWidth("📂📂", 3)) == 3);
+
+    std::string with_osc = "\033]52;c;SG9sYQ==\aHola";
+    assert(stripAnsi(with_osc) == "Hola");
+    assert(visible_length(with_osc) == 4);
+
+    // 4. Normalización de rangos
     TX cmin, rmin, cmax, rmax;
     normalizeCellRange(4, 5, 1, 2, cmin, rmin, cmax, rmax);
     assert(cmin == 1 && rmin == 2 && cmax == 4 && rmax == 5);

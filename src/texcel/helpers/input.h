@@ -1,7 +1,7 @@
 /**
  * @file input.h
  * @ingroup texcel
- * @brief Despachadores independientes de entrada (teclado, ratón SGR, modal, Point Mode y comandos) sobre `TuiState`.
+ * @brief Despachadores de entrada (teclado con lookahead `poll()`, ratón SGR, HitMap, búsqueda, Undo/Copy y modales).
  */
 
 #ifndef __TEXCEL_HELPERS_INPUT_H__
@@ -13,12 +13,20 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <poll.h>
 #include <sstream>
 #include <string>
 #include <termios.h>
 #include <unistd.h>
 
 namespace texcel_tui {
+
+inline bool readByteWithTimeout(char& out, int timeout_ms) {
+    struct pollfd pfd{STDIN_FILENO, POLLIN, 0};
+    int pr = ::poll(&pfd, 1, timeout_ms);
+    if (pr <= 0 || !(pfd.revents & POLLIN)) return false;
+    return ::read(STDIN_FILENO, &out, 1) == 1;
+}
 
 inline bool handleCommandSubmit(TuiState& st, const std::string& raw_cmd) {
     std::string cmd = texcel_detail::trim(raw_cmd);
@@ -30,10 +38,15 @@ inline bool handleCommandSubmit(TuiState& st, const std::string& raw_cmd) {
     std::string upper = texcel_detail::toUpper(cmd);
     if (upper == "QUIT" || upper == "EXIT" || upper == "Q") return false;
 
+    if (upper == "UNDO") { st.performUndo(); return true; }
+    if (upper == "REDO") { st.performRedo(); return true; }
+    if (upper == "AUTOFIT") { st.autoFitAllColumns(); return true; }
+
     if (upper == "CLEAR") {
-        st.engine.clear();
-        st.maybeAutoSave();
-        st.status_banner = "Hoja de calculo limpiada por completo.";
+        st.recordTransaction("Limpiar hoja", st.cursor, [&]() {
+            st.engine.clear();
+        });
+        st.status_banner = "✔ Hoja limpiada ([Ctrl+Z] para deshacer).";
         return true;
     }
     if (upper == "SAVE") { st.saveSheet(st.config.current_sheet); return true; }
@@ -41,31 +54,36 @@ inline bool handleCommandSubmit(TuiState& st, const std::string& raw_cmd) {
 
     std::string assigned_id;
     bool ok = false;
+    CellCoord before_cur = st.cursor;
     {
         TexcelLoadingSpinner<TuiState> spinner(st, "Evaluando " + st.cursor.toId() + "…");
-        ok = st.engine.executeCommand(cmd, st.cursor.toId(), &assigned_id);
+        st.recordTransaction("Editar celda", before_cur, [&]() {
+            ok = st.engine.executeCommand(cmd, st.cursor.toId(), &assigned_id);
+            CellCoord dest = CellCoord::parse(assigned_id);
+            if (dest.valid) st.cursor = dest;
+        });
     }
-    if (ok) st.maybeAutoSave();
-
     CellCoord dest = CellCoord::parse(assigned_id);
     if (dest.valid) {
         st.cursor = dest;
         st.ensureCursorVisible();
     }
+    const SpreadsheetCell* updated = st.engine.findCell(assigned_id);
+    std::string disp = updated ? updated->displayValue() : "";
     st.status_banner = ok
-        ? ("Actualizada " + assigned_id + " = " + st.engine.getCell(assigned_id).displayValue())
-        : ("Error al evaluar " + assigned_id + ": verifica sintaxis o ciclos.");
+        ? ("✔ " + assigned_id + " = " + disp)
+        : ("⚠ Error en " + assigned_id + " (" + (disp.empty() ? "sintaxis" : disp) + ")");
     return true;
 }
 
 inline bool handleMouseWheel(TuiState& st, TX btn, TX mx, TX my) {
     bool in_inspector = (mx >= st.right_x && mx < st.right_x + st.right_w &&
-                         my >= TuiState::TOP_Y && my < TuiState::TOP_Y + TuiState::TOP_H);
+                         my >= TuiState::TOP_Y && my < TuiState::TOP_Y + st.top_h);
     bool is_horizontal_mod = (btn & (2 | 4 | 8 | 16)) != 0;
     bool forward = (btn & 1) != 0;
     if (in_inspector) {
         constexpr TX AST_V_STEP = 1, AST_H_STEP = 4;
-        bool scroll_h = is_horizontal_mod || (st.ast_graph_h <= TuiState::AST_VIEW_H && st.ast_graph_w > st.astViewWidth());
+        bool scroll_h = is_horizontal_mod || (st.ast_graph_h <= st.ast_view_h && st.ast_graph_w > st.astViewWidth());
         if (scroll_h) st.ast_scroll_x += forward ? AST_H_STEP : -AST_H_STEP;
         else st.ast_scroll_y += forward ? AST_V_STEP : -AST_V_STEP;
         st.clampAstScroll();
@@ -91,7 +109,7 @@ inline void finishMouseDrag(TuiState& st) {
         st.clearSelection();
     } else if (st.drag_win == TuiState::WIN_GRID && st.hasCellSel()) {
         if (st.sel_a != st.sel_b) {
-            st.status_banner = "Rango " + st.selectedRangeStr() + " sombreado ([Ctrl+C], [Y] o Clic Der. para copiar).";
+            st.status_banner = "Rango " + st.selectedRangeStr() + " sombreado ([Ctrl+C] copiar, [Ctrl+V] pegar, [Supr] borrar).";
         } else {
             st.clearSelection();
         }
@@ -114,7 +132,12 @@ inline bool handleMouseDrag(TuiState& st, TX mx, TX my) {
         if (st.console_ref_inserting || st.point_mode) {
             std::string ref = st.selectedRangeStr(true);
             if (st.console_ref_inserting) st.insertOrReplaceRefAtCursor(ref);
-            else st.setInput(st.point_base + ref);
+            else {
+                st.point_anchor = st.sel_a;
+                st.cursor = st.sel_b;
+                st.point_has_range = (st.sel_a != st.sel_b);
+                st.setInput(st.point_base + ref);
+            }
         }
         return true;
     }
@@ -132,21 +155,24 @@ inline bool handleMouseDrag(TuiState& st, TX mx, TX my) {
     return false;
 }
 
-inline bool tryToggleBooleanCell(TuiState& st, TX gc, TX gr, TX rel_x_in_cell) {
-    constexpr TX toggle_col = 1 + (TuiState::CELL_WIDTH / 2); // Glifo centrado ('■' / '□') en alignCell
+inline bool tryToggleBooleanCell(TuiState& st, TX gc, TX gr, TX rel_x_in_cell, TX cell_w) {
+    TX toggle_col = 2 + ((std::max<TX>(3, cell_w) - 3) / 2); // Glifo centrado ('■' / '□') en alignCell
     if (rel_x_in_cell != toggle_col) return false;
-    std::string cid = CellCoord(gc, gr, true).toId();
-    SpreadsheetCell cell = st.engine.getCell(cid);
-    if (cell.is_formula || cell.has_error || !cell.result.is_text) return false;
-    std::string upper_raw = texcel_detail::toUpper(texcel_detail::trim(cell.raw_expression));
-    if (upper_raw != "TRUE" && upper_raw != "FALSE") return false;
+    const SpreadsheetCell* cell = st.engine.findCellAt(gc, gr);
+    if (!cell || cell->is_formula || cell->has_error || !cell->result.is_text) return false;
+    std::string trim_raw = texcel_detail::trim(cell->raw_expression);
+    if (!texcel_detail::equalsIgnoreCase(trim_raw, "TRUE") && !texcel_detail::equalsIgnoreCase(trim_raw, "FALSE")) {
+        return false;
+    }
 
-    std::string next_val = (upper_raw == "TRUE") ? "FALSE" : "TRUE";
+    std::string cid = cell->id;
+    std::string next_val = texcel_detail::equalsIgnoreCase(trim_raw, "TRUE") ? "FALSE" : "TRUE";
     {
         TexcelLoadingSpinner<TuiState> spinner(st, "Propagando cambios…");
-        st.engine.setCell(cid, next_val);
+        st.recordTransaction("Alternar " + cid, st.cursor, [&]() {
+            st.engine.setCell(cid, next_val);
+        });
     }
-    st.maybeAutoSave();
     st.clearSelection();
     st.cursor = {gc, gr, true};
     st.mode = SpreadsheetFocusMode::GridNavigation;
@@ -155,7 +181,9 @@ inline bool tryToggleBooleanCell(TuiState& st, TX gc, TX gr, TX rel_x_in_cell) {
     return true;
 }
 
-inline bool handleGridMouseDown(TuiState& st, TX mx, TX my, TX gc, TX gr, bool is_ctrl_click, bool is_extend_click) {
+inline bool handleGridMouseDown(TuiState& st, TX, TX, TX gc, TX gr, TX rel_x_in_cell, TX cell_w,
+                                bool is_ctrl_click, bool is_extend_click) {
+    st.search.close();
     if (st.mode == SpreadsheetFocusMode::CommandConsole && !st.point_mode &&
         !is_ctrl_click && TuiState::isFormulaBuffer(st.input_buffer)) {
         st.drag_win = TuiState::WIN_GRID;
@@ -168,19 +196,17 @@ inline bool handleGridMouseDown(TuiState& st, TX mx, TX my, TX gc, TX gr, bool i
         return true;
     }
 
-    // Si estaba en Consola editando un valor (no fórmula), confirmarlo en la celda activa antes de cambiar
     if (st.mode == SpreadsheetFocusMode::CommandConsole && !st.point_mode && !st.input_buffer.empty()) {
         handleCommandSubmit(st, st.input_buffer);
     }
 
-    TX rel_x_in_cell = (mx - TuiState::GRID_X0) % (TuiState::CELL_WIDTH + 1);
-    if (!st.point_mode && !is_ctrl_click && !is_extend_click && tryToggleBooleanCell(st, gc, gr, rel_x_in_cell)) {
+    if (!st.point_mode && !is_ctrl_click && !is_extend_click && tryToggleBooleanCell(st, gc, gr, rel_x_in_cell, cell_w)) {
         return true;
     }
 
     st.drag_win = TuiState::WIN_GRID;
     st.mouse_dragging = true;
-    bool on_active_corner = (gc == st.cursor.col && gr == st.cursor.row && rel_x_in_cell == TuiState::CELL_WIDTH);
+    bool on_active_corner = (gc == st.cursor.col && gr == st.cursor.row && rel_x_in_cell == cell_w);
 
     if ((is_ctrl_click || on_active_corner) && !st.point_mode) {
         st.sel_kind = SelectionKind::Fill;
@@ -188,7 +214,7 @@ inline bool handleGridMouseDown(TuiState& st, TX mx, TX my, TX gc, TX gr, bool i
         st.sel_b = {gc, gr, true};
         st.mode = SpreadsheetFocusMode::GridNavigation;
         st.setInput();
-        st.status_banner = "Auto-Fill: arrastra hacia cualquier direccion y suelta para rellenar.";
+        st.status_banner = "Auto-Fill: arrastra hacia cualquier dirección y suelta para rellenar.";
         return true;
     }
 
@@ -204,6 +230,8 @@ inline bool handleGridMouseDown(TuiState& st, TX mx, TX my, TX gc, TX gr, bool i
     }
 
     if (st.point_mode) {
+        st.point_anchor = st.sel_a;
+        st.point_has_range = (st.sel_a != st.sel_b);
         st.setInput(st.point_base + st.selectedRangeStr(true));
     } else {
         st.mode = SpreadsheetFocusMode::GridNavigation;
@@ -239,8 +267,11 @@ inline bool handleModalMouse(TuiState& st, TX btn, TX mx, TX my, bool is_release
     if (btn & 64) {
         bool forward = (btn & 1) != 0;
         if (st.modal_kind == ModalKind::Functions) {
-            st.fx_idx = std::clamp<TX>(st.fx_idx + (forward ? 1 : -1), 0, FUNCTION_CATALOG_SIZE - 1);
-            st.clampFxScroll();
+            auto filtered = st.filteredFunctionIndices();
+            if (!filtered.empty()) {
+                st.fx_idx = std::clamp<TX>(st.fx_idx + (forward ? 1 : -1), 0, static_cast<TX>(filtered.size()) - 1);
+                st.clampFxScroll();
+            }
             return true;
         }
         if (st.modal_kind == ModalKind::Help) {
@@ -269,8 +300,9 @@ inline bool handleModalMouse(TuiState& st, TX btn, TX mx, TX my, bool is_release
         }
         if (st.modal_kind == ModalKind::Functions &&
             my >= mr.y + 3 && my < mr.y + 3 + TuiState::FX_LIST_ROWS) {
+            auto filtered = st.filteredFunctionIndices();
             TX clicked = st.fx_scroll + (my - (mr.y + 3));
-            if (clicked >= 0 && clicked < FUNCTION_CATALOG_SIZE) {
+            if (clicked >= 0 && clicked < static_cast<TX>(filtered.size())) {
                 if (clicked == st.fx_idx) st.insertSelectedFunction();
                 else { st.fx_idx = clicked; st.clampFxScroll(); }
                 return true;
@@ -317,12 +349,16 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
     if (btn & 64) return handleMouseWheel(st, btn, mx, my);
 
     if (is_release && st.isAnyDragging()) {
+        if (st.scroll_drag == ScrollDrag::ColResize) {
+            st.config.saveConfig();
+            st.clampScroll();
+        }
         st.clearScrollDragging();
         if (st.mouse_dragging) finishMouseDrag(st);
         return true;
     }
     if ((btn & 3) == 2 && !is_drag && !is_release) {
-        return st.copySelectionToClipboard("✔ Seleccion copiada al portapapeles (Clic derecho).");
+        return st.copySelectionToClipboard("✔ Selección copiada al portapapeles (Clic derecho).");
     }
     if (is_drag) return handleMouseDrag(st, mx, my);
     if ((btn & 3) != 0 || is_release) return false;
@@ -335,6 +371,14 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
     if (st.isHeaderExitBtnPos(mx, my)) {
         st.should_exit = true;
         return false;
+    }
+    if (st.hits.header_sheet_btn.contains(mx, my)) {
+        st.openModal(ModalKind::Sheets);
+        return true;
+    }
+    if (st.hits.header_auto_btn.contains(mx, my)) {
+        executeSheetsModalItem(st, TuiState::MODAL_AUTOSAVE);
+        return true;
     }
     if (st.isFxButtonPos(mx, my)) {
         st.openModal(ModalKind::Functions);
@@ -370,14 +414,34 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
     }
     st.namebox_editing = false;
 
+    // Redimensionamiento o auto-ajuste (doble clic) sobre divisores de cabecera de columnas
+    TX div_col = -1;
+    if (st.screenToColHeaderDivider(mx, my, div_col)) {
+        auto now = std::chrono::steady_clock::now();
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - st.last_div_click).count();
+        st.last_div_click = now;
+        if (st.last_div_col == div_col && ms > 0 && ms < 400) {
+            st.last_div_col = -1;
+            st.autoFitColumn(div_col);
+        } else {
+            st.last_div_col = div_col;
+            st.scroll_drag = ScrollDrag::ColResize;
+            st.resize_col = div_col;
+            st.resize_start_x = mx;
+            st.resize_start_w = st.colWidth(div_col);
+            st.status_banner = "Arrastra para ajustar columna " + CellCoord::colToLabel(div_col) + " (doble clic auto-ajusta).";
+        }
+        return true;
+    }
+
     if (st.tryStartScrollbarDrag(mx, my)) return true;
 
     bool is_ctrl_click   = (btn & 16) != 0;
     bool is_extend_click = (btn & (4 | 8)) != 0;
 
-    TX gc = 0, gr = 0;
-    if (st.screenToGridCell(mx, my, gc, gr, false)) {
-        return handleGridMouseDown(st, mx, my, gc, gr, is_ctrl_click, is_extend_click);
+    TX gc = 0, gr = 0, rel_x = 1, cw = TuiState::CELL_WIDTH;
+    if (st.screenToGridCell(mx, my, gc, gr, false, &rel_x, &cw)) {
+        return handleGridMouseDown(st, mx, my, gc, gr, rel_x, cw, is_ctrl_click, is_extend_click);
     }
 
     for (TX w = TuiState::WIN_INSPECTOR; w <= TuiState::WIN_ACTIVITY; ++w) {
@@ -399,6 +463,7 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
             st.last_anchor_y = my;
         }
         if (w == TuiState::WIN_CONSOLE && !st.point_mode) {
+            st.search.close();
             st.mode = SpreadsheetFocusMode::CommandConsole;
             if (st.input_buffer.empty()) st.loadActiveCellIntoBuffer();
         }
@@ -408,21 +473,29 @@ inline bool handleSgrMouse(TuiState& st, const std::string& payload, char mc) {
 }
 
 inline void applyBracketedPaste(TuiState& st, const std::string& pasted) {
-    bool has_external_sel = st.hasCellSel() || (st.hasTextSel() && st.text_win != TuiState::WIN_CONSOLE);
-    if (!st.isModalOpen() && (has_external_sel || st.mode != SpreadsheetFocusMode::CommandConsole)) {
-        st.copySelectionToClipboard();
-    } else if (st.mode == SpreadsheetFocusMode::CommandConsole && !st.isModalOpen()) {
+    if (st.isModalOpen()) return;
+    if (st.search.active) {
+        for (char c : pasted) {
+            if (c == '\n' || c == '\r') break;
+            if (texcel_detail::isChar<std::isprint>(c)) st.search.query.push_back(c);
+        }
+        st.refreshSearchMatches(true);
+        return;
+    }
+    if (st.mode == SpreadsheetFocusMode::CommandConsole) {
         for (char c : pasted) {
             if (c == '\n' || c == '\r') break;
             if (texcel_detail::isChar<std::isprint>(c)) st.insertInputChar(c);
         }
+        return;
     }
+    st.pasteExternalTsvAtCursor(pasted);
 }
 
 inline void handleBracketedPaste(TuiState& st) {
     std::string pasted;
     char pch = 0;
-    while (read(STDIN_FILENO, &pch, 1) > 0) {
+    while (readByteWithTimeout(pch, 50)) {
         pasted.push_back(pch);
         if (pasted.size() >= 6 && pasted.ends_with(BRACKETED_PASTE_END)) {
             pasted.resize(pasted.size() - 6);
@@ -430,6 +503,15 @@ inline void handleBracketedPaste(TuiState& st) {
         }
     }
     applyBracketedPaste(st, pasted);
+}
+
+inline void enterEditActiveCell(TuiState& st) {
+    st.exitPointMode();
+    st.search.close();
+    st.mode = SpreadsheetFocusMode::CommandConsole;
+    st.return_to_grid_on_submit = true;
+    st.loadActiveCellIntoBuffer();
+    st.status_banner.clear();
 }
 
 inline void handleGridEscapeKey(TuiState& st, const std::string& csi_params, char csi_final) {
@@ -443,21 +525,96 @@ inline void handleGridEscapeKey(TuiState& st, const std::string& csi_params, cha
     };
 
     bool is_arrow = (csi_final == 'A' || csi_final == 'B' || csi_final == 'C' || csi_final == 'D');
+
+    // Alt + Flecha Izq/Der -> ajustar ancho de columna activa y persistir en .config
+    if (csi_params == "1;3" && (csi_final == 'C' || csi_final == 'D') && !st.point_mode) {
+        st.adjustActiveColWidth(csi_final == 'C' ? 2 : -2);
+        return;
+    }
+
+    // Ctrl + Flechas -> saltar al extremo de datos contiguos estilo Excel
+    if (csi_params == "1;5" && is_arrow) {
+        int dc = (csi_final == 'C') ? 1 : ((csi_final == 'D') ? -1 : 0);
+        int dr = (csi_final == 'B') ? 1 : ((csi_final == 'A') ? -1 : 0);
+        st.jumpDataEdge(dc, dr);
+        if (st.point_mode) { st.point_has_range = false; st.updatePointedCell(); }
+        return;
+    }
+
+    // Shift + Flechas -> selección rectangular (tanto en modo Hoja normal como en Point Mode)
     if (csi_params == "1;2" && is_arrow) {
+        if (st.point_mode) {
+            if (!st.point_has_range) {
+                st.point_anchor = st.cursor;
+                st.point_has_range = true;
+            }
+            stepCell(st.cursor, csi_final);
+            st.sel_kind = SelectionKind::Cells;
+            st.sel_a = st.point_anchor;
+            st.sel_b = st.cursor;
+            st.ensureCursorVisible();
+            st.updatePointedCell();
+            return;
+        }
         if (!st.hasCellSel()) {
             st.sel_a = st.sel_b = st.cursor;
             st.sel_kind = SelectionKind::Cells;
         }
         stepCell(st.sel_b, csi_final);
+        st.ensureCoordVisible(st.sel_b);
         st.status_banner = "Rango " + st.selectedRangeStr() + " sombreado ([Ctrl+C] o [Y] para copiar).";
-    } else if (csi_params.empty() && is_arrow) {
+        return;
+    }
+
+    if (csi_params.empty() && is_arrow) {
         st.clearSelection();
+        st.point_has_range = false;
         if (stepCell(st.cursor, csi_final)) st.resetAstScroll();
-    } else if (csi_params == "3" && csi_final == '~' && !st.point_mode) {
+        st.ensureCursorVisible();
+        if (st.point_mode) st.updatePointedCell();
+        return;
+    }
+
+    // RePág (5~) / AvPág (6~)
+    if ((csi_params == "5" || csi_params == "6") && csi_final == '~') {
+        TX delta = (csi_params == "5") ? -st.visible_rows : st.visible_rows;
+        st.clearSelection();
+        st.cursor.row = std::clamp<TX>(st.cursor.row + delta, 0, CellCoord::MAX_ROWS - 1);
+        st.scroll_row = std::clamp<TX>(st.scroll_row + delta, 0, std::max<TX>(0, CellCoord::MAX_ROWS - st.visible_rows));
+        st.resetAstScroll();
+        st.ensureCursorVisible();
+        if (st.point_mode) { st.point_has_range = false; st.updatePointedCell(); }
+        return;
+    }
+
+    // Home / Ctrl+Home / End
+    if (csi_final == 'H' || ((csi_params == "1" || csi_params == "7") && csi_final == '~')) {
+        st.clearSelection();
+        st.cursor.col = 0;
+        if (csi_params == "1;5") st.cursor.row = 0;
+        st.ensureCursorVisible();
+        if (st.point_mode) { st.point_has_range = false; st.updatePointedCell(); }
+        return;
+    }
+    if (csi_final == 'F' || ((csi_params == "4" || csi_params == "8") && csi_final == '~')) {
+        st.clearSelection();
+        st.cursor.col = std::max<TX>(0, st.engine.maxUsedCol());
+        if (csi_params == "1;5") st.cursor.row = std::max<TX>(0, st.engine.maxUsedRow());
+        st.ensureCursorVisible();
+        if (st.point_mode) { st.point_has_range = false; st.updatePointedCell(); }
+        return;
+    }
+
+    // F2 (12~) -> editar celda activa sin sobrescribirla
+    if (csi_params == "12" && csi_final == '~' && !st.point_mode) {
+        enterEditActiveCell(st);
+        return;
+    }
+
+    // Supr (3~)
+    if (csi_params == "3" && csi_final == '~' && !st.point_mode) {
         st.clearSelectedCells();
     }
-    st.ensureCursorVisible();
-    if (st.point_mode) st.updatePointedCell();
 }
 
 inline void handleConsoleEscapeKey(TuiState& st, const std::string& csi_params, char csi_final) {
@@ -481,21 +638,80 @@ inline void handleConsoleEscapeKey(TuiState& st, const std::string& csi_params, 
     }
 }
 
-inline bool handleEscapeSequence(TuiState& st, termios& raw_term) {
-    char seq[2] = {0, 0};
-    raw_term.c_cc[VMIN] = 0;
-    raw_term.c_cc[VTIME] = 1;
-    tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
-    TX n1 = static_cast<TX>(read(STDIN_FILENO, &seq[0], 1));
-    TX n2 = (n1 > 0) ? static_cast<TX>(read(STDIN_FILENO, &seq[1], 1)) : 0;
-    raw_term.c_cc[VMIN] = 1;
-    raw_term.c_cc[VTIME] = 0;
-    tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
+inline void applyStandaloneEscape(TuiState& st) {
+    if (st.isModalOpen()) {
+        if (st.modal_new_mode) {
+            st.modal_new_mode = false;
+            st.modal_new_name.clear();
+        } else {
+            st.closeModal();
+        }
+        return;
+    }
+    if (st.search.active) {
+        st.search.close();
+        st.status_banner.clear();
+        return;
+    }
+    st.namebox_editing = false;
+    st.namebox_buffer.clear();
+    st.clearSelection();
+    st.mouse_dragging = false;
+    st.clearScrollDragging();
+    enableMouseTracking(st.os);
+    st.exitPointMode(true);
+    st.setInput();
+    st.mode = SpreadsheetFocusMode::GridNavigation;
+    st.status_banner.clear();
+}
 
-    if (seq[0] == '[' && seq[1] == '<') {
+/**
+ * @brief Interpreta secuencias `ESC`/CSI/SS3 y eventos de ratón SGR mediante `poll()`, encolando en `pending_key` cualquier tecla posterior.
+ */
+inline bool handleEscapeSequence(TuiState& st, termios&) {
+    char seq0 = 0;
+    if (!readByteWithTimeout(seq0, 25)) {
+        applyStandaloneEscape(st);
+        return true;
+    }
+
+    // Si el siguiente byte NO inicia CSI ('[') ni SS3 ('O'), entonces fue un Esc genuino seguido rápido de otra tecla:
+    // aplicamos el Esc y encolamos `seq0` para procesarlo intacto en la siguiente iteración del bucle principal.
+    if (seq0 != '[' && seq0 != 'O') {
+        applyStandaloneEscape(st);
+        st.has_pending_key = true;
+        st.pending_key = seq0;
+        return true;
+    }
+
+    if (seq0 == 'O') {
+        char ss3 = 0;
+        if (!readByteWithTimeout(ss3, 25)) {
+            applyStandaloneEscape(st);
+            return true;
+        }
+        if (st.isModalOpen()) return true;
+        if (ss3 == 'P') { st.openModal(ModalKind::Help); return true; } // F1
+        if (ss3 == 'Q' && st.mode == SpreadsheetFocusMode::GridNavigation && !st.point_mode) {
+            enterEditActiveCell(st); // F2
+            return true;
+        }
+        if (st.mode == SpreadsheetFocusMode::GridNavigation) handleGridEscapeKey(st, "", ss3);
+        else handleConsoleEscapeKey(st, "", ss3);
+        return true;
+    }
+
+    // Secuencia CSI: ESC '[' ...
+    char seq1 = 0;
+    if (!readByteWithTimeout(seq1, 25)) {
+        applyStandaloneEscape(st);
+        return true;
+    }
+
+    if (seq1 == '<') {
         std::string payload;
         char mc = 0;
-        while (read(STDIN_FILENO, &mc, 1) > 0) {
+        while (readByteWithTimeout(mc, 25)) {
             if (mc == 'M' || mc == 'm') break;
             payload.push_back(mc);
         }
@@ -503,69 +719,72 @@ inline bool handleEscapeSequence(TuiState& st, termios& raw_term) {
     }
 
     std::string csi_params;
-    char csi_final = seq[1];
-    if (n2 > 0 && seq[0] == '[' && seq[1] >= '0' && seq[1] <= '9') {
-        csi_params.push_back(seq[1]);
+    char csi_final = seq1;
+    if (seq1 < '@' || seq1 > '~') {
+        csi_params.push_back(seq1);
         csi_final = 0;
         char ch = 0;
-        while (read(STDIN_FILENO, &ch, 1) > 0) {
+        while (readByteWithTimeout(ch, 25)) {
             if (ch >= '@' && ch <= '~') { csi_final = ch; break; }
             csi_params.push_back(ch);
         }
     }
 
-    if (seq[0] == '[' && csi_params == "200" && csi_final == '~') {
+    if (csi_params == "200" && csi_final == '~') {
         handleBracketedPaste(st);
         return true;
     }
 
     if (st.isModalOpen()) {
-        if (n1 == 0) {
-            if (st.modal_new_mode) { st.modal_new_mode = false; st.modal_new_name.clear(); }
-            else st.closeModal();
-        } else if (seq[0] == '[') {
-            if (st.modal_kind == ModalKind::Sheets && !st.modal_new_mode) {
-                if (csi_final == 'A' && st.modal_idx > 0) --st.modal_idx;
-                else if (csi_final == 'B' && st.modal_idx < st.modalMaxIdx()) ++st.modal_idx;
-                else if (csi_params == "3" && csi_final == '~') st.deleteSelectedModalSheet();
-            } else if (st.modal_kind == ModalKind::Functions) {
-                if (csi_final == 'A' && st.fx_idx > 0) { --st.fx_idx; st.clampFxScroll(); }
-                else if (csi_final == 'B' && st.fx_idx + 1 < FUNCTION_CATALOG_SIZE) { ++st.fx_idx; st.clampFxScroll(); }
-                else if (csi_final == 'C' || csi_final == 'D') st.openModal(ModalKind::Help);
-            } else if (st.modal_kind == ModalKind::Help) {
-                if (csi_final == 'A') { --st.help_scroll; st.clampHelpScroll(); }
-                else if (csi_final == 'B') { ++st.help_scroll; st.clampHelpScroll(); }
-                else if (csi_final == 'C' || csi_final == 'D') st.openModal(ModalKind::Functions);
-            }
+        if (st.modal_kind == ModalKind::Sheets && !st.modal_new_mode) {
+            if (csi_final == 'A' && st.modal_idx > 0) --st.modal_idx;
+            else if (csi_final == 'B' && st.modal_idx < st.modalMaxIdx()) ++st.modal_idx;
+            else if (csi_params == "3" && csi_final == '~') st.deleteSelectedModalSheet();
+        } else if (st.modal_kind == ModalKind::Functions) {
+            auto filtered = st.filteredFunctionIndices();
+            TX fcnt = static_cast<TX>(filtered.size());
+            if (csi_final == 'A' && st.fx_idx > 0) { --st.fx_idx; st.clampFxScroll(); }
+            else if (csi_final == 'B' && st.fx_idx + 1 < fcnt) { ++st.fx_idx; st.clampFxScroll(); }
+            else if (csi_final == 'C' || csi_final == 'D') st.openModal(ModalKind::Help);
+        } else if (st.modal_kind == ModalKind::Help) {
+            if (csi_final == 'A') { --st.help_scroll; st.clampHelpScroll(); }
+            else if (csi_final == 'B') { ++st.help_scroll; st.clampHelpScroll(); }
+            else if (csi_final == 'C' || csi_final == 'D') st.openModal(ModalKind::Functions);
         }
         return true;
     }
 
-    if (n1 == 0) {
-        st.namebox_editing = false;
-        st.namebox_buffer.clear();
-        st.clearSelection();
-        st.mouse_dragging = false;
-        enableMouseTracking(st.os);
-        st.exitPointMode(true);
-        st.setInput();
-        st.mode = SpreadsheetFocusMode::GridNavigation;
-        st.status_banner.clear();
+    if (st.search.active) {
+        if (csi_final == 'B') st.stepSearchMatch(1);
+        else if (csi_final == 'A') st.stepSearchMatch(-1);
         return true;
     }
 
-    if (seq[0] == '[') {
-        if (st.mode == SpreadsheetFocusMode::GridNavigation) handleGridEscapeKey(st, csi_params, csi_final);
-        else handleConsoleEscapeKey(st, csi_params, csi_final);
-    }
+    if (st.mode == SpreadsheetFocusMode::GridNavigation) handleGridEscapeKey(st, csi_params, csi_final);
+    else handleConsoleEscapeKey(st, csi_params, csi_final);
     return true;
 }
 
 inline void handleModalKey(TuiState& st, char ch) {
     if (st.modal_kind == ModalKind::Functions) {
         if (ch == '\t') { st.openModal(ModalKind::Help); return; }
-        if (ch == '\n' || ch == '\r' || ch == ' ') { st.insertSelectedFunction(); return; }
-        if (texcel_detail::toChar<std::tolower>(ch) == 'q') st.closeModal();
+        if (ch == '\n' || ch == '\r') { st.insertSelectedFunction(); return; }
+        if (ch == 21) { st.modal_filter.clear(); st.fx_idx = 0; st.clampFxScroll(); return; } // Ctrl+U
+        if (ch == 127 || ch == '\b') {
+            if (!st.modal_filter.empty()) {
+                st.modal_filter.pop_back();
+                st.fx_idx = 0;
+                st.clampFxScroll();
+            }
+            return;
+        }
+        if (texcel_detail::isChar<std::isprint>(ch)) {
+            if (st.modal_filter.size() < 20) {
+                st.modal_filter.push_back(ch);
+                st.fx_idx = 0;
+                st.clampFxScroll();
+            }
+        }
         return;
     }
     if (st.modal_kind == ModalKind::Help) {
@@ -578,6 +797,7 @@ inline void handleModalKey(TuiState& st, char ch) {
         if (ch == '\n' || ch == '\r') {
             if (!st.modal_new_name.empty()) {
                 st.engine.clear();
+                st.undo_mgr.clear();
                 st.config.current_sheet = st.modal_new_name;
                 st.saveSheet(st.config.current_sheet);
                 st.refreshSheetList();
@@ -602,6 +822,7 @@ inline void handleModalKey(TuiState& st, char ch) {
 }
 
 inline void handleTabKey(TuiState& st) {
+    if (st.search.active) { st.stepSearchMatch(1); return; }
     if (st.mode == SpreadsheetFocusMode::GridNavigation) {
         st.exitPointMode();
         st.mode = SpreadsheetFocusMode::CommandConsole;
@@ -612,7 +833,9 @@ inline void handleTabKey(TuiState& st) {
     } else {
         if (TuiState::isFormulaBuffer(st.input_buffer) && TuiState::canAcceptPointRef(st.input_buffer)) {
             st.point_mode = true;
+            st.point_has_range = false;
             st.point_target = st.cursor;
+            st.point_anchor = st.cursor;
             if (!st.input_buffer.empty() && st.input_buffer.back() != ' ' &&
                 st.input_buffer.back() != '(' && st.input_buffer.back() != ':') {
                 st.input_buffer.push_back(' ');
@@ -632,12 +855,16 @@ inline void handleTabKey(TuiState& st) {
 
 inline bool handlePointModeKey(TuiState& st, char ch) {
     if (ch == '\n' || ch == '\r') {
+        st.clearSelection();
         st.exitPointMode();
         if (!handleCommandSubmit(st, st.input_buffer)) return false;
         st.setInput();
     } else if (texcel_detail::isBinaryOpChar(ch) ||
                ch == '(' || ch == ')' || ch == ':' || ch == ',') {
-        if (ch == ':' || ch == ')' || ch == ',') st.input_buffer.push_back(ch);
+        st.clearSelection();
+        st.point_has_range = false;
+        if (ch == ':' || ch == ')') st.input_buffer.push_back(ch);
+        else if (ch == ',') st.input_buffer += ", ";
         else { st.input_buffer += " "; st.input_buffer.push_back(ch); st.input_buffer += " "; }
         st.point_base = st.input_buffer;
         if (ch == ')') {
@@ -646,15 +873,38 @@ inline bool handlePointModeKey(TuiState& st, char ch) {
             st.input_cursor = st.input_buffer.size();
         }
     } else if (ch == 127 || ch == '\b') {
+        st.clearSelection();
+        st.point_has_range = false;
         st.input_buffer = st.point_base;
     }
     return true;
 }
 
+inline void handleSearchKey(TuiState& st, char ch) {
+    if (ch == '\n' || ch == '\r') {
+        st.stepSearchMatch(1);
+    } else if (ch == 21) { // Ctrl+U
+        st.search.query.clear();
+        st.refreshSearchMatches(false);
+    } else if (ch == 127 || ch == '\b') {
+        if (!st.search.query.empty()) {
+            st.search.query.pop_back();
+            st.refreshSearchMatches(true);
+        }
+    } else if (texcel_detail::isChar<std::isprint>(ch)) {
+        if (st.search.query.size() < 40) {
+            st.search.query.push_back(ch);
+            st.refreshSearchMatches(true);
+        }
+    }
+}
+
+/**
+ * @brief Despacha teclas en `GridNavigation`: `=` o `Enter` inician edición, `Backspace` borra e imprimibles escriben directo en la celda.
+ */
 inline bool handleGridKey(TuiState& st, char ch) {
     if (st.point_mode) return handlePointModeKey(st, ch);
 
-    std::string cid = st.cursor.toId();
     if (ch == '=') {
         st.mode = SpreadsheetFocusMode::CommandConsole;
         st.return_to_grid_on_submit = true;
@@ -673,7 +923,6 @@ inline bool handleGridKey(TuiState& st, char ch) {
         st.setInput(std::string(1, ch));
         st.status_banner.clear();
     }
-    (void)cid;
     return true;
 }
 
@@ -696,7 +945,7 @@ inline bool handleConsoleKey(TuiState& st, char ch) {
         st.insertInputChar(ch);
         size_t eq = st.input_buffer.find('=');
         if (eq != std::string::npos) {
-            CellCoord target = CellCoord::parse(st.input_buffer.substr(0, eq));
+            CellCoord target = CellCoord::parse(std::string_view(st.input_buffer).substr(0, eq));
             if (target.valid) st.cursor = target;
         }
     }
@@ -719,8 +968,45 @@ inline void handleChordXKey(TuiState& st, char ch) {
         case 'g':
             st.beginNameBoxEdit();
             break;
-        case 'a':
+        case 'b': case '/':
+            st.beginSearchMode();
+            break;
+        case 'a': case '?':
             st.openModal(ModalKind::Help);
+            break;
+        case 'z': case 'u':
+            st.performUndo();
+            break;
+        case 'y': case 'r':
+            st.performRedo();
+            break;
+        case 'c':
+            st.copySelectionToClipboard();
+            break;
+        case 'k':
+            st.copySelectionToClipboard("✂ Selección cortada — navega al destino y pulsa [Ctrl+V].", true);
+            break;
+        case 'v':
+            st.pasteClipboardAtCursor();
+            break;
+        case '=':
+            if (st.hasCellSel()) {
+                TX cmin, rmin, cmax, rmax;
+                normalizeCellRange(st.sel_a.col, st.sel_a.row, st.sel_b.col, st.sel_b.row, cmin, rmin, cmax, rmax);
+                for (TX c = cmin; c <= cmax; ++c) st.autoFitColumn(c, false);
+                st.config.saveConfig();
+                st.recomputeVisibleCols();
+                st.clampScroll();
+                st.status_banner = "✔ Columnas del rango auto-ajustadas.";
+            } else {
+                st.autoFitColumn(st.cursor.col);
+            }
+            break;
+        case '+':
+            st.adjustActiveColWidth(2);
+            break;
+        case '-':
+            st.adjustActiveColWidth(-2);
             break;
         default:
             break;
@@ -745,4 +1031,4 @@ inline void handleNameBoxKey(TuiState& st, char ch) {
 
 } // namespace texcel_tui
 
-#endif // __TEXCEL_HELPERS_TUI_INPUT_H__
+#endif // __TEXCEL_HELPERS_INPUT_H__

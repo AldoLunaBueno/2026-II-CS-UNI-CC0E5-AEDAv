@@ -1,7 +1,7 @@
 /**
  * @file loading_anim.h
  * @ingroup texcel
- * @brief Animación de carga estilo Claude Code en la ventana Fórmula (`TexcelLoadingSpinner`).
+ * @brief Animación de carga sincronizada en la ventana Fórmula (`TexcelLoadingSpinner`).
  */
 
 #ifndef __TEXCEL_HELPERS_LOADING_ANIM_H__
@@ -11,9 +11,11 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdio>
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -23,9 +25,8 @@ namespace texcel_tui {
  * @class TexcelLoadingSpinner
  * @brief Spinner RAII con estrella rotante y efecto *shimmer* RGB dentro de la ventana Fórmula.
  *
- * Espera un breve umbral de gracia (~80 ms) antes de dibujar el primer frame, evitando parpadeos
- * en operaciones instantáneas. Si la operación continúa, anima a ~15 FPS únicamente la fila de
- * estado de la Ventana 3 sin redibujar el resto de la TUI.
+ * Sincroniza todas las escrituras sobre `m_st.os` mediante `m_st.output_mtx` para evitar condiciones
+ * de carrera con el hilo principal o eventos `SIGWINCH`.
  */
 template <typename StateT>
 class TexcelLoadingSpinner {
@@ -35,6 +36,9 @@ class TexcelLoadingSpinner {
     std::string             m_label;
     bool                    m_stop = false;
     bool                    m_drew = false;
+    TX                      m_left_w = 0;
+    TX                      m_status_x = 2;
+    TX                      m_status_y = 22;
     std::thread             m_worker;
 
     static std::string renderShimmerText(const std::string& utf8_text, size_t frame_idx) {
@@ -76,10 +80,7 @@ class TexcelLoadingSpinner {
             if (m_cv.wait_for(lk, 80ms, [&] { return m_stop; })) return;
         }
 
-        const TX x = StateT::LEFT_X + 2;
-        const TX y = StateT::BOT_Y + 5;
         size_t frame = 0;
-
         while (true) {
             std::string label_copy;
             {
@@ -88,8 +89,8 @@ class TexcelLoadingSpinner {
                 label_copy = m_label;
             }
 
-            if (m_st.left_w >= 20) {
-                const size_t inner_w = static_cast<size_t>(m_st.left_w - 4);
+            if (m_left_w >= 20) {
+                const size_t inner_w = static_cast<size_t>(m_left_w - 4);
                 auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - start_tp).count();
 
@@ -106,9 +107,12 @@ class TexcelLoadingSpinner {
                 }
 
                 std::ostringstream oss;
-                gotoxy(oss, x, y);
+                gotoxy(oss, m_status_x, m_status_y);
                 oss << fitWidth(line, inner_w);
-                m_st.os << oss.str() << std::flush;
+                {
+                    std::lock_guard<std::mutex> out_lk(m_st.output_mtx);
+                    m_st.os << oss.str() << std::flush;
+                }
                 m_drew = true;
             }
 
@@ -120,7 +124,10 @@ class TexcelLoadingSpinner {
 
 public:
     TexcelLoadingSpinner(StateT& st, std::string initial_label)
-        : m_st(st), m_label(std::move(initial_label)) {
+        : m_st(st), m_label(std::move(initial_label)),
+          m_left_w(st.left_w),
+          m_status_x(StateT::LEFT_X + 2),
+          m_status_y(st.bot_y + 5) {
         if (!m_st.interactive_alt_screen) return;
         auto start_tp = std::chrono::steady_clock::now();
         m_worker = std::thread([this, start_tp] { runLoop(start_tp); });
@@ -139,11 +146,12 @@ public:
         }
         m_cv.notify_all();
         m_worker.join();
-        if (m_drew && m_st.left_w >= 20) {
-            const size_t inner_w = static_cast<size_t>(m_st.left_w - 4);
+        if (m_drew && m_left_w >= 20) {
+            const size_t inner_w = static_cast<size_t>(m_left_w - 4);
             std::ostringstream oss;
-            gotoxy(oss, StateT::LEFT_X + 2, StateT::BOT_Y + 5);
+            gotoxy(oss, m_status_x, m_status_y);
             oss << fitWidth("", inner_w);
+            std::lock_guard<std::mutex> out_lk(m_st.output_mtx);
             m_st.os << oss.str() << std::flush;
         }
     }

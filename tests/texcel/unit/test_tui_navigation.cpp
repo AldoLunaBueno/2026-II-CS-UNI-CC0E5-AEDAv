@@ -258,6 +258,75 @@ int main() {
     assert(texcel_tui::handleSgrMouse(st2, e1_mid, 'm'));
     assert(clean_e.getCell("E1").is_formula && clean_e.getCell("E1").displayValue() == "TRUE");
 
+    // 13. Undo / Redo transaccional y preservacion de escritura directa con letras ('y', 'p', 'u', '-', '/')
+    for (char ch_lit : {'y', 'p', 'u', '-', '/'}) {
+        st2.mode = SpreadsheetFocusMode::GridNavigation;
+        st2.setInput();
+        st2.cursor = {0, 1, true}; // A2
+        assert(texcel_tui::handleGridKey(st2, ch_lit));
+        assert(st2.mode == SpreadsheetFocusMode::CommandConsole && st2.input_buffer == std::string(1, ch_lit));
+    }
+    st2.mode = SpreadsheetFocusMode::GridNavigation;
+    st2.setInput();
+    st2.cursor = {0, 1, true}; // A2
+    assert(texcel_tui::handleCommandSubmit(st2, "123"));
+    assert(clean_e.getCell("A2").displayValue() == "123");
+    assert(st2.performUndo());
+    assert(clean_e.getCell("A2").displayValue() == "");
+    assert(st2.performRedo());
+    assert(clean_e.getCell("A2").displayValue() == "123");
+
+    // 14. Copy / Paste estructurado con traslacion relativa de formulas + Quick Stats
+    clean_e.setCell("A1", "10");
+    clean_e.setCell("A2", "20");
+    clean_e.setCell("F1", "5");
+    clean_e.setCell("B1", "= A1 + $F$1");
+    st2.clearSelection();
+    st2.cursor = {1, 0, true}; // B1
+    assert(st2.copySelectionToClipboard());
+    st2.cursor = {1, 1, true}; // B2
+    assert(st2.pasteClipboardAtCursor());
+    assert(clean_e.getCell("B2").raw_expression == "= A2 + $F$1");
+    assert(clean_e.getCell("B2").displayValue() == "25");
+    assert(st2.performUndo());
+    assert(clean_e.getCell("B2").displayValue() == "");
+    assert(st2.performRedo());
+    assert(clean_e.getCell("B2").displayValue() == "25");
+
+    st2.sel_kind = texcel_tui::SelectionKind::Cells;
+    st2.sel_a = {0, 0, true}; // A1=10
+    st2.sel_b = {0, 1, true}; // A2=20
+    auto qs = st2.computeSelectionStats();
+    assert(qs.has_cells && qs.num_count == 2 && qs.sum == 30.0 && qs.min_val == 10.0 && qs.max_val == 20.0);
+
+    // 15. Persistencia de anchos de columna por hoja, filtro en modal fx y busqueda rapida
+    st2.config.sheets_dir = "/tmp/texcel_test_cfg_dir";
+    st2.config.current_sheet = "hoja_test";
+    st2.cursor = {2, 0, true}; // Columna C
+    st2.adjustActiveColWidth(6); // 9 -> 15
+    assert(st2.colWidth(2) == 15);
+
+    TexcelConfig reloaded_cfg;
+    reloaded_cfg.sheets_dir = "/tmp/texcel_test_cfg_dir";
+    reloaded_cfg.loadConfig();
+    assert(reloaded_cfg.colWidth("hoja_test", 2) == 15);
+    std::filesystem::remove_all("/tmp/texcel_test_cfg_dir");
+
+    st2.openModal(texcel_tui::ModalKind::Functions);
+    texcel_tui::handleModalKey(st2, 's');
+    texcel_tui::handleModalKey(st2, 'q');
+    auto sq_list = st2.filteredFunctionIndices();
+    assert(sq_list.size() == 1 && std::string(texcel_tui::FUNCTION_CATALOG[sq_list[0]].name) == "SQRT");
+    st2.closeModal();
+
+    clean_e.setCell("D5", "Balbuena");
+    st2.beginSearchMode();
+    texcel_tui::handleSearchKey(st2, 'b');
+    texcel_tui::handleSearchKey(st2, 'a');
+    texcel_tui::handleSearchKey(st2, 'l');
+    assert(st2.search.matches.size() == 1 && st2.cursor.col == 3 && st2.cursor.row == 4);
+    st2.search.close();
+
     std::cout << "[PASS] test_tui_navigation\n";
     return 0;
 }

@@ -17,6 +17,7 @@ Registro histórico de los hitos de optimización del motor de **Texcel**, medid
 | [H3](#h3--búsqueda-directa-en-basehashtable-y-eliminación-de-lookupsformateos-redundantes) | `find_by` / `find` sin `Value{}` | 2026-11-23 | 21.32 | 470.55 | 337.59 | 10.59 | 19.23 | 1055.15 | 221.31 | 10.60 | **2146.34** |
 | 🔴 [H4](#h4--caché-de-ast-compilado-descartado-empíricamente) | Caché AST (descartado: regresión) | 2026-11-23 | 21.32 | 502.92 | 343.78 | 19.33 | 20.33 | 1058.93 | 518.96 | 49.86 | 🔴 **2535.42** |
 | [H5](#h5--recalculateall-de-una-sola-pasada-rpn-directo-toid-en-pila-y-fusión-de-lookups) | 1-pass `recalculateAll`, RPN/`toId` y fusión de lookups | 2026-11-23 | 22.84 | 395.57 | 267.30 | 13.42 | 17.83 | 846.97 | 179.26 | 12.12 | **1755.31** |
+| [H6](#h6--índice-disperso-o1-rangos-compactos-criterios-compilados-y-cortocircuito-en-prepostorder) | Índice `m_grid_index` $O(1)$, `RangeSubVec`, criterios compilados y cortocircuito `IF` | 2026-11-24 | 21.10 | 262.45 | 219.05 | 10.25 | 18.71 | 130.34 | 15.28 | 4.16 | **681.34** |
 
 ---
 
@@ -94,3 +95,22 @@ En otras palabras: **un cambio numérico estaba destruyendo y reconstruyendo tod
 4. En [`src/texcel/types.h`](../src/texcel/types.h), `CellCoord::colToLabel`, `CellCoord::toId` y `formatCellNumber` se reescribieron sobre buffers pequeños en pila (`char buf[...]`) y `std::snprintf`, aprovechando SSO y evitando realocaciones temporales.
 
 **El impacto:** El tiempo bajó en todas las fases de cálculo de ambos escenarios: Simple cayó de **840.07 ms** a **699.14 ms** (`Recalc` **395.57 ms**, `Edit→Fin` **267.30 ms**), Mixta cayó de **1,306.28 ms** a **1,056.18 ms** (`Recalc` **846.97 ms**, `Edit→Fin` **179.26 ms**), y el total global bajó de **2,146.34 ms** a **1,755.31 ms** (**6.26× más rápido** respecto a H0).
+
+### H6 — Índice disperso $O(1)$, rangos compactos, criterios compilados y cortocircuito en `PrePostOrder`
+**El problema:** En `H5` (`1,755.31 ms`), la hoja Mixta todavía concentraba **1,026.23 ms** entre `Recalc` (`846.97 ms`) y `Edit→Fin` (`179.26 ms`), mientras que el arranque sobre hojas reales con rangos amplios (como `calificaciones_aeda.txl` con `$K$1:$ZZ$1`) superaba los `1.5 s`. El perfilado identificó cinco cuellos de botella restantes:
+1. **Lectura de rangos mediante descenso AVL + conversión de IDs**: `forEachArgValue` y `evalCountIf` generaban la cadena `CellCoord(col, row).toId()` para cada celda de cada rango y descendían por el `BaseAVLTree` de `m_cells`/`m_raw_table` bajo `std::lock_guard` en cientos de miles de iteraciones.
+2. **Expansión celda a celda de rangos en `DepGraph`**: cada referencia de rango (`G2:GR2` o `$K$1:$ZZ$1`) suscribía cientos de entradas individuales en `m_dependents` y en `cell.inputs`, inflando la reconstrucción y limpieza del grafo.
+3. **Re-parseo de criterios en `COUNTIF`/`COUNTIFS`**: `matchesCriteria` analizaba el prefijo del criterio (`>=`, `<>`, número o texto) y convertía con `std::stod` en cada celda del rango en vez de hacerlo una sola vez por criterio.
+4. **Evaluación ansiosa de literales y ramas descartadas**: `recalculateAll` resolvía los ~19,300 literales numéricos/booleanos de Mixta mediante `resolveCellValue` + `evaluateRawExpression`, y `IF` evaluaba ambas ramas aunque la condición descartara una de ellas.
+5. **Excepciones C++ para errores de fórmula**: los errores de evaluación (`#DIV/0!`, `#VALUE!`, `#CYCLE!`) se propagaban con `throw EvalError`.
+
+**La solución:** Sin sustituir los contenedores del curso (`BaseHashTable`, `BaseAVLTree`, `BinaryTreeNode`, `LinkedList`, `BaseVector`):
+1. **Índice disperso $O(1)$ sobre `BaseVector` (`m_grid_index`)**: en [`src/texcel/engine.h`](../src/texcel/engine.h), `m_grid_index[row][col]` almacena punteros estables hacia los nodos de `m_cells` (`BaseAVLTree`), junto con el *bounding box* activo (`m_max_used_col`, `m_max_used_row`). `readCellByCoord` consulta cualquier celda en $O(1)$ sin construir `std::string` ni descender el AVL, y `evalCountIf` acota los recorridos al área con datos reales.
+2. **Suscripción compacta de rangos (`CellRangeRect` + `RangeSubVec`)**: en [`src/texcel/types.h`](../src/texcel/types.h) y [`src/texcel/parser.h`](../src/texcel/parser.h), los rangos se registran como rectángulos normalizados `CellRangeRect` en `m_range_subs` (`BaseVector`), eliminando la expansión masiva de celdas vacías en `DepGraph`.
+3. **Compilación previa de criterios (`compileCriterion`)**: `evalCountIf` precompila cada criterio una única vez en `ParsedCriterion` antes del bucle sobre las celdas.
+4. **Dos pasadas en `recalculateAll` y cortocircuito en `Phase::Pre`**: `recalculateAll` indexa y resuelve todos los literales en $O(1)$ con `evaluateLiteralFast` en la primera pasada, y evalúa únicamente las fórmulas en la segunda. En `evaluateAstPostOrder`, `IF` e `IFERROR` marcan `skip_eval` en `Phase::Pre` sobre la rama descartada sin evaluarla.
+5. **Propagación de errores por valor**: `CellEvalValue::err_code` reemplaza el uso de excepciones C++ en la evaluación normal de fórmulas.
+
+**El impacto:** El tiempo total en `make test-perf` bajó de **1,755.31 ms** (`H5`) a **681.34 ms** (**2.58× más rápido** que `H5` y **16.13× más rápido** que `H0`):
+- **Mixta (`20,186` celdas)**: `Recalc` cayó de **846.97 ms** a **130.34 ms** (**6.50×**), `Edit→Fin` cayó de **179.26 ms** a **15.28 ms** (**11.73×**) y `Clear` de **12.12 ms** a **4.16 ms** (subtotal de **1,056.18 ms** a **168.49 ms**).
+- **Simple (`20,000` celdas)**: `Recalc` bajó de **395.57 ms** a **262.45 ms**, `Edit→Fin` de **267.30 ms** a **219.05 ms** y `Clear` de **13.42 ms** a **10.25 ms** (subtotal de **699.14 ms** a **512.85 ms**).

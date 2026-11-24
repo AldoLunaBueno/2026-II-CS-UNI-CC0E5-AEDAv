@@ -17,6 +17,7 @@
 #include <csignal>
 #include <filesystem>
 #include <iostream>
+#include <mutex>
 #include <poll.h>
 #include <termios.h>
 #include <unistd.h>
@@ -41,14 +42,14 @@ public:
 
     void initScreen() {
         m_st.updateLayout();
-        gotoxy_origin(m_st.os, texcel_tui::TuiState::TOTAL_HEIGHT);
+        gotoxy_origin(m_st.os, m_st.total_height);
     }
 
     void renderAll(bool force_clear = false) {
         texcel_tui::renderAll(m_st, force_clear);
     }
 
-    /** @brief Bucle principal interactivo (modo raw `termios`, `SIGWINCH` y ratón SGR). */
+    /** @brief Bucle principal interactivo (modo raw `termios` sin `IEXTEN`, `SIGWINCH`, lookahead `ESC` y ratón SGR). */
     void runInteractive() {
         if (!isatty(STDIN_FILENO)) return;
 
@@ -56,7 +57,7 @@ public:
         tcgetattr(STDIN_FILENO, &orig_term);
         termios raw_term = orig_term;
         raw_term.c_iflag &= static_cast<tcflag_t>(~IXON);
-        raw_term.c_lflag &= static_cast<tcflag_t>(~(ICANON | ECHO | ISIG));
+        raw_term.c_lflag &= static_cast<tcflag_t>(~(ICANON | ECHO | ISIG | IEXTEN));
         raw_term.c_cc[VMIN] = 1;
         raw_term.c_cc[VTIME] = 0;
         tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
@@ -70,18 +71,22 @@ public:
 
         m_st.interactive_alt_screen = true;
         struct TermGuard {
-            std::ostream& os; termios orig; struct sigaction prev_sa; bool& alt_flag;
-            TermGuard(std::ostream& o, termios t, struct sigaction sa_prev, bool& flag)
-                : os(o), orig(t), prev_sa(sa_prev), alt_flag(flag) {
+            std::ostream& os; std::mutex& mtx; termios orig; struct sigaction prev_sa; bool& alt_flag;
+            TermGuard(std::ostream& o, std::mutex& m, termios t, struct sigaction sa_prev, bool& flag)
+                : os(o), mtx(m), orig(t), prev_sa(sa_prev), alt_flag(flag) {
+                std::lock_guard<std::mutex> lk(mtx);
                 texcel_tui::enterInteractiveTerminal(os);
             }
             ~TermGuard() {
                 alt_flag = false;
                 sigaction(SIGWINCH, &prev_sa, nullptr);
-                texcel_tui::exitInteractiveTerminal(os);
+                {
+                    std::lock_guard<std::mutex> lk(mtx);
+                    texcel_tui::exitInteractiveTerminal(os);
+                }
                 tcsetattr(STDIN_FILENO, TCSANOW, &orig);
             }
-        } guard{m_st.os, orig_term, old_sa, m_st.interactive_alt_screen};
+        } guard{m_st.os, m_st.output_mtx, orig_term, old_sa, m_st.interactive_alt_screen};
 
         m_st.config.loadConfig();
         m_st.updateLayout();
@@ -93,26 +98,32 @@ public:
         bool running = true;
         while (running && !m_st.should_exit) {
             char ch = 0;
-            ssize_t nread = read(STDIN_FILENO, &ch, 1);
-            if (nread < 0) {
-                if (errno == EINTR && texcel_sig::resized_flag) {
-                    texcel_sig::resized_flag = 0;
-                    renderAll(true);
+            if (m_st.has_pending_key) {
+                ch = m_st.pending_key;
+                m_st.has_pending_key = false;
+            } else {
+                ssize_t nread = ::read(STDIN_FILENO, &ch, 1);
+                if (nread < 0) {
+                    if (errno == EINTR && texcel_sig::resized_flag) {
+                        texcel_sig::resized_flag = 0;
+                        renderAll(true);
+                    }
+                    if (errno == EINTR) continue;
+                    break;
                 }
-                if (errno == EINTR) continue;
-                break;
+                if (nread == 0) break;
             }
-            if (nread == 0) break;
 
-            if (ch == 3) {
-                if (m_st.hasCellSel() || m_st.hasTextSel()) {
+            if (ch == 4) break; // Ctrl+D: salir limpio
+
+            if (ch == 3) { // Ctrl+C: copiar celda activa o selección en Hoja; salir si está en Consola vacía sin selección
+                if (m_st.hasCellSel() || m_st.hasTextSel() || m_st.mode == SpreadsheetFocusMode::GridNavigation) {
                     m_st.copySelectionToClipboard();
                     renderAll();
                     continue;
                 }
                 break;
             }
-            if (ch == 4) break;
 
             if (ch == 24) { // Ctrl+X: Prefijo de comandos
                 if (!m_st.isModalOpen()) {
@@ -131,14 +142,28 @@ public:
                 renderAll();
                 continue;
             }
-            if (ch == 19) { m_st.saveSheet(m_st.config.current_sheet); m_st.refreshSheetList(); renderAll(); continue; }
+
+            if (ch == 19) { m_st.saveSheet(m_st.config.current_sheet); m_st.refreshSheetList(); renderAll(); continue; } // Ctrl+S
+            if (ch == 26 && !m_st.isModalOpen()) { m_st.performUndo(); renderAll(); continue; } // Ctrl+Z
+            if (ch == 25 && !m_st.isModalOpen()) { m_st.performRedo(); renderAll(); continue; } // Ctrl+Y
+            if (ch == 22 && !m_st.isModalOpen() && !m_st.search.active && m_st.mode == SpreadsheetFocusMode::GridNavigation) {
+                m_st.pasteClipboardAtCursor(); // Ctrl+V
+                renderAll();
+                continue;
+            }
+            if (ch == 2 && !m_st.isModalOpen()) { // Ctrl+B: Búsqueda rápida
+                if (m_st.search.active) m_st.search.close();
+                else m_st.beginSearchMode();
+                renderAll();
+                continue;
+            }
             if (ch == 6) { // Ctrl+F: Catálogo interactivo de funciones (fx)
                 if (m_st.modal_kind == texcel_tui::ModalKind::Functions) m_st.closeModal();
                 else m_st.openModal(texcel_tui::ModalKind::Functions);
                 renderAll();
                 continue;
             }
-            if (ch == 7)  { // Ctrl+G: Ir a celda o rango en el Name Box
+            if (ch == 7) { // Ctrl+G: Ir a celda o rango en el Name Box
                 m_st.closeModal();
                 m_st.beginNameBoxEdit();
                 renderAll();
@@ -152,15 +177,17 @@ public:
             }
             if (ch == Ansi::ESC) {
                 bool need_render = texcel_tui::handleEscapeSequence(m_st, raw_term);
-                // Coalescencia de ráfagas SGR Mouse Drag: drenar eventos ya encolados en stdin antes de renderizar
-                while (m_st.isAnyDragging()) {
+                // Coalescencia de ráfagas SGR Mouse Drag
+                while (m_st.isAnyDragging() && !m_st.has_pending_key) {
                     struct pollfd pfd{STDIN_FILENO, POLLIN, 0};
-                    if (poll(&pfd, 1, 0) <= 0 || !(pfd.revents & POLLIN)) break;
+                    if (::poll(&pfd, 1, 0) <= 0 || !(pfd.revents & POLLIN)) break;
                     char next_ch = 0;
-                    if (read(STDIN_FILENO, &next_ch, 1) <= 0) break;
+                    if (::read(STDIN_FILENO, &next_ch, 1) <= 0) break;
                     if (next_ch == Ansi::ESC) {
                         need_render |= texcel_tui::handleEscapeSequence(m_st, raw_term);
                     } else {
+                        m_st.has_pending_key = true;
+                        m_st.pending_key = next_ch;
                         break;
                     }
                 }
@@ -169,6 +196,7 @@ public:
             }
             if (m_st.isModalOpen())   { texcel_tui::handleModalKey(m_st, ch);   renderAll(); continue; }
             if (m_st.namebox_editing) { texcel_tui::handleNameBoxKey(m_st, ch); renderAll(); continue; }
+            if (m_st.search.active)   { texcel_tui::handleSearchKey(m_st, ch);  renderAll(); continue; }
             if (ch == '\t')           { texcel_tui::handleTabKey(m_st);         renderAll(); continue; }
 
             if (m_st.mode == SpreadsheetFocusMode::GridNavigation) running = texcel_tui::handleGridKey(m_st, ch);
