@@ -1,0 +1,879 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1120 852" width="100%" height="100%"
+     font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <!-- =================================================================== -->
+    <!-- MARCADORES Y ELEMENTOS COMPUESTOS REUTILIZABLES                     -->
+    <!-- =================================================================== -->
+    <marker id="arrow-in" viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.2 L 9 5 L 0 8.8 z" fill="context-stroke" />
+    </marker>
+    <marker id="arrow-head-dark" viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.2 L 9 5 L 0 8.8 z" fill="#546E7A" />
+    </marker>
+    <marker id="arrow-push" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.2 L 9 5 L 0 8.8 z" fill="#EF6C00" />
+    </marker>
+    <marker id="arrow-pop" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.2 L 9 5 L 0 8.8 z" fill="#1565C0" />
+    </marker>
+
+    <!-- Punta de flecha agrupadora en la entrada izquierda de cada nodo -->
+    <polygon id="in-arrow-tip" points="-39,-4.5 -30,0 -39,4.5" fill="#546E7A" />
+    <circle id="root-origin-dot" class="root-dot" cx="-68" cy="0" r="3.5" />
+
+    <!-- Caja base de cada tarea del DAG -->
+    <rect id="dag-node-box" x="-29" y="-20" width="58" height="40" rx="8" />
+
+    <!-- Pastilla del grado de entrada (ubicada en el lado de entrada, sobre la flecha agrupadora) -->
+    <rect id="indeg-pill" x="-15" y="-11" width="30" height="20" rx="10" />
+
+    <!-- Etiqueta superior de hilo ejecutando sobre el nodo -->
+    <rect id="worker-badge" x="-26" y="-38" width="52" height="16" rx="5" />
+
+    <!-- Casilla de la cola ready -->
+    <rect id="q-slot-box" x="-28" y="-22" width="56" height="44" rx="8" />
+    <rect id="q-item-pill" x="-22" y="-16" width="44" height="32" rx="6" />
+
+    <!-- Pastilla de paso en la línea de tiempo (1..11) -->
+    <rect id="step-chip" x="-41" y="-14" width="82" height="28" rx="7" />
+
+    <!-- =================================================================== -->
+    <!-- VARIABLES CSS, POSICIONAMIENTO RELATIVO Y ANIMACIONES               -->
+    <!-- =================================================================== -->
+    <style>
+      :root {
+        --dur: 27.5s;
+        --play-state: running;
+        --anim-delay: 0s;
+
+        /* Paleta base */
+        --bg-canvas:      #FAFAFA;
+        --bg-panel:       #F3F5F7;
+        --border-panel:   #CFD8DC;
+        --ink-primary:    #1A237E;
+        --ink-secondary:  #455A64;
+        --ink-muted:      #78909C;
+
+        /* Estados semánticos del algoritmo de Kahn */
+        --ready-bg: #FFF8E1; --ready-stroke: #F57F17; --ready-glow: #FFD54F; --ready-ink: #E65100;
+        --h1-bg:    #E1F5FE; --h1-stroke:    #0277BD; --h1-glow:    #29B6F6; --h1-ink:    #01579B;
+        --h2-bg:    #F3E5F5; --h2-stroke:    #6A1B9A; --h2-glow:    #AB47BC; --h2-ink:    #4A148C;
+        --done-bg:  #E8F5E9; --done-stroke:  #2E7D32; --done-ink:   #1B5E20;
+
+        /* Coordenadas modulares de grilla del DAG (listas para expandir a más columnas/filas) */
+        --pad-x:          32px;
+        --dag-y:          84px;
+        --col-1:         165px;
+        --col-2:         415px;
+        --col-3:         665px;
+        --col-4:         915px;
+        --row-top:        82px;
+        --row-mid:       160px;
+        --row-bot:       238px;
+
+        /* Paneles medios e inferiores */
+        --mid-y:         394px;
+        --q-panel-x:      32px;
+        --w-panel-x:     556px;
+        --trace-y:       600px;
+        --step-x0:        78px;
+        --step-dx:        90px;
+        --legend-y:      770px;
+      }
+
+      .bg          { fill: var(--bg-canvas); stroke: var(--border-panel); stroke-width: 2; rx: 16; }
+      .panel       { fill: var(--bg-panel);  stroke: var(--border-panel); stroke-width: 1.5; rx: 12; }
+      .sub-box     { fill: #FFFFFF;          stroke: var(--border-panel); stroke-width: 1.4; rx: 8; }
+      .title       { font-size: 21px; font-weight: 700; fill: var(--ink-primary); text-anchor: middle; }
+      .subtitle    { font-size: 13px; fill: var(--ink-secondary); text-anchor: middle; }
+      .panel-title { font-size: 13px; font-weight: 700; fill: var(--ink-primary); }
+      .panel-note  { font-size: 10.8px; fill: var(--ink-secondary); font-style: italic; }
+      .mono        { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+
+      /* Regiones principales */
+      .pos-dag     { transform: translate(var(--pad-x),     var(--dag-y)); }
+      .pos-q-panel { transform: translate(var(--q-panel-x), var(--mid-y)); }
+      .pos-w-panel { transform: translate(var(--w-panel-x), var(--mid-y)); }
+      .pos-trace   { transform: translate(var(--pad-x),     var(--trace-y)); }
+      .pos-legend  { transform: translate(var(--pad-x),     var(--legend-y)); }
+
+      /* Posicionamiento modular de nodos en la grilla del DAG */
+      .pos-node-a  { transform: translate(var(--col-1), var(--row-top)); }
+      .pos-node-b  { transform: translate(var(--col-1), var(--row-bot)); }
+      .pos-node-c  { transform: translate(var(--col-2), var(--row-mid)); }
+      .pos-node-d  { transform: translate(var(--col-3), var(--row-bot)); }
+      .pos-node-e  { transform: translate(var(--col-4), var(--row-bot)); }
+
+      /* Sub-elementos relativos a cada nodo: colector izquierdo (-68.. -31) y badge arriba (-48, -19) */
+      .pos-indeg   { transform: translate(-48px, -19px); }
+
+      .st-1 { transform: translate(calc(var(--step-x0) + 0 * var(--step-dx)), 42px); }
+      .st-2 { transform: translate(calc(var(--step-x0) + 1 * var(--step-dx)), 42px); }
+      .st-3 { transform: translate(calc(var(--step-x0) + 2 * var(--step-dx)), 42px); }
+      .st-4 { transform: translate(calc(var(--step-x0) + 3 * var(--step-dx)), 42px); }
+      .st-5 { transform: translate(calc(var(--step-x0) + 4 * var(--step-dx)), 42px); }
+      .st-6 { transform: translate(calc(var(--step-x0) + 5 * var(--step-dx)), 42px); }
+      .st-7 { transform: translate(calc(var(--step-x0) + 6 * var(--step-dx)), 42px); }
+      .st-8 { transform: translate(calc(var(--step-x0) + 7 * var(--step-dx)), 42px); }
+      .st-9 { transform: translate(calc(var(--step-x0) + 8 * var(--step-dx)), 42px); }
+      .st-10 { transform: translate(calc(var(--step-x0) + 9 * var(--step-dx)), 42px); }
+      .st-11 { transform: translate(calc(var(--step-x0) + 10 * var(--step-dx)), 42px); }
+
+      /* Estilos del DAG */
+      .node-lbl    { font-size: 17px; font-weight: 800; fill: #1E293B; text-anchor: middle; }
+      .indeg-txt   { font-size: 11px; font-weight: 800; fill: #263238; text-anchor: middle; opacity: 0; }
+      .dag-wire    { fill: none; stroke: #78909C; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+      .root-dot    { fill: #FAFAFA; stroke: #78909C; stroke-width: 2; }
+      .join-dot    { fill: #546E7A; }
+      .chk-txt     { font-size: 11px; font-weight: 900; fill: var(--done-ink); text-anchor: middle; opacity: 0; }
+      .tag-h1-bg   { fill: var(--h1-stroke); }
+      .tag-h2-bg   { fill: var(--h2-stroke); }
+      .tag-txt     { font-size: 9.5px; font-weight: 800; fill: #FFFFFF; text-anchor: middle; }
+      .dec-pill    { fill: #FFF3E0; stroke: #EF6C00; stroke-width: 1.5; rx: 6; }
+      .dec-txt     { font-size: 10px; font-weight: 800; fill: #E65100; text-anchor: middle; }
+
+      /* Estilos de la Cola ready */
+      .q-rail      { stroke: #90A4AE; stroke-width: 2; fill: none; }
+      .q-idx       { font-size: 9.5px; fill: var(--ink-muted); text-anchor: middle; }
+      .q-item-bg   { fill: #FFE082; stroke: #F57F17; stroke-width: 1.8; }
+      .q-item-txt  { font-size: 15px; font-weight: 800; fill: #BF360C; text-anchor: middle; }
+      .q-stat-lbl  { font-size: 11px; font-weight: 700; fill: var(--ink-secondary); }
+      .q-stat-val  { font-size: 13px; font-weight: 800; fill: var(--ready-ink); opacity: 0; }
+      .q-flow-txt  { font-size: 10px; font-weight: 800; text-anchor: middle; }
+
+      /* Estilos del Pool de Hilos */
+
+      .w-slot-empty { fill: #FAFAFA; stroke: #CFD8DC; stroke-width: 1.4; stroke-dasharray: 4 3; }
+      .w-item-h1    { fill: var(--h1-bg); stroke: var(--h1-stroke); stroke-width: 1.8; }
+      .w-item-h2    { fill: var(--h2-bg); stroke: var(--h2-stroke); stroke-width: 1.8; }
+      .w-item-done  { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 1.8; }
+      .w-txt-h1     { font-size: 15px; font-weight: 800; fill: var(--h1-ink); text-anchor: middle; }
+      .w-txt-h2     { font-size: 15px; font-weight: 800; fill: var(--h2-ink); text-anchor: middle; }
+      .w-txt-done   { font-size: 15px; font-weight: 800; fill: var(--done-ink); text-anchor: middle; }
+      .anim-h1-slot-busy { opacity: 0; animation: kf-h1-slot-busy var(--dur) infinite; }
+      .anim-h2-slot-busy { opacity: 0; animation: kf-h2-slot-busy var(--dur) infinite; }
+
+      .w-badge-h1  { fill: var(--h1-stroke); rx: 6; }
+      .w-badge-h2  { fill: var(--h2-stroke); rx: 6; }
+      .w-badge-txt { font-size: 11.5px; font-weight: 800; fill: #FFFFFF; text-anchor: middle; }
+      .w-desc      { font-size: 12px; font-weight: 700; fill: #263238; opacity: 0; }
+      .comp-lbl    { font-size: 11px; font-weight: 700; fill: var(--ink-secondary); text-anchor: end; }
+      .comp-val    { font-size: 12.5px; font-weight: 800; fill: var(--done-ink); text-anchor: start; opacity: 0; }
+
+      /* Línea de tiempo y leyendas */
+      .chip-num    { font-size: 10px; font-weight: 800; fill: #37474F; text-anchor: middle; }
+      .chip-sub    { font-size: 9px; fill: var(--ink-muted); text-anchor: middle; }
+      .seq-arrow   { stroke: #CFD8DC; stroke-width: 1.4; }
+      .cap-group   { opacity: 0; }
+      .cap-l1-txt  { font-size: 12.6px; font-weight: 800; fill: var(--ink-primary); text-anchor: middle; }
+      .cap-l2-txt  { font-size: 11.5px; font-weight: 500; fill: #37474F; text-anchor: middle; }
+
+      .leg-title   { font-size: 10.8px; font-weight: 800; }
+      .leg-desc    { font-size: 10px; fill: var(--ink-secondary); }
+      .leg-sep     { stroke: #CFD8DC; stroke-width: 1.2; }
+
+      /* =================================================================== */
+      /* KEYFRAMES DECLARATIVOS SINCRONIZADOS                                */
+      /* =================================================================== */
+      
+      @keyframes kf-node-a { 0%, 8.74% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 9.44%, 17.83% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--ready-glow)); } 18.53%, 26.92% { fill: var(--h1-bg); stroke: var(--h1-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 7px var(--h1-glow)); } 27.62%, 36.01% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 36.71%, 45.10% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 45.80%, 54.20% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 54.90%, 63.29% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 63.99%, 72.38% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 73.08%, 81.47% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 82.17%, 90.56% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 91.26%, 99.2% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } }
+      .anim-node-a { animation: kf-node-a var(--dur) infinite; }
+      @keyframes kf-tag-h1-a { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 1; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-tag-h1-a { animation: kf-tag-h1-a var(--dur) infinite; }
+      @keyframes kf-tag-h2-a { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-tag-h2-a { animation: kf-tag-h2-a var(--dur) infinite; }
+      @keyframes kf-chk-a { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 1; } 36.71%, 45.10% { opacity: 1; } 45.80%, 54.20% { opacity: 1; } 54.90%, 63.29% { opacity: 1; } 63.99%, 72.38% { opacity: 1; } 73.08%, 81.47% { opacity: 1; } 82.17%, 90.56% { opacity: 1; } 91.26%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-chk-a { animation: kf-chk-a var(--dur) infinite; }
+      @keyframes kf-indeg-pill-a { 0%, 8.74% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 9.44%, 17.83% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.2; filter: drop-shadow(0 0 5px var(--ready-glow)); } 18.53%, 26.92% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 27.62%, 36.01% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 36.71%, 45.10% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 45.80%, 54.20% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 54.90%, 63.29% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 63.99%, 72.38% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 73.08%, 81.47% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 82.17%, 90.56% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 91.26%, 99.2% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 99.8%, 100% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } }
+      .anim-indeg-pill-a { animation: kf-indeg-pill-a var(--dur) infinite; }
+      @keyframes kf-indeg-a-0 { 0%, 8.74% { opacity: 1; } 9.44%, 17.83% { opacity: 1; } 18.53%, 26.92% { opacity: 1; } 27.62%, 36.01% { opacity: 1; } 36.71%, 45.10% { opacity: 1; } 45.80%, 54.20% { opacity: 1; } 54.90%, 63.29% { opacity: 1; } 63.99%, 72.38% { opacity: 1; } 73.08%, 81.47% { opacity: 1; } 82.17%, 90.56% { opacity: 1; } 91.26%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 1; } }
+      .anim-indeg-a-0 { animation: kf-indeg-a-0 var(--dur) infinite; }
+      @keyframes kf-node-b { 0%, 8.74% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 9.44%, 17.83% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--ready-glow)); } 18.53%, 26.92% { fill: var(--h2-bg); stroke: var(--h2-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 7px var(--h2-glow)); } 27.62%, 36.01% { fill: var(--h2-bg); stroke: var(--h2-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 7px var(--h2-glow)); } 36.71%, 45.10% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 45.80%, 54.20% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 54.90%, 63.29% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 63.99%, 72.38% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 73.08%, 81.47% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 82.17%, 90.56% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 91.26%, 99.2% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } }
+      .anim-node-b { animation: kf-node-b var(--dur) infinite; }
+      @keyframes kf-tag-h1-b { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-tag-h1-b { animation: kf-tag-h1-b var(--dur) infinite; }
+      @keyframes kf-tag-h2-b { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 1; } 27.62%, 36.01% { opacity: 1; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-tag-h2-b { animation: kf-tag-h2-b var(--dur) infinite; }
+      @keyframes kf-chk-b { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 1; } 45.80%, 54.20% { opacity: 1; } 54.90%, 63.29% { opacity: 1; } 63.99%, 72.38% { opacity: 1; } 73.08%, 81.47% { opacity: 1; } 82.17%, 90.56% { opacity: 1; } 91.26%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-chk-b { animation: kf-chk-b var(--dur) infinite; }
+      @keyframes kf-indeg-pill-b { 0%, 8.74% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 9.44%, 17.83% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.2; filter: drop-shadow(0 0 5px var(--ready-glow)); } 18.53%, 26.92% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 27.62%, 36.01% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 36.71%, 45.10% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 45.80%, 54.20% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 54.90%, 63.29% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 63.99%, 72.38% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 73.08%, 81.47% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 82.17%, 90.56% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 91.26%, 99.2% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 99.8%, 100% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } }
+      .anim-indeg-pill-b { animation: kf-indeg-pill-b var(--dur) infinite; }
+      @keyframes kf-indeg-b-0 { 0%, 8.74% { opacity: 1; } 9.44%, 17.83% { opacity: 1; } 18.53%, 26.92% { opacity: 1; } 27.62%, 36.01% { opacity: 1; } 36.71%, 45.10% { opacity: 1; } 45.80%, 54.20% { opacity: 1; } 54.90%, 63.29% { opacity: 1; } 63.99%, 72.38% { opacity: 1; } 73.08%, 81.47% { opacity: 1; } 82.17%, 90.56% { opacity: 1; } 91.26%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 1; } }
+      .anim-indeg-b-0 { animation: kf-indeg-b-0 var(--dur) infinite; }
+      @keyframes kf-node-c { 0%, 8.74% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 36.71%, 45.10% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--ready-glow)); } 45.80%, 54.20% { fill: var(--h1-bg); stroke: var(--h1-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 7px var(--h1-glow)); } 54.90%, 63.29% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 63.99%, 72.38% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 73.08%, 81.47% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 82.17%, 90.56% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 91.26%, 99.2% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } }
+      .anim-node-c { animation: kf-node-c var(--dur) infinite; }
+      @keyframes kf-tag-h1-c { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 1; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-tag-h1-c { animation: kf-tag-h1-c var(--dur) infinite; }
+      @keyframes kf-tag-h2-c { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-tag-h2-c { animation: kf-tag-h2-c var(--dur) infinite; }
+      @keyframes kf-chk-c { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 1; } 63.99%, 72.38% { opacity: 1; } 73.08%, 81.47% { opacity: 1; } 82.17%, 90.56% { opacity: 1; } 91.26%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-chk-c { animation: kf-chk-c var(--dur) infinite; }
+      @keyframes kf-indeg-pill-c { 0%, 8.74% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 27.62%, 36.01% { fill: #FFF3E0; stroke: #EF6C00; stroke-width: 2.2; filter: drop-shadow(0 0 4px #FFB74D); } 36.71%, 45.10% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.2; filter: drop-shadow(0 0 5px var(--ready-glow)); } 45.80%, 54.20% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 54.90%, 63.29% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 63.99%, 72.38% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 73.08%, 81.47% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 82.17%, 90.56% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 91.26%, 99.2% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } }
+      .anim-indeg-pill-c { animation: kf-indeg-pill-c var(--dur) infinite; }
+      @keyframes kf-indeg-c-0 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 1; } 45.80%, 54.20% { opacity: 1; } 54.90%, 63.29% { opacity: 1; } 63.99%, 72.38% { opacity: 1; } 73.08%, 81.47% { opacity: 1; } 82.17%, 90.56% { opacity: 1; } 91.26%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-indeg-c-0 { animation: kf-indeg-c-0 var(--dur) infinite; }
+      @keyframes kf-indeg-c-1 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 1; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-indeg-c-1 { animation: kf-indeg-c-1 var(--dur) infinite; }
+      @keyframes kf-indeg-c-2 { 0%, 8.74% { opacity: 1; } 9.44%, 17.83% { opacity: 1; } 18.53%, 26.92% { opacity: 1; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 1; } }
+      .anim-indeg-c-2 { animation: kf-indeg-c-2 var(--dur) infinite; }
+      @keyframes kf-node-d { 0%, 8.74% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 54.90%, 63.29% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--ready-glow)); } 63.99%, 72.38% { fill: var(--h2-bg); stroke: var(--h2-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 7px var(--h2-glow)); } 73.08%, 81.47% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 82.17%, 90.56% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 91.26%, 99.2% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } }
+      .anim-node-d { animation: kf-node-d var(--dur) infinite; }
+      @keyframes kf-tag-h1-d { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-tag-h1-d { animation: kf-tag-h1-d var(--dur) infinite; }
+      @keyframes kf-tag-h2-d { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 1; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-tag-h2-d { animation: kf-tag-h2-d var(--dur) infinite; }
+      @keyframes kf-chk-d { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 1; } 82.17%, 90.56% { opacity: 1; } 91.26%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-chk-d { animation: kf-chk-d var(--dur) infinite; }
+      @keyframes kf-indeg-pill-d { 0%, 8.74% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 36.71%, 45.10% { fill: #FFF3E0; stroke: #EF6C00; stroke-width: 2.2; filter: drop-shadow(0 0 4px #FFB74D); } 45.80%, 54.20% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 54.90%, 63.29% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.2; filter: drop-shadow(0 0 5px var(--ready-glow)); } 63.99%, 72.38% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 73.08%, 81.47% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 82.17%, 90.56% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 91.26%, 99.2% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } }
+      .anim-indeg-pill-d { animation: kf-indeg-pill-d var(--dur) infinite; }
+      @keyframes kf-indeg-d-0 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 1; } 63.99%, 72.38% { opacity: 1; } 73.08%, 81.47% { opacity: 1; } 82.17%, 90.56% { opacity: 1; } 91.26%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-indeg-d-0 { animation: kf-indeg-d-0 var(--dur) infinite; }
+      @keyframes kf-indeg-d-1 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 1; } 45.80%, 54.20% { opacity: 1; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-indeg-d-1 { animation: kf-indeg-d-1 var(--dur) infinite; }
+      @keyframes kf-indeg-d-2 { 0%, 8.74% { opacity: 1; } 9.44%, 17.83% { opacity: 1; } 18.53%, 26.92% { opacity: 1; } 27.62%, 36.01% { opacity: 1; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 1; } }
+      .anim-indeg-d-2 { animation: kf-indeg-d-2 var(--dur) infinite; }
+      @keyframes kf-node-e { 0%, 8.74% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 54.90%, 63.29% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 63.99%, 72.38% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } 73.08%, 81.47% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--ready-glow)); } 82.17%, 90.56% { fill: var(--h1-bg); stroke: var(--h1-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 7px var(--h1-glow)); } 91.26%, 99.2% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.5; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 2.2; filter: none; } }
+      .anim-node-e { animation: kf-node-e var(--dur) infinite; }
+      @keyframes kf-tag-h1-e { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 1; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-tag-h1-e { animation: kf-tag-h1-e var(--dur) infinite; }
+      @keyframes kf-tag-h2-e { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-tag-h2-e { animation: kf-tag-h2-e var(--dur) infinite; }
+      @keyframes kf-chk-e { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-chk-e { animation: kf-chk-e var(--dur) infinite; }
+      @keyframes kf-indeg-pill-e { 0%, 8.74% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 54.90%, 63.29% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 63.99%, 72.38% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } 73.08%, 81.47% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.2; filter: drop-shadow(0 0 5px var(--ready-glow)); } 82.17%, 90.56% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 91.26%, 99.2% { fill: #E8F5E9; stroke: #43A047; stroke-width: 1.5; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #90A4AE; stroke-width: 1.5; filter: none; } }
+      .anim-indeg-pill-e { animation: kf-indeg-pill-e var(--dur) infinite; }
+      @keyframes kf-indeg-e-0 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 1; } 82.17%, 90.56% { opacity: 1; } 91.26%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-indeg-e-0 { animation: kf-indeg-e-0 var(--dur) infinite; }
+      @keyframes kf-indeg-e-1 { 0%, 8.74% { opacity: 1; } 9.44%, 17.83% { opacity: 1; } 18.53%, 26.92% { opacity: 1; } 27.62%, 36.01% { opacity: 1; } 36.71%, 45.10% { opacity: 1; } 45.80%, 54.20% { opacity: 1; } 54.90%, 63.29% { opacity: 1; } 63.99%, 72.38% { opacity: 1; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 1; } }
+      .anim-indeg-e-1 { animation: kf-indeg-e-1 var(--dur) infinite; }
+      @keyframes kf-edge-ac { 0%, 8.74% { stroke: #78909C; stroke-width: 2.3; filter: none; } 9.44%, 17.83% { stroke: #78909C; stroke-width: 2.3; filter: none; } 18.53%, 26.92% { stroke: #78909C; stroke-width: 2.3; filter: none; } 27.62%, 36.01% { stroke: #EF6C00; stroke-width: 3.6; filter: drop-shadow(0 0 5px #FFB74D); } 36.71%, 45.10% { stroke: #43A047; stroke-width: 2.6; filter: none; } 45.80%, 54.20% { stroke: #43A047; stroke-width: 2.6; filter: none; } 54.90%, 63.29% { stroke: #43A047; stroke-width: 2.6; filter: none; } 63.99%, 72.38% { stroke: #43A047; stroke-width: 2.6; filter: none; } 73.08%, 81.47% { stroke: #43A047; stroke-width: 2.6; filter: none; } 82.17%, 90.56% { stroke: #43A047; stroke-width: 2.6; filter: none; } 91.26%, 99.2% { stroke: #43A047; stroke-width: 2.6; filter: none; } 99.8%, 100% { stroke: #78909C; stroke-width: 2.3; filter: none; } }
+      .anim-edge-ac { animation: kf-edge-ac var(--dur) infinite; }
+      @keyframes kf-edge-bc { 0%, 8.74% { stroke: #78909C; stroke-width: 2.3; filter: none; } 9.44%, 17.83% { stroke: #78909C; stroke-width: 2.3; filter: none; } 18.53%, 26.92% { stroke: #78909C; stroke-width: 2.3; filter: none; } 27.62%, 36.01% { stroke: #78909C; stroke-width: 2.3; filter: none; } 36.71%, 45.10% { stroke: #EF6C00; stroke-width: 3.6; filter: drop-shadow(0 0 5px #FFB74D); } 45.80%, 54.20% { stroke: #43A047; stroke-width: 2.6; filter: none; } 54.90%, 63.29% { stroke: #43A047; stroke-width: 2.6; filter: none; } 63.99%, 72.38% { stroke: #43A047; stroke-width: 2.6; filter: none; } 73.08%, 81.47% { stroke: #43A047; stroke-width: 2.6; filter: none; } 82.17%, 90.56% { stroke: #43A047; stroke-width: 2.6; filter: none; } 91.26%, 99.2% { stroke: #43A047; stroke-width: 2.6; filter: none; } 99.8%, 100% { stroke: #78909C; stroke-width: 2.3; filter: none; } }
+      .anim-edge-bc { animation: kf-edge-bc var(--dur) infinite; }
+      @keyframes kf-edge-bd { 0%, 8.74% { stroke: #78909C; stroke-width: 2.3; filter: none; } 9.44%, 17.83% { stroke: #78909C; stroke-width: 2.3; filter: none; } 18.53%, 26.92% { stroke: #78909C; stroke-width: 2.3; filter: none; } 27.62%, 36.01% { stroke: #78909C; stroke-width: 2.3; filter: none; } 36.71%, 45.10% { stroke: #EF6C00; stroke-width: 3.6; filter: drop-shadow(0 0 5px #FFB74D); } 45.80%, 54.20% { stroke: #43A047; stroke-width: 2.6; filter: none; } 54.90%, 63.29% { stroke: #43A047; stroke-width: 2.6; filter: none; } 63.99%, 72.38% { stroke: #43A047; stroke-width: 2.6; filter: none; } 73.08%, 81.47% { stroke: #43A047; stroke-width: 2.6; filter: none; } 82.17%, 90.56% { stroke: #43A047; stroke-width: 2.6; filter: none; } 91.26%, 99.2% { stroke: #43A047; stroke-width: 2.6; filter: none; } 99.8%, 100% { stroke: #78909C; stroke-width: 2.3; filter: none; } }
+      .anim-edge-bd { animation: kf-edge-bd var(--dur) infinite; }
+      @keyframes kf-edge-cd { 0%, 8.74% { stroke: #78909C; stroke-width: 2.3; filter: none; } 9.44%, 17.83% { stroke: #78909C; stroke-width: 2.3; filter: none; } 18.53%, 26.92% { stroke: #78909C; stroke-width: 2.3; filter: none; } 27.62%, 36.01% { stroke: #78909C; stroke-width: 2.3; filter: none; } 36.71%, 45.10% { stroke: #78909C; stroke-width: 2.3; filter: none; } 45.80%, 54.20% { stroke: #78909C; stroke-width: 2.3; filter: none; } 54.90%, 63.29% { stroke: #EF6C00; stroke-width: 3.6; filter: drop-shadow(0 0 5px #FFB74D); } 63.99%, 72.38% { stroke: #43A047; stroke-width: 2.6; filter: none; } 73.08%, 81.47% { stroke: #43A047; stroke-width: 2.6; filter: none; } 82.17%, 90.56% { stroke: #43A047; stroke-width: 2.6; filter: none; } 91.26%, 99.2% { stroke: #43A047; stroke-width: 2.6; filter: none; } 99.8%, 100% { stroke: #78909C; stroke-width: 2.3; filter: none; } }
+      .anim-edge-cd { animation: kf-edge-cd var(--dur) infinite; }
+      @keyframes kf-edge-de { 0%, 8.74% { stroke: #78909C; stroke-width: 2.3; filter: none; } 9.44%, 17.83% { stroke: #78909C; stroke-width: 2.3; filter: none; } 18.53%, 26.92% { stroke: #78909C; stroke-width: 2.3; filter: none; } 27.62%, 36.01% { stroke: #78909C; stroke-width: 2.3; filter: none; } 36.71%, 45.10% { stroke: #78909C; stroke-width: 2.3; filter: none; } 45.80%, 54.20% { stroke: #78909C; stroke-width: 2.3; filter: none; } 54.90%, 63.29% { stroke: #78909C; stroke-width: 2.3; filter: none; } 63.99%, 72.38% { stroke: #78909C; stroke-width: 2.3; filter: none; } 73.08%, 81.47% { stroke: #EF6C00; stroke-width: 3.6; filter: drop-shadow(0 0 5px #FFB74D); } 82.17%, 90.56% { stroke: #43A047; stroke-width: 2.6; filter: none; } 91.26%, 99.2% { stroke: #43A047; stroke-width: 2.6; filter: none; } 99.8%, 100% { stroke: #78909C; stroke-width: 2.3; filter: none; } }
+      .anim-edge-de { animation: kf-edge-de var(--dur) infinite; }
+      @keyframes kf-edge-in-a { 0%, 8.74% { stroke: #78909C; stroke-width: 2.3; filter: none; } 9.44%, 17.83% { stroke: #EF6C00; stroke-width: 3.6; filter: drop-shadow(0 0 5px #FFB74D); } 18.53%, 26.92% { stroke: #78909C; stroke-width: 2.3; filter: none; } 27.62%, 36.01% { stroke: #43A047; stroke-width: 2.6; filter: none; } 36.71%, 45.10% { stroke: #43A047; stroke-width: 2.6; filter: none; } 45.80%, 54.20% { stroke: #43A047; stroke-width: 2.6; filter: none; } 54.90%, 63.29% { stroke: #43A047; stroke-width: 2.6; filter: none; } 63.99%, 72.38% { stroke: #43A047; stroke-width: 2.6; filter: none; } 73.08%, 81.47% { stroke: #43A047; stroke-width: 2.6; filter: none; } 82.17%, 90.56% { stroke: #43A047; stroke-width: 2.6; filter: none; } 91.26%, 99.2% { stroke: #43A047; stroke-width: 2.6; filter: none; } 99.8%, 100% { stroke: #78909C; stroke-width: 2.3; filter: none; } }
+      .anim-edge-in-a { animation: kf-edge-in-a var(--dur) infinite; }
+      @keyframes kf-edge-in-b { 0%, 8.74% { stroke: #78909C; stroke-width: 2.3; filter: none; } 9.44%, 17.83% { stroke: #EF6C00; stroke-width: 3.6; filter: drop-shadow(0 0 5px #FFB74D); } 18.53%, 26.92% { stroke: #78909C; stroke-width: 2.3; filter: none; } 27.62%, 36.01% { stroke: #78909C; stroke-width: 2.3; filter: none; } 36.71%, 45.10% { stroke: #43A047; stroke-width: 2.6; filter: none; } 45.80%, 54.20% { stroke: #43A047; stroke-width: 2.6; filter: none; } 54.90%, 63.29% { stroke: #43A047; stroke-width: 2.6; filter: none; } 63.99%, 72.38% { stroke: #43A047; stroke-width: 2.6; filter: none; } 73.08%, 81.47% { stroke: #43A047; stroke-width: 2.6; filter: none; } 82.17%, 90.56% { stroke: #43A047; stroke-width: 2.6; filter: none; } 91.26%, 99.2% { stroke: #43A047; stroke-width: 2.6; filter: none; } 99.8%, 100% { stroke: #78909C; stroke-width: 2.3; filter: none; } }
+      .anim-edge-in-b { animation: kf-edge-in-b var(--dur) infinite; }
+      @keyframes kf-edge-in-c { 0%, 8.74% { stroke: #78909C; stroke-width: 2.3; filter: none; } 9.44%, 17.83% { stroke: #78909C; stroke-width: 2.3; filter: none; } 18.53%, 26.92% { stroke: #78909C; stroke-width: 2.3; filter: none; } 27.62%, 36.01% { stroke: #78909C; stroke-width: 2.3; filter: none; } 36.71%, 45.10% { stroke: #EF6C00; stroke-width: 3.6; filter: drop-shadow(0 0 5px #FFB74D); } 45.80%, 54.20% { stroke: #78909C; stroke-width: 2.3; filter: none; } 54.90%, 63.29% { stroke: #43A047; stroke-width: 2.6; filter: none; } 63.99%, 72.38% { stroke: #43A047; stroke-width: 2.6; filter: none; } 73.08%, 81.47% { stroke: #43A047; stroke-width: 2.6; filter: none; } 82.17%, 90.56% { stroke: #43A047; stroke-width: 2.6; filter: none; } 91.26%, 99.2% { stroke: #43A047; stroke-width: 2.6; filter: none; } 99.8%, 100% { stroke: #78909C; stroke-width: 2.3; filter: none; } }
+      .anim-edge-in-c { animation: kf-edge-in-c var(--dur) infinite; }
+      @keyframes kf-edge-in-d { 0%, 8.74% { stroke: #78909C; stroke-width: 2.3; filter: none; } 9.44%, 17.83% { stroke: #78909C; stroke-width: 2.3; filter: none; } 18.53%, 26.92% { stroke: #78909C; stroke-width: 2.3; filter: none; } 27.62%, 36.01% { stroke: #78909C; stroke-width: 2.3; filter: none; } 36.71%, 45.10% { stroke: #78909C; stroke-width: 2.3; filter: none; } 45.80%, 54.20% { stroke: #78909C; stroke-width: 2.3; filter: none; } 54.90%, 63.29% { stroke: #EF6C00; stroke-width: 3.6; filter: drop-shadow(0 0 5px #FFB74D); } 63.99%, 72.38% { stroke: #78909C; stroke-width: 2.3; filter: none; } 73.08%, 81.47% { stroke: #43A047; stroke-width: 2.6; filter: none; } 82.17%, 90.56% { stroke: #43A047; stroke-width: 2.6; filter: none; } 91.26%, 99.2% { stroke: #43A047; stroke-width: 2.6; filter: none; } 99.8%, 100% { stroke: #78909C; stroke-width: 2.3; filter: none; } }
+      .anim-edge-in-d { animation: kf-edge-in-d var(--dur) infinite; }
+      @keyframes kf-edge-in-e { 0%, 8.74% { stroke: #78909C; stroke-width: 2.3; filter: none; } 9.44%, 17.83% { stroke: #78909C; stroke-width: 2.3; filter: none; } 18.53%, 26.92% { stroke: #78909C; stroke-width: 2.3; filter: none; } 27.62%, 36.01% { stroke: #78909C; stroke-width: 2.3; filter: none; } 36.71%, 45.10% { stroke: #78909C; stroke-width: 2.3; filter: none; } 45.80%, 54.20% { stroke: #78909C; stroke-width: 2.3; filter: none; } 54.90%, 63.29% { stroke: #78909C; stroke-width: 2.3; filter: none; } 63.99%, 72.38% { stroke: #78909C; stroke-width: 2.3; filter: none; } 73.08%, 81.47% { stroke: #EF6C00; stroke-width: 3.6; filter: drop-shadow(0 0 5px #FFB74D); } 82.17%, 90.56% { stroke: #78909C; stroke-width: 2.3; filter: none; } 91.26%, 99.2% { stroke: #43A047; stroke-width: 2.6; filter: none; } 99.8%, 100% { stroke: #78909C; stroke-width: 2.3; filter: none; } }
+      .anim-edge-in-e { animation: kf-edge-in-e var(--dur) infinite; }
+      @keyframes kf-dec-ac { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 1; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-dec-ac { animation: kf-dec-ac var(--dur) infinite; }
+      @keyframes kf-dec-b { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 1; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-dec-b { animation: kf-dec-b var(--dur) infinite; }
+      @keyframes kf-dec-cd { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 1; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-dec-cd { animation: kf-dec-cd var(--dur) infinite; }
+      @keyframes kf-dec-de { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 1; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-dec-de { animation: kf-dec-de var(--dur) infinite; }
+      @keyframes kf-q-slot0 { 0%, 8.74% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 9.44%, 17.83% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.4; filter: drop-shadow(0 0 5px var(--ready-glow)); } 18.53%, 26.92% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 36.71%, 45.10% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.4; filter: drop-shadow(0 0 5px var(--ready-glow)); } 45.80%, 54.20% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 54.90%, 63.29% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.4; filter: drop-shadow(0 0 5px var(--ready-glow)); } 63.99%, 72.38% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 73.08%, 81.47% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.4; filter: drop-shadow(0 0 5px var(--ready-glow)); } 82.17%, 90.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 91.26%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } }
+      .anim-q-slot0 { animation: kf-q-slot0 var(--dur) infinite; }
+      @keyframes kf-q-slot1 { 0%, 8.74% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 9.44%, 17.83% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.4; filter: drop-shadow(0 0 5px var(--ready-glow)); } 18.53%, 26.92% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 54.90%, 63.29% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 63.99%, 72.38% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 73.08%, 81.47% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 82.17%, 90.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 91.26%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; stroke-dasharray: 4 3; filter: none; } }
+      .anim-q-slot1 { animation: kf-q-slot1 var(--dur) infinite; }
+      @keyframes kf-q0-A { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 1; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-q0-A { animation: kf-q0-A var(--dur) infinite; }
+      @keyframes kf-q0-C { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 1; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-q0-C { animation: kf-q0-C var(--dur) infinite; }
+      @keyframes kf-q0-D { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 1; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-q0-D { animation: kf-q0-D var(--dur) infinite; }
+      @keyframes kf-q0-E { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 1; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-q0-E { animation: kf-q0-E var(--dur) infinite; }
+      @keyframes kf-q1-B { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 1; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-q1-B { animation: kf-q1-B var(--dur) infinite; }
+      @keyframes kf-qsize-0 { 0%, 8.74% { opacity: 1; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 1; } 27.62%, 36.01% { opacity: 1; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 1; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 1; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 1; } 91.26%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 1; } }
+      .anim-qsize-0 { animation: kf-qsize-0 var(--dur) infinite; }
+      @keyframes kf-qsize-1 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 1; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 1; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 1; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-qsize-1 { animation: kf-qsize-1 var(--dur) infinite; }
+      @keyframes kf-qsize-2 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 1; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-qsize-2 { animation: kf-qsize-2 var(--dur) infinite; }
+      @keyframes kf-q-push { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 1; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 1; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 1; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 1; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-q-push { animation: kf-q-push var(--dur) infinite; }
+      @keyframes kf-q-pop { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 1; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 1; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 1; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 1; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-q-pop { animation: kf-q-pop var(--dur) infinite; }
+      @keyframes kf-card-h1 { 0%, 8.74% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 18.53%, 26.92% { fill: var(--h1-bg); stroke: var(--h1-stroke); stroke-width: 2.4; filter: drop-shadow(0 0 5px var(--h1-glow)); } 27.62%, 36.01% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 45.80%, 54.20% { fill: var(--h1-bg); stroke: var(--h1-stroke); stroke-width: 2.4; filter: drop-shadow(0 0 5px var(--h1-glow)); } 54.90%, 63.29% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 63.99%, 72.38% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 73.08%, 81.47% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 82.17%, 90.56% { fill: var(--h1-bg); stroke: var(--h1-stroke); stroke-width: 2.4; filter: drop-shadow(0 0 5px var(--h1-glow)); } 91.26%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } }
+      .anim-card-h1 { animation: kf-card-h1 var(--dur) infinite; }
+      @keyframes kf-card-h2 { 0%, 8.74% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 18.53%, 26.92% { fill: var(--h2-bg); stroke: var(--h2-stroke); stroke-width: 2.4; filter: drop-shadow(0 0 5px var(--h2-glow)); } 27.62%, 36.01% { fill: var(--h2-bg); stroke: var(--h2-stroke); stroke-width: 2.4; filter: drop-shadow(0 0 5px var(--h2-glow)); } 36.71%, 45.10% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 54.90%, 63.29% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 63.99%, 72.38% { fill: var(--h2-bg); stroke: var(--h2-stroke); stroke-width: 2.4; filter: drop-shadow(0 0 5px var(--h2-glow)); } 73.08%, 81.47% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 82.17%, 90.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 91.26%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.5; filter: none; } }
+      .anim-card-h2 { animation: kf-card-h2 var(--dur) infinite; }
+      @keyframes kf-step-only-1 { 0%, 8.74% { opacity: 1; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 1; } }
+      .anim-step-only-1 { animation: kf-step-only-1 var(--dur) infinite; }
+      @keyframes kf-step-only-2 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 1; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-2 { animation: kf-step-only-2 var(--dur) infinite; }
+      @keyframes kf-step-only-3 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 1; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-3 { animation: kf-step-only-3 var(--dur) infinite; }
+      @keyframes kf-step-only-4 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 1; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-4 { animation: kf-step-only-4 var(--dur) infinite; }
+      @keyframes kf-step-only-5 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 1; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-5 { animation: kf-step-only-5 var(--dur) infinite; }
+      @keyframes kf-step-only-6 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 1; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-6 { animation: kf-step-only-6 var(--dur) infinite; }
+      @keyframes kf-step-only-7 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 1; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-7 { animation: kf-step-only-7 var(--dur) infinite; }
+      @keyframes kf-step-only-8 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 1; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-8 { animation: kf-step-only-8 var(--dur) infinite; }
+      @keyframes kf-step-only-9 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 1; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-9 { animation: kf-step-only-9 var(--dur) infinite; }
+      @keyframes kf-step-only-10 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 1; } 91.26%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-10 { animation: kf-step-only-10 var(--dur) infinite; }
+      @keyframes kf-step-only-11 { 0%, 8.74% { opacity: 0; } 9.44%, 17.83% { opacity: 0; } 18.53%, 26.92% { opacity: 0; } 27.62%, 36.01% { opacity: 0; } 36.71%, 45.10% { opacity: 0; } 45.80%, 54.20% { opacity: 0; } 54.90%, 63.29% { opacity: 0; } 63.99%, 72.38% { opacity: 0; } 73.08%, 81.47% { opacity: 0; } 82.17%, 90.56% { opacity: 0; } 91.26%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-11 { animation: kf-step-only-11 var(--dur) infinite; }
+      @keyframes kf-stchip-1 { 0%, 8.74% { fill: #ECEFF1; stroke: #546E7A; stroke-width: 2.3; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.90%, 63.29% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.99%, 72.38% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.08%, 81.47% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.17%, 90.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.26%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #ECEFF1; stroke: #546E7A; stroke-width: 2.3; } }
+      .anim-stchip-1 { animation: kf-stchip-1 var(--dur) infinite; }
+      @keyframes kf-stchip-2 { 0%, 8.74% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.44%, 17.83% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.3; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.90%, 63.29% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.99%, 72.38% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.08%, 81.47% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.17%, 90.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.26%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-2 { animation: kf-stchip-2 var(--dur) infinite; }
+      @keyframes kf-stchip-3 { 0%, 8.74% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.53%, 26.92% { fill: var(--h1-bg); stroke: var(--h1-stroke); stroke-width: 2.3; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.90%, 63.29% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.99%, 72.38% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.08%, 81.47% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.17%, 90.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.26%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-3 { animation: kf-stchip-3 var(--dur) infinite; }
+      @keyframes kf-stchip-4 { 0%, 8.74% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.62%, 36.01% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.3; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.90%, 63.29% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.99%, 72.38% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.08%, 81.47% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.17%, 90.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.26%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-4 { animation: kf-stchip-4 var(--dur) infinite; }
+      @keyframes kf-stchip-5 { 0%, 8.74% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.71%, 45.10% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.3; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.90%, 63.29% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.99%, 72.38% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.08%, 81.47% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.17%, 90.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.26%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-5 { animation: kf-stchip-5 var(--dur) infinite; }
+      @keyframes kf-stchip-6 { 0%, 8.74% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.80%, 54.20% { fill: var(--h1-bg); stroke: var(--h1-stroke); stroke-width: 2.3; } 54.90%, 63.29% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.99%, 72.38% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.08%, 81.47% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.17%, 90.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.26%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-6 { animation: kf-stchip-6 var(--dur) infinite; }
+      @keyframes kf-stchip-7 { 0%, 8.74% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.90%, 63.29% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.3; } 63.99%, 72.38% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.08%, 81.47% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.17%, 90.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.26%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-7 { animation: kf-stchip-7 var(--dur) infinite; }
+      @keyframes kf-stchip-8 { 0%, 8.74% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.90%, 63.29% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.99%, 72.38% { fill: var(--h2-bg); stroke: var(--h2-stroke); stroke-width: 2.3; } 73.08%, 81.47% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.17%, 90.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.26%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-8 { animation: kf-stchip-8 var(--dur) infinite; }
+      @keyframes kf-stchip-9 { 0%, 8.74% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.90%, 63.29% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.99%, 72.38% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.08%, 81.47% { fill: var(--ready-bg); stroke: var(--ready-stroke); stroke-width: 2.3; } 82.17%, 90.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.26%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-9 { animation: kf-stchip-9 var(--dur) infinite; }
+      @keyframes kf-stchip-10 { 0%, 8.74% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.90%, 63.29% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.99%, 72.38% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.08%, 81.47% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.17%, 90.56% { fill: var(--h1-bg); stroke: var(--h1-stroke); stroke-width: 2.3; } 91.26%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-10 { animation: kf-stchip-10 var(--dur) infinite; }
+      @keyframes kf-stchip-11 { 0%, 8.74% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.44%, 17.83% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.53%, 26.92% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.62%, 36.01% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.71%, 45.10% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.80%, 54.20% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.90%, 63.29% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.99%, 72.38% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.08%, 81.47% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.17%, 90.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.26%, 99.2% { fill: var(--done-bg); stroke: var(--done-stroke); stroke-width: 2.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-11 { animation: kf-stchip-11 var(--dur) infinite; }
+
+      [class*="anim-"] {
+        animation-play-state: var(--play-state);
+        animation-delay: var(--anim-delay);
+      }
+
+      /* Barra de controles interactivos */
+      .ctrl-btn-bg   { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.4; rx: 7; transition: fill 0.15s, stroke 0.15s; }
+      .ctrl-btn:hover .ctrl-btn-bg { fill: #E8EAF6; stroke: var(--ink-primary); }
+      .ctrl-btn      { cursor: pointer; }
+      .ctrl-ico      { font-size: 12px; font-weight: 800; fill: var(--ink-primary); text-anchor: middle; pointer-events: none; user-select: none; }
+      .ctrl-hint     { font-size: 9.5px; fill: var(--ink-muted); text-anchor: middle; pointer-events: none; user-select: none; }
+      .step-clickable { cursor: pointer; }
+    </style>
+  </defs>
+
+  <!-- ===================================================================== -->
+  <!-- 1. LIENZO, CABECERA Y CONTROLES INTERACTIVOS                          -->
+  <!-- ===================================================================== -->
+  <rect class="bg" x="10" y="10" width="1100" height="832" />
+  <text class="title" x="560" y="42">Ordenación Topológica Paralela (Algoritmo de Kahn)</text>
+  <text class="subtitle" x="560" y="64">Grados de entrada agrupados, cola ready (in_deg == 0) y ejecución concurrente en múltiples hilos</text>
+
+  <g id="svg-controls" transform="translate(948, 22)" display="none">
+    <g id="btn-prev" class="ctrl-btn" transform="translate(0, 0)">
+      <title>Paso anterior (←)</title>
+      <rect class="ctrl-btn-bg" x="0" y="0" width="38" height="28" />
+      <text class="ctrl-ico" x="19" y="18">◀</text>
+    </g>
+    <g id="btn-toggle" class="ctrl-btn" transform="translate(44, 0)">
+      <title>Pausar / Reanudar (Espacio)</title>
+      <rect class="ctrl-btn-bg" x="0" y="0" width="52" height="28" />
+      <g id="ico-pause" fill="#1A237E" pointer-events="none">
+        <rect x="20" y="8" width="4" height="12" rx="1" />
+        <rect x="28" y="8" width="4" height="12" rx="1" />
+      </g>
+      <polygon id="ico-play" points="21,8 34,14 21,20" fill="#1A237E" pointer-events="none" display="none" />
+    </g>
+    <g id="btn-next" class="ctrl-btn" transform="translate(102, 0)">
+      <title>Paso siguiente (→)</title>
+      <rect class="ctrl-btn-bg" x="0" y="0" width="38" height="28" />
+      <text class="ctrl-ico" x="19" y="18">▶</text>
+    </g>
+    <text id="ctrl-status" class="ctrl-hint" x="70" y="42">Auto · ←/→/Espacio</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 2. PANEL SUPERIOR: GRAFO ACÍCLICO DIRIGIDO (DAG)                      -->
+  <!-- ===================================================================== -->
+  <g class="pos-dag">
+    <rect class="panel" x="0" y="0" width="1056" height="296" />
+    <text class="panel-title" x="18" y="25">DAG de dependencias (grado de entrada sobre la flecha agrupadora izquierda)</text>
+
+    <!-- CABLES ENTRANTES DE DEPENDENCIAS HACIA LOS COLECTORES (cx - 68, cy) -->
+    <!-- A (194, 82) -> colector de C (347, 160) -->
+    <path class="dag-wire anim-edge-ac" d="M 194 82 L 347 82 L 347 160" />
+    <!-- B (194, 238) -> colector de C (347, 160) -->
+    <path class="dag-wire anim-edge-bc" d="M 194 238 L 347 238 L 347 160" />
+    <!-- B (194, 238) -> colector de D (597, 238) -->
+    <path class="dag-wire anim-edge-bd" d="M 347 238 L 597 238" />
+    <!-- C (444, 160) -> colector de D (597, 238) -->
+    <path class="dag-wire anim-edge-cd" d="M 444 160 L 597 160 L 597 238" />
+    <!-- D (694, 238) -> colector de E (847, 238) -->
+    <path class="dag-wire anim-edge-de" d="M 694 238 L 847 238" />
+
+    <!-- Puntos de unión limpia en colectores multi-arista -->
+    <circle class="join-dot" cx="347" cy="160" r="3.2" />
+    <circle class="join-dot" cx="597" cy="238" r="3.2" />
+    <circle class="join-dot" cx="347" cy="238" r="3.2" />
+
+    <!-- Badges flotantes "-1" al propagar finalización -->
+    <g transform="translate(275, 82)" class="cap-group anim-dec-ac">
+      <rect class="dec-pill" x="-16" y="-10" width="32" height="20" /><text class="dec-txt mono" y="4">-1</text>
+    </g>
+    <g transform="translate(347, 198)" class="cap-group anim-dec-b">
+      <rect class="dec-pill" x="-16" y="-10" width="32" height="20" /><text class="dec-txt mono" y="4">-1</text>
+    </g>
+    <g transform="translate(480, 238)" class="cap-group anim-dec-b">
+      <rect class="dec-pill" x="-16" y="-10" width="32" height="20" /><text class="dec-txt mono" y="4">-1</text>
+    </g>
+    <g transform="translate(525, 160)" class="cap-group anim-dec-cd">
+      <rect class="dec-pill" x="-16" y="-10" width="32" height="20" /><text class="dec-txt mono" y="4">-1</text>
+    </g>
+    <g transform="translate(770, 238)" class="cap-group anim-dec-de">
+      <rect class="dec-pill" x="-16" y="-10" width="32" height="20" /><text class="dec-txt mono" y="4">-1</text>
+    </g>
+
+    <!-- NODO A (raíz sin predecesores: flecha huérfana entrante + badge (0)) -->
+    <g class="pos-node-a">
+      <line class="dag-wire anim-edge-in-a" x1="-68" y1="0" x2="-35" y2="0" stroke-dasharray="4 3" />
+      <use href="#in-arrow-tip" xlink:href="#in-arrow-tip" />
+      <use href="#root-origin-dot" xlink:href="#root-origin-dot" />
+      <g class="pos-indeg">
+        <use href="#indeg-pill" xlink:href="#indeg-pill" class="anim-indeg-pill-a" />
+        <text class="indeg-txt mono anim-indeg-a-0" y="3">(0)</text>
+      </g>
+      <use href="#dag-node-box" xlink:href="#dag-node-box" class="anim-node-a" />
+      <text class="node-lbl mono" y="6">A</text>
+      <text class="chk-txt anim-chk-a" x="19" y="-8">✔</text>
+      <g class="cap-group anim-tag-h1-a"><use href="#worker-badge" xlink:href="#worker-badge" class="tag-h1-bg" /><text class="tag-txt mono" y="-27">⚙ H1</text></g>
+      <g class="cap-group anim-tag-h2-a"><use href="#worker-badge" xlink:href="#worker-badge" class="tag-h2-bg" /><text class="tag-txt mono" y="-27">⚙ H2</text></g>
+    </g>
+
+    <!-- NODO B (raíz sin predecesores: flecha huérfana entrante + badge (0)) -->
+    <g class="pos-node-b">
+      <line class="dag-wire anim-edge-in-b" x1="-68" y1="0" x2="-35" y2="0" stroke-dasharray="4 3" />
+      <use href="#in-arrow-tip" xlink:href="#in-arrow-tip" />
+      <use href="#root-origin-dot" xlink:href="#root-origin-dot" />
+      <g class="pos-indeg">
+        <use href="#indeg-pill" xlink:href="#indeg-pill" class="anim-indeg-pill-b" />
+        <text class="indeg-txt mono anim-indeg-b-0" y="3">(0)</text>
+      </g>
+      <use href="#dag-node-box" xlink:href="#dag-node-box" class="anim-node-b" />
+      <text class="node-lbl mono" y="6">B</text>
+      <text class="chk-txt anim-chk-b" x="19" y="-8">✔</text>
+      <g class="cap-group anim-tag-h1-b"><use href="#worker-badge" xlink:href="#worker-badge" class="tag-h1-bg" /><text class="tag-txt mono" y="-27">⚙ H1</text></g>
+      <g class="cap-group anim-tag-h2-b"><use href="#worker-badge" xlink:href="#worker-badge" class="tag-h2-bg" /><text class="tag-txt mono" y="-27">⚙ H2</text></g>
+    </g>
+
+    <!-- NODO C (agrupa A y B en su flecha entrante: (2) -> (1) -> (0)) -->
+    <g class="pos-node-c">
+      <line class="dag-wire anim-edge-in-c" x1="-68" y1="0" x2="-35" y2="0" />
+      <use href="#in-arrow-tip" xlink:href="#in-arrow-tip" />
+      <g class="pos-indeg">
+        <use href="#indeg-pill" xlink:href="#indeg-pill" class="anim-indeg-pill-c" />
+        <text class="indeg-txt mono anim-indeg-c-2" y="3">(2)</text>
+        <text class="indeg-txt mono anim-indeg-c-1" y="3">(1)</text>
+        <text class="indeg-txt mono anim-indeg-c-0" y="3">(0)</text>
+      </g>
+      <use href="#dag-node-box" xlink:href="#dag-node-box" class="anim-node-c" />
+      <text class="node-lbl mono" y="6">C</text>
+      <text class="chk-txt anim-chk-c" x="19" y="-8">✔</text>
+      <g class="cap-group anim-tag-h1-c"><use href="#worker-badge" xlink:href="#worker-badge" class="tag-h1-bg" /><text class="tag-txt mono" y="-27">⚙ H1</text></g>
+      <g class="cap-group anim-tag-h2-c"><use href="#worker-badge" xlink:href="#worker-badge" class="tag-h2-bg" /><text class="tag-txt mono" y="-27">⚙ H2</text></g>
+    </g>
+
+    <!-- NODO D (agrupa B y C en su flecha entrante: (2) -> (1) -> (0)) -->
+    <g class="pos-node-d">
+      <line class="dag-wire anim-edge-in-d" x1="-68" y1="0" x2="-35" y2="0" />
+      <use href="#in-arrow-tip" xlink:href="#in-arrow-tip" />
+      <g class="pos-indeg">
+        <use href="#indeg-pill" xlink:href="#indeg-pill" class="anim-indeg-pill-d" />
+        <text class="indeg-txt mono anim-indeg-d-2" y="3">(2)</text>
+        <text class="indeg-txt mono anim-indeg-d-1" y="3">(1)</text>
+        <text class="indeg-txt mono anim-indeg-d-0" y="3">(0)</text>
+      </g>
+      <use href="#dag-node-box" xlink:href="#dag-node-box" class="anim-node-d" />
+      <text class="node-lbl mono" y="6">D</text>
+      <text class="chk-txt anim-chk-d" x="19" y="-8">✔</text>
+      <g class="cap-group anim-tag-h1-d"><use href="#worker-badge" xlink:href="#worker-badge" class="tag-h1-bg" /><text class="tag-txt mono" y="-27">⚙ H1</text></g>
+      <g class="cap-group anim-tag-h2-d"><use href="#worker-badge" xlink:href="#worker-badge" class="tag-h2-bg" /><text class="tag-txt mono" y="-27">⚙ H2</text></g>
+    </g>
+
+    <!-- NODO E (recibe de D en su flecha entrante: (1) -> (0)) -->
+    <g class="pos-node-e">
+      <line class="dag-wire anim-edge-in-e" x1="-68" y1="0" x2="-35" y2="0" />
+      <use href="#in-arrow-tip" xlink:href="#in-arrow-tip" />
+      <g class="pos-indeg">
+        <use href="#indeg-pill" xlink:href="#indeg-pill" class="anim-indeg-pill-e" />
+        <text class="indeg-txt mono anim-indeg-e-1" y="3">(1)</text>
+        <text class="indeg-txt mono anim-indeg-e-0" y="3">(0)</text>
+      </g>
+      <use href="#dag-node-box" xlink:href="#dag-node-box" class="anim-node-e" />
+      <text class="node-lbl mono" y="6">E</text>
+      <text class="chk-txt anim-chk-e" x="19" y="-8">✔</text>
+      <g class="cap-group anim-tag-h1-e"><use href="#worker-badge" xlink:href="#worker-badge" class="tag-h1-bg" /><text class="tag-txt mono" y="-27">⚙ H1</text></g>
+      <g class="cap-group anim-tag-h2-e"><use href="#worker-badge" xlink:href="#worker-badge" class="tag-h2-bg" /><text class="tag-txt mono" y="-27">⚙ H2</text></g>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 3A. PANEL MEDIO IZQUIERDO: COLA DE LISTOS ready (in_degree == 0)      -->
+  <!-- ===================================================================== -->
+  <g class="pos-q-panel">
+    <rect class="panel" x="0" y="0" width="508" height="192" />
+    <text class="panel-title" x="18" y="25">Cola compartida ready (nodos con in_degree == 0)</text>
+    <text class="q-stat-lbl mono" x="415" y="25">size =</text>
+    <text class="q-stat-val mono anim-qsize-0" x="466" y="25">0</text>
+    <text class="q-stat-val mono anim-qsize-1" x="466" y="25">1</text>
+    <text class="q-stat-val mono anim-qsize-2" x="466" y="25">2</text>
+
+    <!-- Rieles superiores/inferiores del contenedor de cola -->
+    <line class="q-rail" x1="112" y1="62" x2="388" y2="62" />
+    <line class="q-rail" x1="112" y1="126" x2="388" y2="126" />
+
+    <!-- Indicador de salida POP detallado por paso (izquierda -> hacia los hilos) -->
+    <g class="cap-group anim-q-pop">
+      <line x1="108" y1="94" x2="42" y2="94" stroke="#1565C0" stroke-width="2.6" marker-end="url(#arrow-pop)" />
+    </g>
+    <text class="q-flow-txt mono cap-group anim-step-only-3"  x="74" y="82" fill="#1565C0">pop(A,B)</text>
+    <text class="q-flow-txt mono cap-group anim-step-only-6"  x="74" y="82" fill="#1565C0">pop(C)</text>
+    <text class="q-flow-txt mono cap-group anim-step-only-8"  x="74" y="82" fill="#6A1B9A">pop(D)</text>
+    <text class="q-flow-txt mono cap-group anim-step-only-10" x="74" y="82" fill="#1565C0">pop(E)</text>
+    <text class="q-idx" x="66" y="112">frente (pop)</text>
+
+    <!-- 4 ranuras visibles de la cola -->
+    <g transform="translate(148, 94)">
+      <use href="#q-slot-box" xlink:href="#q-slot-box" class="anim-q-slot0" />
+      <g class="cap-group anim-q0-A"><use href="#q-item-pill" xlink:href="#q-item-pill" class="q-item-bg" /><text class="q-item-txt mono" y="5">A</text></g>
+      <g class="cap-group anim-q0-C"><use href="#q-item-pill" xlink:href="#q-item-pill" class="q-item-bg" /><text class="q-item-txt mono" y="5">C</text></g>
+      <g class="cap-group anim-q0-D"><use href="#q-item-pill" xlink:href="#q-item-pill" class="q-item-bg" /><text class="q-item-txt mono" y="5">D</text></g>
+      <g class="cap-group anim-q0-E"><use href="#q-item-pill" xlink:href="#q-item-pill" class="q-item-bg" /><text class="q-item-txt mono" y="5">E</text></g>
+      <text class="q-idx mono" y="46">ready[0]</text>
+    </g>
+
+    <g transform="translate(216, 94)">
+      <use href="#q-slot-box" xlink:href="#q-slot-box" class="anim-q-slot1" />
+      <g class="cap-group anim-q1-B"><use href="#q-item-pill" xlink:href="#q-item-pill" class="q-item-bg" /><text class="q-item-txt mono" y="5">B</text></g>
+      <text class="q-idx mono" y="46">ready[1]</text>
+    </g>
+
+    <g transform="translate(284, 94)">
+      <use href="#q-slot-box" xlink:href="#q-slot-box" fill="#FFFFFF" stroke="#CFD8DC" stroke-width="1.5" stroke-dasharray="4 3" />
+      <text class="q-idx mono" y="46">ready[2]</text>
+    </g>
+
+    <g transform="translate(352, 94)">
+      <use href="#q-slot-box" xlink:href="#q-slot-box" fill="#FFFFFF" stroke="#CFD8DC" stroke-width="1.5" stroke-dasharray="4 3" />
+      <text class="q-idx mono" y="46">ready[3]</text>
+    </g>
+
+    <!-- Indicador de entrada PUSH detallado por paso (derecha <- cuando in_deg llega a 0) -->
+    <g class="cap-group anim-q-push">
+      <line x1="468" y1="94" x2="396" y2="94" stroke="#EF6C00" stroke-width="2.6" marker-end="url(#arrow-push)" />
+    </g>
+    <text class="q-flow-txt mono cap-group anim-step-only-2" x="434" y="82" fill="#E65100">push(A,B)</text>
+    <text class="q-flow-txt mono cap-group anim-step-only-5" x="434" y="82" fill="#E65100">push(C)</text>
+    <text class="q-flow-txt mono cap-group anim-step-only-7" x="434" y="82" fill="#E65100">push(D)</text>
+    <text class="q-flow-txt mono cap-group anim-step-only-9" x="434" y="82" fill="#E65100">push(E)</text>
+    <text class="q-idx" x="442" y="112">final (push)</text>
+
+    <text class="panel-note" x="254" y="175" text-anchor="middle">Protegida por mutex + condition_variable: despierta hilos libres al hacer push()</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 3B. PANEL MEDIO DERECHO: POOL DE HILOS TRABAJADORES EN PARALELO       -->
+  <!-- ===================================================================== -->
+  <g class="pos-w-panel">
+    <rect class="panel" x="0" y="0" width="532" height="192" />
+    <text class="panel-title" x="18" y="25">Pool de Hilos (ejecución concurrente)</text>
+    <text class="comp-lbl" x="454" y="25">Completadas:</text>
+    <text class="comp-val mono anim-step-only-1" x="462" y="25">0 / 5</text>
+    <text class="comp-val mono anim-step-only-2" x="462" y="25">0 / 5</text>
+    <text class="comp-val mono anim-step-only-3" x="462" y="25">0 / 5</text>
+    <text class="comp-val mono anim-step-only-4" x="462" y="25">1 / 5</text>
+    <text class="comp-val mono anim-step-only-5" x="462" y="25">2 / 5</text>
+    <text class="comp-val mono anim-step-only-6" x="462" y="25">2 / 5</text>
+    <text class="comp-val mono anim-step-only-7" x="462" y="25">3 / 5</text>
+    <text class="comp-val mono anim-step-only-8" x="462" y="25">3 / 5</text>
+    <text class="comp-val mono anim-step-only-9" x="462" y="25">4 / 5</text>
+    <text class="comp-val mono anim-step-only-10" x="462" y="25">4 / 5</text>
+    <text class="comp-val mono anim-step-only-11" x="462" y="25">5 / 5 ✔</text>
+
+    <!-- Tarjeta Hilo 1 -->
+    <g transform="translate(18, 44)">
+      <rect class="anim-card-h1" x="0" y="0" width="496" height="58" rx="9" />
+      <rect class="w-badge-h1" x="14" y="15" width="80" height="28" />
+      <text class="w-badge-txt mono" x="54" y="33">⚙ Hilo 1</text>
+      <text class="w-desc anim-step-only-1" x="108" y="37">En espera (q_cv.wait)</text>
+      <text class="w-desc anim-step-only-2" x="108" y="37">Listo para extraer de ready</text>
+      <text class="w-desc anim-step-only-3" x="108" y="37">pop() ➔ Ejecutando tarea A</text>
+      <text class="w-desc anim-step-only-4" x="108" y="37">A ✔ completada ➔ resta -1 a C</text>
+      <text class="w-desc anim-step-only-5" x="108" y="37">En espera (q_cv.wait)</text>
+      <text class="w-desc anim-step-only-6" x="108" y="37">pop() ➔ Ejecutando tarea C</text>
+      <text class="w-desc anim-step-only-7" x="108" y="37">C ✔ completada ➔ desbloquea D</text>
+      <text class="w-desc anim-step-only-8" x="108" y="37">En espera (cola vacía)</text>
+      <text class="w-desc anim-step-only-9" x="108" y="37">notify! despierta por E</text>
+      <text class="w-desc anim-step-only-10" x="108" y="37">pop() ➔ Ejecutando tarea E</text>
+      <text class="w-desc anim-step-only-11" x="108" y="37">Libre · Trabajo completado ✔</text>
+      <!-- Slot de ficha tomada de la cola (reutiliza #q-slot-box y #q-item-pill) -->
+      <g transform="translate(454, 29)">
+        <use href="#q-slot-box" xlink:href="#q-slot-box" class="w-slot-empty" />
+        <g class="cap-group anim-step-only-3"><use href="#q-item-pill" xlink:href="#q-item-pill" class="w-item-h1" /><text class="w-txt-h1 mono" y="5">A</text></g>
+        <g class="cap-group anim-step-only-4"><use href="#q-item-pill" xlink:href="#q-item-pill" class="w-item-done" /><text class="w-txt-done mono" y="5">A</text></g>
+        <g class="cap-group anim-step-only-6"><use href="#q-item-pill" xlink:href="#q-item-pill" class="w-item-h1" /><text class="w-txt-h1 mono" y="5">C</text></g>
+        <g class="cap-group anim-step-only-7"><use href="#q-item-pill" xlink:href="#q-item-pill" class="w-item-done" /><text class="w-txt-done mono" y="5">C</text></g>
+        <g class="cap-group anim-step-only-10"><use href="#q-item-pill" xlink:href="#q-item-pill" class="w-item-h1" /><text class="w-txt-h1 mono" y="5">E</text></g>
+      </g>
+    </g>
+
+    <!-- Tarjeta Hilo 2 -->
+    <g transform="translate(18, 114)">
+      <rect class="anim-card-h2" x="0" y="0" width="496" height="58" rx="9" />
+      <rect class="w-badge-h2" x="14" y="15" width="80" height="28" />
+      <text class="w-badge-txt mono" x="54" y="33">⚙ Hilo 2</text>
+      <text class="w-desc anim-step-only-1" x="108" y="37">En espera (q_cv.wait)</text>
+      <text class="w-desc anim-step-only-2" x="108" y="37">Listo para extraer de ready</text>
+      <text class="w-desc anim-step-only-3" x="108" y="37">pop() ➔ Ejecutando tarea B</text>
+      <text class="w-desc anim-step-only-4" x="108" y="37">Sigue ejecutando tarea B en paralelo</text>
+      <text class="w-desc anim-step-only-5" x="108" y="37">B ✔ completada ➔ desbloquea C</text>
+      <text class="w-desc anim-step-only-6" x="108" y="37">En espera (cola vacía)</text>
+      <text class="w-desc anim-step-only-7" x="108" y="37">notify! despierta por D</text>
+      <text class="w-desc anim-step-only-8" x="108" y="37">pop() ➔ Ejecutando tarea D</text>
+      <text class="w-desc anim-step-only-9" x="108" y="37">D ✔ completada ➔ desbloquea E</text>
+      <text class="w-desc anim-step-only-10" x="108" y="37">En espera (cola vacía)</text>
+      <text class="w-desc anim-step-only-11" x="108" y="37">Libre · Trabajo completado ✔</text>
+      <!-- Slot de ficha tomada de la cola (reutiliza #q-slot-box y #q-item-pill) -->
+      <g transform="translate(454, 29)">
+        <use href="#q-slot-box" xlink:href="#q-slot-box" class="w-slot-empty" />
+        <g class="cap-group anim-step-only-3"><use href="#q-item-pill" xlink:href="#q-item-pill" class="w-item-h2" /><text class="w-txt-h2 mono" y="5">B</text></g>
+        <g class="cap-group anim-step-only-4"><use href="#q-item-pill" xlink:href="#q-item-pill" class="w-item-h2" /><text class="w-txt-h2 mono" y="5">B</text></g>
+        <g class="cap-group anim-step-only-5"><use href="#q-item-pill" xlink:href="#q-item-pill" class="w-item-done" /><text class="w-txt-done mono" y="5">B</text></g>
+        <g class="cap-group anim-step-only-8"><use href="#q-item-pill" xlink:href="#q-item-pill" class="w-item-h2" /><text class="w-txt-h2 mono" y="5">D</text></g>
+        <g class="cap-group anim-step-only-9"><use href="#q-item-pill" xlink:href="#q-item-pill" class="w-item-done" /><text class="w-txt-done mono" y="5">D</text></g>
+      </g>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 4. PANEL INFERIOR: LÍNEA DE TIEMPO (11 PASOS) + EXPLICACIÓN           -->
+  <!-- ===================================================================== -->
+  <g class="pos-trace">
+    <rect class="panel" x="0" y="0" width="1056" height="156" />
+    <text class="panel-title" x="18" y="18">Secuencia del algoritmo (11 pasos · clic en cualquiera al pausar)</text>
+
+    <line class="seq-arrow" x1="78" y1="42" x2="978" y2="42" />
+    <g class="st-1" data-step="0"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-1" /><text class="chip-num" y="-2">Paso 1</text><text class="chip-sub mono" y="10">Inicio</text></g>
+    <g class="st-2" data-step="1"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-2" /><text class="chip-num" y="-2">Paso 2</text><text class="chip-sub mono" y="10">push A,B</text></g>
+    <g class="st-3" data-step="2"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-3" /><text class="chip-num" y="-2">Paso 3</text><text class="chip-sub mono" y="10">H1‖H2</text></g>
+    <g class="st-4" data-step="3"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-4" /><text class="chip-num" y="-2">Paso 4</text><text class="chip-sub mono" y="10">fin A</text></g>
+    <g class="st-5" data-step="4"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-5" /><text class="chip-num" y="-2">Paso 5</text><text class="chip-sub mono" y="10">fin B→C</text></g>
+    <g class="st-6" data-step="5"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-6" /><text class="chip-num" y="-2">Paso 6</text><text class="chip-sub mono" y="10">H1: C</text></g>
+    <g class="st-7" data-step="6"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-7" /><text class="chip-num" y="-2">Paso 7</text><text class="chip-sub mono" y="10">fin C→D</text></g>
+    <g class="st-8" data-step="7"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-8" /><text class="chip-num" y="-2">Paso 8</text><text class="chip-sub mono" y="10">H2: D</text></g>
+    <g class="st-9" data-step="8"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-9" /><text class="chip-num" y="-2">Paso 9</text><text class="chip-sub mono" y="10">fin D→E</text></g>
+    <g class="st-10" data-step="9"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-10" /><text class="chip-num" y="-2">Paso 10</text><text class="chip-sub mono" y="10">H1: E</text></g>
+    <g class="st-11" data-step="10"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-11" /><text class="chip-num" y="-2">Paso 11</text><text class="chip-sub mono" y="10">5/5 ✔</text></g>
+
+    <rect class="sub-box" x="16" y="68" width="1024" height="74" />
+    <g class="cap-group anim-step-only-1">
+      <text class="cap-l1-txt" x="528" y="96">Paso 1 · Conteo inicial de grados de entrada (in_degree):</text>
+      <text class="cap-l2-txt" x="528" y="118">A y B tienen flecha entrante sin origen (0); C recibe de A y B (2); D recibe de B y C (2); E recibe de D (1).</text>
+    </g>
+    <g class="cap-group anim-step-only-2">
+      <text class="cap-l1-txt" x="528" y="96">Paso 2 · Inicialización de la cola ready (in_deg == 0):</text>
+      <text class="cap-l2-txt" x="528" y="118">Solo las tareas con contador (0) entran a la cola: push(A) en ready[0] y push(B) en ready[1] (size = 2).</text>
+    </g>
+    <g class="cap-group anim-step-only-3">
+      <text class="cap-l1-txt" x="528" y="96">Paso 3 · Ejecución paralela real (Hilo 1 ‖ Hilo 2):</text>
+      <text class="cap-l2-txt" x="528" y="118">Ambos hilos extraen simultáneamente: Hilo 1 ejecuta A mientras Hilo 2 ejecuta B al mismo tiempo (ready queda vacía).</text>
+    </g>
+    <g class="cap-group anim-step-only-4">
+      <text class="cap-l1-txt" x="528" y="96">Paso 4 · Hilo 1 termina A y resta -1 a sus dependientes:</text>
+      <text class="cap-l2-txt" x="528" y="118">El grado de entrada de C baja de (2) a (1). Como aún es mayor que 0 (espera a B), C todavía NO entra a ready.</text>
+    </g>
+    <g class="cap-group anim-step-only-5">
+      <text class="cap-l1-txt" x="528" y="96">Paso 5 · Hilo 2 termina B y resta -1 a C y D:</text>
+      <text class="cap-l2-txt" x="528" y="118">D baja de (2) a (1) y sigue esperando; C llega a (0) ✔ ➔ se encola automáticamente push(C) en ready[0].</text>
+    </g>
+    <g class="cap-group anim-step-only-6">
+      <text class="cap-l1-txt" x="528" y="96">Paso 6 · Hilo 1 extrae y ejecuta C (Hilo 2 espera en q_cv):</text>
+      <text class="cap-l2-txt" x="528" y="118">Como solo había 1 tarea lista en la cola, Hilo 1 trabaja en C mientras Hilo 2 duerme sin consumir CPU.</text>
+    </g>
+    <g class="cap-group anim-step-only-7">
+      <text class="cap-l1-txt" x="528" y="96">Paso 7 · Hilo 1 termina C y desbloquea D:</text>
+      <text class="cap-l2-txt" x="528" y="118">La arista C ➔ D resta -1: el contador de D llega a (0) ✔ ➔ push(D) entra en ready[0] y notifica al pool.</text>
+    </g>
+    <g class="cap-group anim-step-only-8">
+      <text class="cap-l1-txt" x="528" y="96">Paso 8 · Hilo 2 despierta, hace pop(D) y ejecuta D:</text>
+      <text class="cap-l2-txt" x="528" y="118">Hilo 2 procesa D mientras E permanece bloqueada con in_degree (1) esperando el resultado de D.</text>
+    </g>
+    <g class="cap-group anim-step-only-9">
+      <text class="cap-l1-txt" x="528" y="96">Paso 9 · Hilo 2 termina D y desbloquea la última tarea E:</text>
+      <text class="cap-l2-txt" x="528" y="118">La arista D ➔ E resta -1: el contador de E llega a (0) ✔ ➔ push(E) entra en ready[0].</text>
+    </g>
+    <g class="cap-group anim-step-only-10">
+      <text class="cap-l1-txt" x="528" y="96">Paso 10 · Hilo 1 extrae y ejecuta E:</text>
+      <text class="cap-l2-txt" x="528" y="118">Hilo 1 procesa la tarea final E. La cola ready queda vacía.</text>
+    </g>
+    <g class="cap-group anim-step-only-11">
+      <text class="cap-l1-txt" x="528" y="96">Paso 11 · Orden topológico paralelo completado (5 / 5 ✔):</text>
+      <text class="cap-l2-txt" x="528" y="118">Todas las tareas terminaron con in_degree (0), aprovechando paralelismo en {A, B} y respetando cada dependencia.</text>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 5. LEYENDA AUTOCONTENIDA AL PIE                                       -->
+  <!-- ===================================================================== -->
+  <g class="pos-legend">
+    <rect class="panel" x="0" y="0" width="1056" height="62" />
+
+    <g transform="translate(16, 12)">
+      <text class="leg-title" x="0" y="11" fill="#37474F">➔ (k) Grado de entrada</text>
+      <text class="leg-desc" x="0" y="27">Agrupa las aristas entrantes a la izquierda;</text>
+      <text class="leg-desc" x="0" y="40">flecha punteada indica tarea raíz (0).</text>
+    </g>
+    <line class="leg-sep" x1="258" y1="10" x2="258" y2="52" />
+
+    <g transform="translate(274, 12)">
+      <text class="leg-title" x="0" y="11" fill="#E65100">● En cola ready (in_deg == 0)</text>
+      <text class="leg-desc" x="0" y="27">Solo cuando (k) llega a 0 entra a ready y</text>
+      <text class="leg-desc" x="0" y="40">queda disponible para cualquier hilo.</text>
+    </g>
+    <line class="leg-sep" x1="528" y1="10" x2="528" y2="52" />
+
+    <g transform="translate(544, 12)">
+      <text class="leg-title" x="0" y="11" fill="#0277BD">⚙ Hilo 1  ‖  ⚙ Hilo 2</text>
+      <text class="leg-desc" x="0" y="27">Extraen tareas con pop() y las evalúan</text>
+      <text class="leg-desc" x="0" y="40">en paralelo si no dependen entre sí.</text>
+    </g>
+    <line class="leg-sep" x1="790" y1="10" x2="790" y2="52" />
+
+    <g transform="translate(806, 12)">
+      <text class="leg-title" x="0" y="11" fill="#2E7D32">✔ Completada y resta -1</text>
+      <text class="leg-desc" x="0" y="27">Al terminar, decrementa atómicamente</text>
+      <text class="leg-desc" x="0" y="40">el (k) de todas sus tareas vecinas.</text>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 6. CONTROLADOR INTERACTIVO OPCIONAL (DEGRADACIÓN ELEGANTE)            -->
+  <!-- ===================================================================== -->
+  <script><![CDATA[
+    (function () {
+      const svg = document.documentElement;
+      const controls = document.getElementById("svg-controls");
+      const btnPrev = document.getElementById("btn-prev");
+      const btnToggle = document.getElementById("btn-toggle");
+      const btnNext = document.getElementById("btn-next");
+      const icoPause = document.getElementById("ico-pause");
+      const icoPlay = document.getElementById("ico-play");
+      const statusTxt = document.getElementById("ctrl-status");
+      if (!controls || !btnPrev || !btnToggle || !btnNext) return;
+
+      const DUR_SEC = 27.5;
+      const DUR_MS = DUR_SEC * 1000;
+      const STEP_TIMES = [1.25, 3.75, 6.25, 8.75, 11.25, 13.75, 16.25, 18.75, 21.25, 23.75, 26.25];
+      const N = STEP_TIMES.length;
+
+      let paused = false;
+      let currentStep = 0;
+
+      controls.removeAttribute("display");
+
+      function getAnims() {
+        return typeof svg.getAnimations === "function"
+          ? svg.getAnimations({ subtree: true })
+          : [];
+      }
+
+      function inferCurrentStep() {
+        const anims = getAnims();
+        if (anims.length > 0 && typeof anims[0].currentTime === "number") {
+          const t = ((anims[0].currentTime % DUR_MS) + DUR_MS) % DUR_MS;
+          return Math.min(N - 1, Math.floor((t / DUR_MS) * N));
+        }
+        return currentStep;
+      }
+
+      function updateUi() {
+        if (icoPause) icoPause.setAttribute("display", paused ? "none" : "inline");
+        if (icoPlay) icoPlay.setAttribute("display", paused ? "inline" : "none");
+        statusTxt.textContent = paused
+          ? "Pausa · Paso " + (currentStep + 1) + "/" + N
+          : "Auto · ←/→/Espacio";
+      }
+
+      function seekStep(idx) {
+        currentStep = ((idx % N) + N) % N;
+        paused = true;
+        const sec = STEP_TIMES[currentStep];
+        const anims = getAnims();
+        if (anims.length > 0) {
+          for (const a of anims) {
+            a.pause();
+            a.currentTime = sec * 1000;
+          }
+        } else {
+          svg.style.setProperty("--play-state", "paused");
+          svg.style.setProperty("--anim-delay", "-" + sec + "s");
+        }
+        updateUi();
+      }
+
+      function togglePlay() {
+        const anims = getAnims();
+        if (!paused) {
+          currentStep = inferCurrentStep();
+          paused = true;
+          if (anims.length > 0) {
+            for (const a of anims) a.pause();
+          } else {
+            svg.style.setProperty("--play-state", "paused");
+          }
+        } else {
+          paused = false;
+          if (anims.length > 0) {
+            for (const a of anims) a.play();
+          } else {
+            svg.style.setProperty("--play-state", "running");
+          }
+        }
+        updateUi();
+      }
+
+      btnToggle.addEventListener("click", togglePlay);
+      btnPrev.addEventListener("click", function () {
+        const base = paused ? currentStep : inferCurrentStep();
+        seekStep(base - 1);
+      });
+      btnNext.addEventListener("click", function () {
+        const base = paused ? currentStep : inferCurrentStep();
+        seekStep(base + 1);
+      });
+
+      document.querySelectorAll("[data-step]").forEach(function (el) {
+        el.classList.add("step-clickable");
+        el.addEventListener("click", function () {
+          seekStep(parseInt(el.getAttribute("data-step"), 10));
+        });
+      });
+
+      window.addEventListener("keydown", function (e) {
+        if (e.key === " " || e.code === "Space") {
+          e.preventDefault();
+          togglePlay();
+        } else if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          const base = paused ? currentStep : inferCurrentStep();
+          seekStep(base - 1);
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          const base = paused ? currentStep : inferCurrentStep();
+          seekStep(base + 1);
+        }
+      });
+
+      updateUi();
+    })();
+  ]]></script>
+</svg>
