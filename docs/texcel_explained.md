@@ -203,15 +203,15 @@ Cuando el ciclo `for` termina, todos los subárboles se han ido colapsando hacia
 
 Hasta ahora vimos cómo funciona una celda individual y cómo se calcula una fórmula aislada. Pero una hoja de cálculo real tiene muchas celdas conectadas entre sí: si editas `A1`, todas las celdas que dependen de ella deben enterarse y actualizarse automáticamente.
 
-#### 1. ¿Dónde viven las celdas en memoria? ([`engine.h:186-190`](../src/texcel/engine.h#L186-L190))
-En lugar de usar una sola matriz gigante llena de espacios vacíos, `SpreadsheetEngine` combina cuatro estructuras especializadas:
+#### 1. ¿Dónde viven las celdas en memoria? ([`engine.h:160-190`](../src/texcel/engine.h#L160-L190))
+En lugar de usar una sola matriz gigante llena de espacios vacíos, `SpreadsheetEngine` combina estas estructuras especializadas:
 
-- **`m_raw_table` (`HashTable`):** guarda únicamente lo que escribió el usuario (`"A1" -> "=B1+2"`). Es la fuente de verdad que se guarda y carga desde disco.
-- **`m_cells` (`BaseHashTable`):** guarda el objeto [`SpreadsheetCell`](../src/texcel/types.h#L294-L330) completo de cada celda activa. Al estar respaldada por nodos con direcciones de memoria estables, otras estructuras pueden guardar punteros directos a cada celda sin que se invaliden al agregar nuevas.
-- **`m_grid_index` (`GridIndex`):** es una matriz dispersa de punteros (`m_grid_index[row][col] -> SpreadsheetCell*`). Sirve como atajo de velocidad: cuando una fórmula o la pantalla necesita leer `(col, row)`, [`fastGridPtr`](../src/texcel/engine.h#L233-L238) accede por índice en $O(1)$ sin tener que convertir números a `"A1"` ni buscar en la tabla hash.
-- **`m_dependents` y `m_range_subs`:** forman el **grafo inverso de dependencias** (quién observa a quién):
-  - Si `B1` tiene `=A1 + 5`, entonces `m_dependents["A1"]` anota a `"B1"` en su lista de observadores.
-  - Si `C1` tiene `=SUM(A1:A100)`, en vez de crear 100 entradas en `m_dependents`, guarda una sola suscripción rectangular en `m_range_subs` (`RangeSubscription{"C1", A1:A100}`).
+- **`m_raw_table`** (*Tabla hash `clave → texto`*: `HashTable<string, string>`): guarda únicamente lo que escribió el usuario (ej. `"A1" → "=B1+2"`). Es la fuente de verdad que se guarda y carga desde disco.
+- **`m_cells`** (*Tabla hash `clave → celda completa`*: `BaseHashTable<string, SpreadsheetCell>`): guarda el objeto [`SpreadsheetCell`](../src/texcel/types.h#L294-L330) completo de cada celda activa (ej. `"A1" → SpreadsheetCell{ raw="=B1+2", result=10, dirty=false, ... }`). Al estar respaldada por nodos con direcciones de memoria estables, otras estructuras pueden guardar punteros directos a sus elementos sin que se invaliden al agregar celdas nuevas.
+- **`m_grid_index`** (*Matriz 2D dinámica de punteros*: `Vector<Vector<SpreadsheetCell*>>`): un vector de filas donde cada fila guarda punteros directos a `m_cells` (ej. `m_grid_index[0][0] = &m_cells["A1"]`, o `nullptr` si la celda está vacía). Sirve como atajo de velocidad: cuando una fórmula o la pantalla necesita leer `(col, row)`, [`fastGridPtr`](../src/texcel/engine.h#L233-L238) accede por índice en $O(1)$ sin tener que convertir números a `"A1"` ni buscar en la tabla hash.
+- **`m_dependents` y `m_range_subs`** forman el **grafo inverso de dependencias** (quién observa a quién):
+  - **`m_dependents`** (*Tabla hash `celda → lista de observadores`*: `BaseHashTable<string, LinkedList<string>>`): ejemplo `"A1" → ["B1", "C5"]` cuando `B1` tiene `=A1+5` y `C5` tiene `=A1*2`.
+  - **`m_range_subs`** (*Vector de suscripciones a rangos*: `Vector<RangeSubscription>`, donde cada entrada es `{subscriber_id, CellRangeRect}`): ejemplo `[ {"D1", A1:A100}, {"E2", B2:D10} ]`. Así, si `D1` tiene `=SUM(A1:A100)`, guarda un solo rectángulo en vez de meter 100 entradas en `m_dependents`.
 
 #### 2. ¿Qué pasa cuando editas una celda? ([`setCell`](../src/texcel/engine.h#L1402-L1434))
 Cuando cambias el contenido de una celda (por ejemplo `A1`), el motor ejecuta cuatro pasos en orden estricto:
