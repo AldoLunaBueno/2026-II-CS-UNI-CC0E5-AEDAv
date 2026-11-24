@@ -46,6 +46,7 @@ public:
     HashEntry() = default;
     /** @brief Construye una entrada con clave `k` y valor opcional `v`. */
     HashEntry(const Key& k, const Value& v = Value{}) : m_key(k), m_value(v) {}
+    HashEntry(Key k, Value&& v) : m_key(std::move(k)), m_value(std::move(v)) {}
 
     /** @brief Comparación de tres vías basada únicamente en `m_key`. */
     auto operator<=>(const MySelf& another) const {
@@ -128,6 +129,21 @@ public:
      * @return Puntero mutable al valor asociado, o `nullptr` si no existe.
      */
     Value* find(const Key& key);
+
+    /** @brief Consulta de solo lectura sin bloqueo para fases concurrentes donde la estructura del árbol es inmutable. */
+    Value* find_unlocked(const Key& key) {
+        Pair* pair_found = m_data.find_by(key, [](const Pair& e, const Key& k) {
+            return e.getKey() <=> k;
+        });
+        return pair_found ? &(pair_found->value()) : nullptr;
+    }
+
+    /** @brief Construye el `BaseAVLTree` interno balanceado en $O(N)$ desde elementos ya ordenados en `InOrder`. */
+    template <typename Runner, typename MakerFn>
+    void buildFromInOrder(size_t count, Runner&& run_parallel, MakerFn&& make_node) {
+        std::lock_guard lock(m_mutex);
+        m_data.buildFromInOrder(count, std::forward<Runner>(run_parallel), std::forward<MakerFn>(make_node));
+    }
 
     /**
      * @brief Verifica si `key` existe en la tabla.

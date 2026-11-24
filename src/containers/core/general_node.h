@@ -33,6 +33,8 @@ public:
      * @param ref Identificador o referencia asociada.
      */
     GeneralNode(const T& value, Ref ref) : m_value(value), m_ref(ref) {}
+    GeneralNode(T&& value, Ref ref) noexcept(std::is_nothrow_move_constructible_v<T>)
+        : m_value(std::move(value)), m_ref(ref) {}
 
     /** @brief Retorna una copia del valor almacenado. */
     T    getValue() const { return m_value; }

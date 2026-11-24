@@ -251,12 +251,12 @@ int main() {
     assert(clean_e.getCell("C1").displayValue() == "TRUE");
     assert(clean_e.getCell("D1").displayValue() == "10");
     // Formula booleana no se sobrescribe al clicar su caracter central
-    clean_e.setCell("E1", "= C1");
-    TX e1_x0 = texcel_tui::TuiState::GRID_X0 + 4 * (texcel_tui::TuiState::CELL_WIDTH + 1);
-    std::string e1_mid = "0;" + std::to_string(e1_x0 + 5 + 1) + ";" + std::to_string(c1_y + 1);
-    assert(texcel_tui::handleSgrMouse(st2, e1_mid, 'M'));
-    assert(texcel_tui::handleSgrMouse(st2, e1_mid, 'm'));
-    assert(clean_e.getCell("E1").is_formula && clean_e.getCell("E1").displayValue() == "TRUE");
+    clean_e.setCell("C2", "= C1");
+    TX c2_y = texcel_tui::TuiState::GRID_Y0 + 1;
+    std::string c2_mid = "0;" + std::to_string(c1_x0 + 5 + 1) + ";" + std::to_string(c2_y + 1);
+    assert(texcel_tui::handleSgrMouse(st2, c2_mid, 'M'));
+    assert(texcel_tui::handleSgrMouse(st2, c2_mid, 'm'));
+    assert(clean_e.getCell("C2").is_formula && clean_e.getCell("C2").displayValue() == "TRUE");
 
     // 13. Undo / Redo transaccional y preservacion de escritura directa con letras ('y', 'p', 'u', '-', '/')
     for (char ch_lit : {'y', 'p', 'u', '-', '/'}) {

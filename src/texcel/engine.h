@@ -1,7 +1,7 @@
 /**
  * @file engine.h
  * @ingroup texcel
- * @brief Motor de hoja de cálculo reactiva (`HashTable` + `BinaryTree` PrePostOrder + `LinkedList` + `Vector`).
+ * @brief Motor de hoja de cálculo reactiva concurrente (`HashTable` + `BinaryTree` PrePostOrder + `LinkedList` + `Vector`).
  */
 
 #ifndef __TEXCEL_ENGINE_H__
@@ -11,6 +11,138 @@
 #include "parser.h"
 #include "../containers/hash_table.h"
 #include "../containers/lists/linked_list.h"
+#include <algorithm>
+#include <atomic>
+#include <condition_variable>
+#include <cstdint>
+#include <mutex>
+#include <thread>
+#include <type_traits>
+#include <utility>
+#include <vector>
+
+namespace texcel_detail {
+
+/**
+ * @class TexcelThreadPool
+ * @brief Pool persistente de hilos de trabajo para construcción paralela de árboles AVL y evaluación concurrente por DAG.
+ */
+class TexcelThreadPool {
+    using InvokeFn = void (*)(void*, size_t);
+
+    std::vector<std::thread> m_workers;
+    std::mutex               m_mtx;
+    std::condition_variable  m_cv_work;
+    std::condition_variable  m_cv_done;
+    bool                     m_stop = false;
+    uint64_t                 m_gen  = 0;
+
+    void*                    m_ctx       = nullptr;
+    InvokeFn                 m_fn        = nullptr;
+    size_t                   m_task_cnt  = 0;
+    std::atomic<size_t>      m_next_idx{0};
+    std::atomic<size_t>      m_done_cnt{0};
+    size_t                   m_inflight = 0; /**< Workers que tomaron la tanda actual y aún no terminaron (protegido por `m_mtx`). */
+
+    void workerLoop() {
+        uint64_t local_gen = 0;
+        while (true) {
+            void*    ctx = nullptr;
+            InvokeFn fn  = nullptr;
+            size_t   cnt = 0;
+            {
+                std::unique_lock<std::mutex> lk(m_mtx);
+                m_cv_work.wait(lk, [&] { return m_stop || m_gen != local_gen; });
+                if (m_stop) return;
+                local_gen = m_gen;
+                ctx = m_ctx;
+                fn  = m_fn;
+                cnt = m_task_cnt;
+                ++m_inflight;
+            }
+            while (true) {
+                size_t idx = m_next_idx.fetch_add(1, std::memory_order_relaxed);
+                if (idx >= cnt) break;
+                fn(ctx, idx);
+                m_done_cnt.fetch_add(1, std::memory_order_acq_rel);
+            }
+            {
+                std::lock_guard<std::mutex> lk(m_mtx);
+                --m_inflight;
+            }
+            m_cv_done.notify_all();
+        }
+    }
+
+    explicit TexcelThreadPool(size_t total_threads) {
+        size_t bg = (total_threads > 1) ? (total_threads - 1) : 0;
+        m_workers.reserve(bg);
+        for (size_t i = 0; i < bg; ++i) {
+            m_workers.emplace_back([this] { workerLoop(); });
+        }
+    }
+
+public:
+    ~TexcelThreadPool() {
+        {
+            std::lock_guard<std::mutex> lk(m_mtx);
+            m_stop = true;
+        }
+        m_cv_work.notify_all();
+        for (auto& w : m_workers) {
+            if (w.joinable()) w.join();
+        }
+    }
+
+    TexcelThreadPool(const TexcelThreadPool&) = delete;
+    TexcelThreadPool& operator=(const TexcelThreadPool&) = delete;
+
+    static TexcelThreadPool& instance() {
+        static TexcelThreadPool pool(
+            std::clamp<size_t>(std::thread::hardware_concurrency(), 1u, 8u));
+        return pool;
+    }
+
+    size_t threadCount() const { return m_workers.size() + 1; }
+
+    /** @brief Ejecuta `fn(idx)` para `idx` en `[0, count)` repartiendo el trabajo entre el hilo actual y los workers. */
+    template <typename Fn>
+    void runTasks(size_t count, Fn&& fn) {
+        if (count == 0) return;
+        if (count == 1 || m_workers.empty()) {
+            for (size_t i = 0; i < count; ++i) fn(i);
+            return;
+        }
+        using FnType = std::remove_reference_t<Fn>;
+        auto trampoline = [](void* raw_ctx, size_t idx) {
+            (*static_cast<FnType*>(raw_ctx))(idx);
+        };
+        {
+            std::lock_guard<std::mutex> lk(m_mtx);
+            m_ctx      = static_cast<void*>(&fn);
+            m_fn       = trampoline;
+            m_task_cnt = count;
+            m_next_idx.store(0, std::memory_order_relaxed);
+            m_done_cnt.store(0, std::memory_order_relaxed);
+            ++m_gen;
+        }
+        m_cv_work.notify_all();
+
+        while (true) {
+            size_t idx = m_next_idx.fetch_add(1, std::memory_order_relaxed);
+            if (idx >= count) break;
+            fn(idx);
+            m_done_cnt.fetch_add(1, std::memory_order_acq_rel);
+        }
+
+        std::unique_lock<std::mutex> lk(m_mtx);
+        m_cv_done.wait(lk, [&] {
+            return m_done_cnt.load(std::memory_order_acquire) >= count && m_inflight == 0;
+        });
+    }
+};
+
+} // namespace texcel_detail
 
 /**
  * @class SpreadsheetEngine
@@ -18,10 +150,10 @@
  *
  * - Persiste celdas dispersas en `HashTable` (`Printable` / `Readable`).
  * - Compila fórmulas en `BinaryTreeNode<AstToken>` y las evalúa in-place mediante `BinaryTreeIterator<Order::PrePostOrder>`
- *   con cortocircuito real en `IF` / `IFERROR` durante `Phase::Pre`.
+ *   con cortocircuito en `IF` / `IFERROR` durante `Phase::Pre`.
  * - Suscribe dependencias puntuales en `DepGraph` (`LinkedList`) y rangos rectangulares en `RangeSubVec`.
- * - Mantiene un índice disperso por fila sobre `BaseVector` hacia nodos estables de `m_cells` (`BaseAVLTree`) para
- *   lectura en $O(1)$ durante agregaciones masivas (`COUNTIFS`, `SUM`, `AVG`).
+ * - Construye los árboles AVL internos en $O(N)$ paralelo (`buildFromInOrder`) y evalúa subgrafos grandes en paralelo
+ *   mediante ordenación topológica dinámica (Kahn) sobre el índice disperso `m_grid_index`.
  */
 class SpreadsheetEngine {
 public:
@@ -35,6 +167,8 @@ public:
     using CellTable   = BaseHashTable<HashTableTraits<std::string, SpreadsheetCell>, Callable>;
 
 private:
+    static constexpr size_t PARALLEL_EVAL_THRESHOLD = 64;
+
     struct RangeSubscription {
         std::string   subscriber_id;
         CellRangeRect rect;
@@ -64,6 +198,20 @@ private:
             if (node.getValue() != target) filtered.push_back(node.getValue(), 0);
         }
         lst = std::move(filtered);
+    }
+
+    void preallocateGrid(TX max_col, TX max_row) {
+        m_grid_index.clear();
+        if (max_col < 0 || max_row < 0) return;
+        const size_t nrows = static_cast<size_t>(max_row + 1);
+        const size_t ncols = static_cast<size_t>(max_col + 1);
+        m_grid_index.reserve(nrows);
+        for (size_t r = 0; r < nrows; ++r) {
+            CellPtrRow row_vec;
+            row_vec.reserve(ncols);
+            for (size_t c = 0; c < ncols; ++c) row_vec.push_back(nullptr, 0);
+            m_grid_index.push_back(std::move(row_vec), 0);
+        }
     }
 
     void setGridPtr(TX col, TX row, SpreadsheetCell* ptr) {
@@ -162,13 +310,13 @@ private:
     }
 
     struct ParsedCriterion {
-        bool          is_numeric_eq = false;
-        double        num_val = 0.0;
-        char          op_code = 0; // 0 = igualdad textual directa
-        bool          rhs_is_num = false;
-        double        rhs_num = 0.0;
-        std::string   rhs_str;
-        bool          matches_empty = false;
+        bool        is_numeric_eq = false;
+        double      num_val = 0.0;
+        char        op_code = 0; // 0 = igualdad textual directa
+        bool        rhs_is_num = false;
+        double      rhs_num = 0.0;
+        std::string rhs_str;
+        bool        matches_empty = false;
     };
 
     static ParsedCriterion compileCriterion(const CellEvalValue& crit) {
@@ -238,10 +386,11 @@ private:
         return val;
     }
 
-    CellEvalValue readCellByCoord(TX col, TX row, StringVec& visiting, bool& out_is_empty) {
+    /** @brief Lectura de celda para evaluación; cuando `read_only_parallel == true`, solo lee celdas ya resueltas en `m_grid_index`. */
+    CellEvalValue readCellByCoord(TX col, TX row, StringVec& visiting, bool& out_is_empty, bool read_only_parallel = false) {
         SpreadsheetCell* ptr = fastGridPtr(col, row);
         if (ptr) {
-            if (visiting.size() > 0 && texcel_detail::containsStr(visiting, ptr->id)) {
+            if (!read_only_parallel && visiting.size() > 0 && texcel_detail::containsStr(visiting, ptr->id)) {
                 out_is_empty = false;
                 return CellEvalValue::makeError("#CYCLE!");
             }
@@ -251,6 +400,10 @@ private:
                 if (ptr->has_error) return CellEvalValue::makeError(ptr->error_msg);
                 return ptr->result;
             }
+            if (read_only_parallel) {
+                out_is_empty = false;
+                return CellEvalValue::makeError("#CYCLE!");
+            }
             out_is_empty = ptr->raw_expression.empty();
             if (out_is_empty) return {};
             std::string err;
@@ -258,8 +411,7 @@ private:
             return err.empty() ? val : CellEvalValue::makeError(err);
         }
 
-        // Si la fila/columna supera el bounding box conocido y m_grid_index está sincronizado, verificar tabla cruda solo si aplica
-        if (col > m_max_used_col || row > m_max_used_row) {
+        if (read_only_parallel || col > m_max_used_col || row > m_max_used_row) {
             out_is_empty = true;
             return {};
         }
@@ -306,7 +458,8 @@ private:
     }
 
     template <typename Fn>
-    CellEvalValue forEachArgValue(const Vector<VectorAscTraits<AstNode*>>& args, StringVec& visiting, Fn&& fn) {
+    CellEvalValue forEachArgValue(const Vector<VectorAscTraits<AstNode*>>& args, StringVec& visiting,
+                                  bool read_only_parallel, Fn&& fn) {
         for (size_t i = 0; i < args.size(); ++i) {
             const AstToken& at = args[i].getValue()->getValue();
             if (at.kind == AstNodeKind::CellRange) {
@@ -317,7 +470,7 @@ private:
                 for (TX r = r0; r <= r1; ++r) {
                     for (TX c = c0; c <= c1; ++c) {
                         bool is_empty = false;
-                        CellEvalValue cv = readCellByCoord(c, r, visiting, is_empty);
+                        CellEvalValue cv = readCellByCoord(c, r, visiting, is_empty, read_only_parallel);
                         if (cv.hasError()) return cv;
                         fn(cv, true, is_empty);
                     }
@@ -338,7 +491,7 @@ private:
         return false;
     }
 
-    CellEvalValue evalCountIf(const Vector<VectorAscTraits<AstNode*>>& args, StringVec& visiting) {
+    CellEvalValue evalCountIf(const Vector<VectorAscTraits<AstNode*>>& args, StringVec& visiting, bool read_only_parallel) {
         const size_t n_conds = args.size() / 2;
         if (n_conds == 0 || args.size() % 2 != 0) return CellEvalValue::makeError("#VALUE!");
 
@@ -378,8 +531,6 @@ private:
             crits.push_back(std::move(pc));
         }
 
-        // Si al menos un criterio NO coincide con celdas vacías (caso habitual en COUNTIF/COUNTIFS),
-        // podemos acotar dr y dc al máximo desplazamiento donde algún rango aún intersecta m_max_used_col/row.
         TX max_dr = base_rows - 1;
         TX max_dc = base_cols - 1;
         if (!all_match_empty) {
@@ -405,7 +556,7 @@ private:
                 for (size_t k = 0; k < n_conds; ++k) {
                     CellCoord s = starts[k].getValue();
                     bool is_empty = false;
-                    CellEvalValue cv = readCellByCoord(s.col + dc, s.row + dr, visiting, is_empty);
+                    CellEvalValue cv = readCellByCoord(s.col + dc, s.row + dr, visiting, is_empty, read_only_parallel);
                     if (cv.hasError()) return cv;
                     if (!matchesCompiledCriterion(cv, is_empty, crits[k])) {
                         all_match = false;
@@ -420,7 +571,8 @@ private:
 
     CellEvalValue evalFunction(FuncId fn,
                                const Vector<VectorAscTraits<AstNode*>>& args,
-                               StringVec& visiting) {
+                               StringVec& visiting,
+                               bool read_only_parallel) {
         switch (fn) {
             case FuncId::If: {
                 if (args.size() < 2 || args.size() > 3) return CellEvalValue::makeError("#SYNTAX!");
@@ -450,7 +602,7 @@ private:
                 bool is_and = (fn == FuncId::And);
                 bool acc = is_and;
                 bool any_seen = false;
-                CellEvalValue err = forEachArgValue(args, visiting, [&](const CellEvalValue& ev, bool from_range, bool is_empty) {
+                CellEvalValue err = forEachArgValue(args, visiting, read_only_parallel, [&](const CellEvalValue& ev, bool from_range, bool is_empty) {
                     if (from_range && is_empty) return;
                     any_seen = true;
                     bool b = texcel_detail::isTruthyValue(ev);
@@ -500,7 +652,7 @@ private:
             case FuncId::CountA: {
                 bool count_all = (fn == FuncId::CountA);
                 TX cnt = 0;
-                CellEvalValue err = forEachArgValue(args, visiting, [&](const CellEvalValue& ev, bool from_range, bool is_empty) {
+                CellEvalValue err = forEachArgValue(args, visiting, read_only_parallel, [&](const CellEvalValue& ev, bool from_range, bool is_empty) {
                     if (is_empty) return;
                     if (count_all) {
                         ++cnt;
@@ -513,7 +665,7 @@ private:
             }
             case FuncId::Concat: {
                 std::string out_s;
-                CellEvalValue err = forEachArgValue(args, visiting, [&](const CellEvalValue& ev, bool, bool is_empty) {
+                CellEvalValue err = forEachArgValue(args, visiting, read_only_parallel, [&](const CellEvalValue& ev, bool, bool is_empty) {
                     if (!is_empty) out_s += ev.asString();
                 });
                 if (err.hasError()) return err;
@@ -521,7 +673,7 @@ private:
             }
             case FuncId::CountIf:
             case FuncId::CountIfs:
-                return evalCountIf(args, visiting);
+                return evalCountIf(args, visiting, read_only_parallel);
             case FuncId::Sum:
             case FuncId::Avg:
             case FuncId::Min:
@@ -535,7 +687,7 @@ private:
                     acc += v;
                     ++count;
                 };
-                CellEvalValue err = forEachArgValue(args, visiting, [&](const CellEvalValue& ev, bool from_range, bool) {
+                CellEvalValue err = forEachArgValue(args, visiting, read_only_parallel, [&](const CellEvalValue& ev, bool from_range, bool) {
                     if (bad_val) return;
                     if (!ev.is_text) foldNum(ev.num);
                     else if (from_range) return;
@@ -580,15 +732,12 @@ private:
 
     /**
      * @brief Evalúa un árbol `BinaryTreeNode<AstToken>` in-place sin pila externa mediante `Order::PrePostOrder`.
-     *
-     * - `Phase::Pre` (bajando): propaga `expect_numeric` y ejecuta cortocircuito real (`skip_eval`) sobre ramas no
-     *   tomadas de `IF` e `IFERROR` (ya que `m_pChild[0]` completó su `Phase::Post` antes de entrar a `m_pChild[1]`).
-     * - `Phase::Post` (subiendo): registra RPN, evalúa nodos activos y propaga `CellEvalValue` hacia la raíz.
      */
     CellEvalValue evaluateAstPostOrder(AstNode* root,
                                        StringVec& visiting,
                                        std::string* out_rpn,
-                                       std::string& out_err) {
+                                       std::string& out_err,
+                                       bool read_only_parallel = false) {
         if (!root) return {};
         if (out_rpn) out_rpn->clear();
         bool first = true;
@@ -598,14 +747,12 @@ private:
             AstToken& tok = node.value();
 
             if (it.phase() == Phase::Pre) {
-                // Cortocircuito en Phase::Pre al entrar al hijo derecho de IF o IFERROR
                 if (node.m_parent && &node == node.m_parent->m_pChild[1]) {
                     const AstToken& ptok = node.m_parent->getValue();
                     if (ptok.kind == AstNodeKind::FuncCall && !ptok.skip_eval && node.m_parent->m_pChild[0]) {
                         const CellEvalValue& first_arg = node.m_parent->m_pChild[0]->getValue().evaluated;
                         if (ptok.func_id == FuncId::If) {
                             if (tok.kind == AstNodeKind::ArgPair) {
-                                // IF de 3 argumentos: ArgPair(si_ok, si_no)
                                 if (first_arg.hasError()) {
                                     tok.skip_eval = true;
                                 } else if (texcel_detail::isTruthyValue(first_arg)) {
@@ -614,7 +761,6 @@ private:
                                     if (node.m_pChild[0]) node.m_pChild[0]->value().skip_eval = true;
                                 }
                             } else {
-                                // IF de 2 argumentos: si_ok directo en m_pChild[1]
                                 if (first_arg.hasError() || !texcel_detail::isTruthyValue(first_arg)) {
                                     tok.skip_eval = true;
                                 }
@@ -655,12 +801,12 @@ private:
                 CellCoord c = CellCoord::parse(tok.text);
                 if (c.valid) {
                     bool is_empty = false;
-                    tok.evaluated = readCellByCoord(c.col, c.row, visiting, is_empty);
+                    tok.evaluated = readCellByCoord(c.col, c.row, visiting, is_empty, read_only_parallel);
                 } else {
-                    tok.evaluated = resolveById(tok.text, visiting);
+                    tok.evaluated = read_only_parallel ? CellEvalValue::makeError("#REF!") : resolveById(tok.text, visiting);
                 }
             } else if (tok.kind == AstNodeKind::FuncCall) {
-                tok.evaluated = evalFunction(tok.func_id, collectFuncArgs(node), visiting);
+                tok.evaluated = evalFunction(tok.func_id, collectFuncArgs(node), visiting, read_only_parallel);
             } else if (tok.kind == AstNodeKind::BinaryOp) {
                 if (!node.m_pChild[0] || !node.m_pChild[1]) {
                     tok.evaluated = CellEvalValue::makeError("#SYNTAX!");
@@ -670,7 +816,6 @@ private:
                 }
             }
 
-            // Validación de tipo propagado en Phase::Pre (ej. `"Hola" + 5` -> `#VALUE!`)
             if (!tok.evaluated.hasError() && tok.expect_numeric && tok.evaluated.is_text) {
                 if (tok.evaluated.text.empty()) {
                     tok.evaluated = CellEvalValue{false, 0.0, "", ""};
@@ -708,7 +853,8 @@ private:
                                         RangeVec* out_ranges,
                                         std::string* out_rpn,
                                         std::string& out_err,
-                                        std::string* out_syntax_msg = nullptr) {
+                                        std::string* out_syntax_msg = nullptr,
+                                        bool read_only_parallel = false) {
         bool explicit_formula = (!raw.empty() && raw[0] == '=');
         if (!explicit_formula) {
             return evaluateLiteralFast(raw, out_rpn);
@@ -720,9 +866,167 @@ private:
             return {};
         }
 
-        CellEvalValue eval_res = evaluateAstPostOrder(ast, visiting, out_rpn, out_err);
+        CellEvalValue eval_res = evaluateAstPostOrder(ast, visiting, out_rpn, out_err, read_only_parallel);
         texcel_detail::freeAst(ast);
         return eval_res;
+    }
+
+    /** @brief Evalúa una celda fórmula cuyos padres ya están resueltos (`dirty == false`) sin tocar locks globales. */
+    void evalFormulaUnlocked(SpreadsheetCell* cell, bool build_rpn) {
+        StringVec local_visiting;
+        std::string local_err;
+        CellEvalValue eval_res = evaluateRawExpression(
+            cell->raw_expression, local_visiting, nullptr, nullptr,
+            build_rpn ? &cell->postorder_rpn : nullptr,
+            local_err, nullptr, /*read_only_parallel=*/true);
+
+        if (!local_err.empty()) {
+            cell->has_error = true;
+            cell->error_msg = std::move(local_err);
+            cell->result = {};
+        } else {
+            cell->has_error = false;
+            cell->error_msg.clear();
+            cell->result = std::move(eval_res);
+        }
+        cell->dirty = false;
+    }
+
+    /**
+     * @brief Evalúa un conjunto de celdas sucias en paralelo mediante ordenación topológica dinámica (Kahn).
+     *
+     * Cualquier nodo que no alcance `in_degree == 0` (ciclos `#CYCLE!`) se resuelve al final en el hilo principal.
+     */
+    void evalDirtyGraphParallel(const std::vector<SpreadsheetCell*>& targets, bool build_rpn) {
+        const size_t n = targets.size();
+        if (n == 0) return;
+
+        auto& pool = texcel_detail::TexcelThreadPool::instance();
+        if (n < PARALLEL_EVAL_THRESHOLD || pool.threadCount() <= 1) {
+            for (SpreadsheetCell* c : targets) {
+                if (c && c->dirty) evalCellQuiet(c->id, &c->raw_expression, c);
+            }
+            return;
+        }
+
+        const TX stride = std::max<TX>(1, m_max_used_col + 1);
+        const TX nrows  = std::max<TX>(1, m_max_used_row + 1);
+        std::vector<int32_t> coord_to_idx(static_cast<size_t>(nrows) * static_cast<size_t>(stride), -1);
+
+        for (size_t i = 0; i < n; ++i) {
+            CellCoord cc = CellCoord::parse(targets[i]->id);
+            if (cc.valid && cc.col < stride && cc.row < nrows) {
+                coord_to_idx[static_cast<size_t>(cc.row) * static_cast<size_t>(stride) + static_cast<size_t>(cc.col)] =
+                    static_cast<int32_t>(i);
+            }
+        }
+
+        std::vector<std::atomic<int32_t>> in_degree(n);
+        for (size_t i = 0; i < n; ++i) in_degree[i].store(0, std::memory_order_relaxed);
+        std::vector<std::vector<int32_t>> children(n);
+
+        for (size_t i = 0; i < n; ++i) {
+            const SpreadsheetCell* cell = targets[i];
+            int32_t deg = 0;
+            for (size_t k = 0; k < cell->inputs.size(); ++k) {
+                CellCoord pc = CellCoord::parse(cell->inputs[k].getValue());
+                if (pc.valid && pc.col < stride && pc.row < nrows) {
+                    int32_t pidx = coord_to_idx[static_cast<size_t>(pc.row) * static_cast<size_t>(stride) + static_cast<size_t>(pc.col)];
+                    if (pidx >= 0 && static_cast<size_t>(pidx) != i) {
+                        children[static_cast<size_t>(pidx)].push_back(static_cast<int32_t>(i));
+                        ++deg;
+                    }
+                }
+            }
+            for (size_t r = 0; r < cell->range_inputs.size(); ++r) {
+                const CellRangeRect& rect = cell->range_inputs[r].getValue();
+                TX r0 = std::max<TX>(0, rect.r0);
+                TX r1 = std::min<TX>(nrows - 1, rect.r1);
+                TX c0 = std::max<TX>(0, rect.c0);
+                TX c1 = std::min<TX>(stride - 1, rect.c1);
+                for (TX rr = r0; rr <= r1; ++rr) {
+                    size_t row_off = static_cast<size_t>(rr) * static_cast<size_t>(stride);
+                    for (TX cc = c0; cc <= c1; ++cc) {
+                        int32_t pidx = coord_to_idx[row_off + static_cast<size_t>(cc)];
+                        if (pidx >= 0 && static_cast<size_t>(pidx) != i) {
+                            auto& ch = children[static_cast<size_t>(pidx)];
+                            if (ch.empty() || ch.back() != static_cast<int32_t>(i)) {
+                                ch.push_back(static_cast<int32_t>(i));
+                                ++deg;
+                            }
+                        }
+                    }
+                }
+            }
+            in_degree[i].store(deg, std::memory_order_relaxed);
+        }
+
+        std::vector<int32_t> ready;
+        ready.reserve(n);
+        for (size_t i = 0; i < n; ++i) {
+            if (in_degree[i].load(std::memory_order_relaxed) == 0) {
+                ready.push_back(static_cast<int32_t>(i));
+            }
+        }
+
+        std::mutex q_mtx;
+        std::condition_variable q_cv;
+        size_t active_workers = 0;
+        std::atomic<size_t> completed{0};
+        const size_t n_workers = pool.threadCount();
+
+        pool.runTasks(n_workers, [&](size_t) {
+            while (true) {
+                int32_t u = -1;
+                {
+                    std::unique_lock<std::mutex> lk(q_mtx);
+                    q_cv.wait(lk, [&] { return !ready.empty() || active_workers == 0; });
+                    if (ready.empty()) return;
+                    u = ready.back();
+                    ready.pop_back();
+                    ++active_workers;
+                }
+
+                // Continuación en profundidad local: encadena el primer hijo desbloqueado sin tocar la cola compartida
+                while (u >= 0) {
+                    evalFormulaUnlocked(targets[static_cast<size_t>(u)], build_rpn);
+                    completed.fetch_add(1, std::memory_order_relaxed);
+
+                    int32_t next_u = -1;
+                    const auto& ch = children[static_cast<size_t>(u)];
+                    if (!ch.empty()) {
+                        std::vector<int32_t> extra_ready;
+                        for (int32_t v : ch) {
+                            if (in_degree[static_cast<size_t>(v)].fetch_sub(1, std::memory_order_acq_rel) == 1) {
+                                if (next_u < 0) next_u = v;
+                                else extra_ready.push_back(v);
+                            }
+                        }
+                        if (!extra_ready.empty()) {
+                            std::lock_guard<std::mutex> lk(q_mtx);
+                            for (int32_t v : extra_ready) ready.push_back(v);
+                            q_cv.notify_all();
+                        }
+                    }
+                    u = next_u;
+                }
+
+                {
+                    std::lock_guard<std::mutex> lk(q_mtx);
+                    --active_workers;
+                    if (active_workers == 0 && ready.empty()) {
+                        q_cv.notify_all();
+                    }
+                }
+            }
+        });
+
+        // Respaldo secuencial para nodos pertenecientes a ciclos (#CYCLE!) que no alcanzaron in_degree == 0
+        if (completed.load(std::memory_order_relaxed) < n) {
+            for (SpreadsheetCell* c : targets) {
+                if (c && c->dirty) evalCellQuiet(c->id, &c->raw_expression, c);
+            }
+        }
     }
 
     void unsubscribeInputs(const std::string& cid) {
@@ -822,30 +1126,69 @@ private:
         return eval_res;
     }
 
-    StringVec collectAndMarkDirtySubgraph(const std::string& root_id) {
-        StringVec affected;
-        texcel_detail::StringSet seen;
-        seen[root_id] = true;
-        affected.push_back(root_id);
-        for (size_t qi = 0; qi < affected.size(); ++qi) {
-            std::string curr_id = affected[qi].getValue();
-            if (SpreadsheetCell* c = m_cells.find(curr_id)) c->dirty = true;
-            if (DepList* deps = m_dependents.find(curr_id)) {
+    /** @brief Recolecta y marca `dirty` el subgrafo dependiente mediante BFS por coordenadas sobre `m_grid_index`. */
+    std::vector<SpreadsheetCell*> collectAndMarkDirtySubgraph(const std::string& root_id) {
+        std::vector<SpreadsheetCell*> affected;
+        const TX stride = std::max<TX>(1, m_max_used_col + 1);
+        const TX nrows  = std::max<TX>(1, m_max_used_row + 1);
+        std::vector<uint8_t> visited(static_cast<size_t>(nrows) * static_cast<size_t>(stride), 0);
+        texcel_detail::StringSet overflow_seen;
+
+        auto markAndPush = [&](const std::string& cid) {
+            CellCoord cc = CellCoord::parse(cid);
+            SpreadsheetCell* cptr = nullptr;
+            if (cc.valid && cc.col < stride && cc.row < nrows) {
+                size_t bit_idx = static_cast<size_t>(cc.row) * static_cast<size_t>(stride) + static_cast<size_t>(cc.col);
+                if (visited[bit_idx]) return;
+                visited[bit_idx] = 1;
+                cptr = fastGridPtr(cc.col, cc.row);
+                if (!cptr) cptr = m_cells.find_unlocked(cid);
+            } else {
+                if (overflow_seen.contains(cid)) return;
+                overflow_seen[cid] = true;
+                cptr = m_cells.find_unlocked(cid);
+            }
+            if (cptr) {
+                cptr->dirty = true;
+                affected.push_back(cptr);
+            }
+        };
+
+        // Registrar la raíz en la cola BFS (aunque todavía no exista en m_cells)
+        std::vector<std::string> queue_ids;
+        queue_ids.push_back(root_id);
+        {
+            CellCoord rc = CellCoord::parse(root_id);
+            if (rc.valid && rc.col < stride && rc.row < nrows) {
+                visited[static_cast<size_t>(rc.row) * static_cast<size_t>(stride) + static_cast<size_t>(rc.col)] = 1;
+                if (SpreadsheetCell* c = fastGridPtr(rc.col, rc.row)) c->dirty = true;
+            } else {
+                overflow_seen[root_id] = true;
+                if (SpreadsheetCell* c = m_cells.find_unlocked(root_id)) c->dirty = true;
+            }
+        }
+
+        const bool has_ranges = (m_range_subs.size() > 0);
+        for (size_t qi = 0; qi < queue_ids.size(); ++qi) {
+            const std::string curr_id = queue_ids[qi];
+            if (DepList* deps = m_dependents.find_unlocked(curr_id)) {
                 for (const auto& dep_node : *deps) {
                     const std::string& dep_id = dep_node.getValue();
-                    if (!seen.contains(dep_id)) {
-                        seen[dep_id] = true;
-                        affected.push_back(dep_id);
-                    }
+                    size_t before = affected.size();
+                    markAndPush(dep_id);
+                    if (affected.size() > before) queue_ids.push_back(dep_id);
                 }
             }
-            CellCoord cc = CellCoord::parse(curr_id);
-            if (cc.valid) {
-                for (size_t ri = 0; ri < m_range_subs.size(); ++ri) {
-                    const RangeSubscription& sub = m_range_subs[ri].getValue();
-                    if (sub.rect.contains(cc.col, cc.row) && !seen.contains(sub.subscriber_id)) {
-                        seen[sub.subscriber_id] = true;
-                        affected.push_back(sub.subscriber_id);
+            if (has_ranges) {
+                CellCoord cc = CellCoord::parse(curr_id);
+                if (cc.valid) {
+                    for (size_t ri = 0; ri < m_range_subs.size(); ++ri) {
+                        const RangeSubscription& sub = m_range_subs[ri].getValue();
+                        if (sub.rect.contains(cc.col, cc.row)) {
+                            size_t before = affected.size();
+                            markAndPush(sub.subscriber_id);
+                            if (affected.size() > before) queue_ids.push_back(sub.subscriber_id);
+                        }
                     }
                 }
             }
@@ -861,50 +1204,53 @@ private:
         resolveCellValue(cid, visiting, err, known_raw, known_cell);
     }
 
-    bool recomputeCell(const std::string& cid,
-                       std::string* out_disp = nullptr,
-                       const std::string* known_raw = nullptr) {
-        SpreadsheetCell* cell_ptr = m_cells.find(cid);
-        bool had_before = (cell_ptr != nullptr);
-        bool prev_empty = true;
-        bool prev_err = false;
-        std::string prev_err_msg;
-        CellEvalValue prev_res;
-        if (had_before) {
-            prev_empty   = cell_ptr->raw_expression.empty();
-            prev_err     = cell_ptr->has_error;
-            prev_err_msg = cell_ptr->error_msg;
-            prev_res     = cell_ptr->result;
-        }
-        evalCellQuiet(cid, known_raw, cell_ptr);
-        SpreadsheetCell* after_ptr = cell_ptr ? cell_ptr : m_cells.find(cid);
-        if (!had_before && !after_ptr) return false;
-        if (had_before && after_ptr) {
-            bool now_empty = after_ptr->raw_expression.empty();
-            bool same = (prev_empty && now_empty) ||
-                        (!prev_empty && !now_empty &&
-                         prev_err == after_ptr->has_error &&
-                         (prev_err ? (prev_err_msg == after_ptr->error_msg)
-                                   : (prev_res.is_text == after_ptr->result.is_text &&
-                                      (prev_res.is_text ? (prev_res.text == after_ptr->result.text)
-                                                        : (prev_res.num == after_ptr->result.num)))));
-            if (same) return false;
-        }
-        std::string prev = (!had_before || prev_empty) ? "" : (prev_err ? prev_err_msg : prev_res.asString());
-        std::string now  = after_ptr ? after_ptr->displayValue() : "";
-        if (out_disp) *out_disp = now;
-        return now != prev;
+    bool recomputeCell(SpreadsheetCell* cell_ptr, std::string* out_disp = nullptr) {
+        if (!cell_ptr || cell_ptr->raw_expression.empty()) return false;
+        bool prev_err = cell_ptr->has_error;
+        std::string prev_err_msg = cell_ptr->error_msg;
+        CellEvalValue prev_res = cell_ptr->result;
+
+        evalCellQuiet(cell_ptr->id, &cell_ptr->raw_expression, cell_ptr);
+
+        bool same = (prev_err == cell_ptr->has_error) &&
+                    (prev_err ? (prev_err_msg == cell_ptr->error_msg)
+                              : (prev_res.is_text == cell_ptr->result.is_text &&
+                                 (prev_res.is_text ? (prev_res.text == cell_ptr->result.text)
+                                                   : (prev_res.num == cell_ptr->result.num))));
+        if (same) return false;
+        if (out_disp) *out_disp = cell_ptr->displayValue();
+        return true;
     }
 
-    StringVec propagateAffected(const StringVec& affected) {
+    /** @brief Propaga el recálculo sobre `affected` usando Kahn paralelo cuando supera `PARALLEL_EVAL_THRESHOLD`. */
+    StringVec propagateAffected(std::vector<SpreadsheetCell*>& affected, bool collect_log_summary = true) {
         StringVec updated;
-        for (size_t qi = 1; qi < affected.size(); ++qi) {
-            const std::string& curr_id = affected[qi].getValue();
-            const std::string* raw_ptr = m_raw_table.find(curr_id);
-            if (!raw_ptr || raw_ptr->empty()) continue;
+        if (affected.empty()) return updated;
+
+        auto& pool = texcel_detail::TexcelThreadPool::instance();
+        if (affected.size() >= PARALLEL_EVAL_THRESHOLD && pool.threadCount() > 1) {
+            evalDirtyGraphParallel(affected, /*build_rpn=*/false);
+            if (collect_log_summary) {
+                size_t limit = std::min<size_t>(affected.size(), 6);
+                for (size_t i = 0; i < limit; ++i) {
+                    if (affected[i] && !affected[i]->raw_expression.empty()) {
+                        updated.push_back(affected[i]->id + "=" + affected[i]->displayValue());
+                    }
+                }
+                if (affected.size() > limit) {
+                    updated.push_back("+" + std::to_string(affected.size() - limit));
+                }
+            }
+            return updated;
+        }
+
+        for (SpreadsheetCell* c : affected) {
+            if (!c || c->raw_expression.empty()) continue;
             std::string now_disp;
-            if (recomputeCell(curr_id, &now_disp, raw_ptr)) {
-                updated.push_back(curr_id + "=" + now_disp);
+            if (recomputeCell(c, collect_log_summary && updated.size() < 7 ? &now_disp : nullptr)) {
+                if (collect_log_summary && updated.size() < 7) {
+                    updated.push_back(c->id + "=" + now_disp);
+                }
             }
         }
         return updated;
@@ -930,7 +1276,9 @@ public:
     TX maxUsedCol() const { return m_max_used_col; }
     TX maxUsedRow() const { return m_max_used_row; }
 
-    /** @brief Reconstruye el grafo y recalcula todas las celdas activas en dos pasadas (literales $O(1)$ + fórmulas). */
+    /**
+     * @brief Reconstruye en paralelo el `BaseAVLTree` de `m_cells` y `m_dependents` y evalúa todas las fórmulas activas.
+     */
     StringVec recalculateAll(const std::string& = "") {
         m_dependents.clear();
         m_range_subs.clear();
@@ -939,40 +1287,112 @@ public:
         m_max_used_col = -1;
         m_max_used_row = -1;
 
-        BaseVector<VectorAscTraits<SpreadsheetCell*>, Callable> formula_cells;
+        struct RawItem {
+            const std::string* id;
+            const std::string* raw;
+            TX col;
+            TX row;
+        };
+        std::vector<RawItem> raw_items;
 
-        // Pasada 1: indexar todas las celdas no vacías y resolver literales (números/textos) sin AST
-        for (const auto& entry_node : m_raw_table) {
-            const auto& kv = entry_node.getValue();
-            const std::string& cid = kv.getKey();
-            const std::string& raw = kv.getValue();
-            if (raw.empty()) continue;
+        // 1. Recolectar entradas en el orden InOrder de m_raw_table y calcular el bounding box
+        for (auto& entry_node : m_raw_table) {
+            // `getValue()` devuelve una copia; `value()` expone la entrada viva del árbol (punteros estables)
+            auto& kv = entry_node.value();
+            if (kv.getValue().empty()) continue;
+            CellCoord cc = CellCoord::parse(kv.getKey());
+            TX col = cc.valid ? cc.col : -1;
+            TX row = cc.valid ? cc.row : -1;
+            if (cc.valid) {
+                m_max_used_col = std::max(m_max_used_col, col);
+                m_max_used_row = std::max(m_max_used_row, row);
+            }
+            raw_items.push_back(RawItem{&kv.getKey(), &kv.getValue(), col, row});
+        }
 
-            CellCoord cc = CellCoord::parse(cid);
-            std::string canon = cc.valid ? cc.toId() : cid;
-            SpreadsheetCell& cell = m_cells[canon];
-            cell.id = canon;
-            cell.raw_expression = raw;
-            cell.is_formula = (raw[0] == '=');
-            if (cc.valid) setGridPtr(cc.col, cc.row, &cell);
+        if (raw_items.empty()) return {};
+
+        preallocateGrid(m_max_used_col, m_max_used_row);
+        std::vector<SpreadsheetCell*> all_ptrs(raw_items.size(), nullptr);
+        auto& pool = texcel_detail::TexcelThreadPool::instance();
+        auto pool_runner = [&](size_t cnt, auto&& fn) { pool.runTasks(cnt, fn); };
+
+        // 2. Construir el BaseAVLTree único de m_cells en paralelo (O(N), 0 rotaciones) + evaluar literales y parsear fórmulas
+        m_cells.buildFromInOrder(raw_items.size(), pool_runner, [&](size_t idx) {
+            const RawItem& it = raw_items[idx];
+            SpreadsheetCell cell;
+            cell.id = *it.id;
+            cell.raw_expression = *it.raw;
+            cell.is_formula = (!cell.raw_expression.empty() && cell.raw_expression[0] == '=');
 
             if (!cell.is_formula) {
-                cell.result = evaluateLiteralFast(raw, &cell.postorder_rpn);
+                cell.result = evaluateLiteralFast(cell.raw_expression, &cell.postorder_rpn);
                 cell.has_error = false;
                 cell.dirty = false;
             } else {
-                cell.dirty = true;
-                formula_cells.push_back(&cell, 0);
+                AstNode* ast = tryParseAst(cell.raw_expression, &cell.inputs, nullptr, &cell.range_inputs);
+                if (!ast) {
+                    cell.has_error = true;
+                    cell.error_msg = "#SYNTAX!";
+                    cell.dirty = false;
+                } else {
+                    texcel_detail::freeAst(ast);
+                    cell.dirty = true;
+                }
+            }
+
+            std::string key_copy = cell.id;
+            auto* node = new CellTable::Node(CellTable::Pair(std::move(key_copy), std::move(cell)), 0);
+            SpreadsheetCell* cell_ptr = &(node->value().value());
+            all_ptrs[idx] = cell_ptr;
+            if (it.col >= 0 && it.row >= 0) {
+                m_grid_index[static_cast<size_t>(it.row)].value()[static_cast<size_t>(it.col)].value() = cell_ptr;
+            }
+            return node;
+        });
+
+        // 3. Recolectar fórmulas pendientes, aristas puntuales y suscripciones de rango
+        std::vector<SpreadsheetCell*> formula_cells;
+        std::vector<std::pair<std::string, std::string>> dep_edges;
+        for (SpreadsheetCell* cell : all_ptrs) {
+            if (!cell || !cell->is_formula) continue;
+            if (cell->dirty) formula_cells.push_back(cell);
+            for (size_t i = 0; i < cell->inputs.size(); ++i) {
+                const std::string& ref_id = cell->inputs[i].getValue();
+                if (ref_id != cell->id) dep_edges.emplace_back(ref_id, cell->id);
+            }
+            for (size_t i = 0; i < cell->range_inputs.size(); ++i) {
+                m_range_subs.push_back(RangeSubscription{cell->id, cell->range_inputs[i].getValue()}, 0);
             }
         }
 
-        // Pasada 2: evaluar únicamente las celdas con fórmula usando lecturas O(1) sobre m_grid_index
-        for (size_t i = 0; i < formula_cells.size(); ++i) {
-            SpreadsheetCell* fc = formula_cells[i].getValue();
-            if (fc && fc->dirty) {
-                evalCellQuiet(fc->id, &fc->raw_expression, fc);
+        // 4. Construir el BaseAVLTree único de m_dependents en paralelo en orden descendente (InOrder de BaseHashTable)
+        if (!dep_edges.empty()) {
+            std::sort(dep_edges.begin(), dep_edges.end(), [](const auto& a, const auto& b) {
+                return a.first > b.first;
+            });
+            struct DepGroup { size_t start; size_t count; };
+            std::vector<DepGroup> groups;
+            groups.reserve(dep_edges.size());
+            for (size_t i = 0; i < dep_edges.size();) {
+                size_t j = i + 1;
+                while (j < dep_edges.size() && dep_edges[j].first == dep_edges[i].first) ++j;
+                groups.push_back(DepGroup{i, j - i});
+                i = j;
             }
+
+            m_dependents.buildFromInOrder(groups.size(), pool_runner, [&](size_t gidx) {
+                const DepGroup& g = groups[gidx];
+                DepList lst;
+                for (size_t k = 0; k < g.count; ++k) {
+                    lst.push_back(dep_edges[g.start + k].second, 0);
+                }
+                return new DepGraph::Node(DepGraph::Pair(dep_edges[g.start].first, std::move(lst)), 0);
+            });
         }
+
+        // 5. Evaluar todas las fórmulas en paralelo mediante Kahn dinámico
+        evalDirtyGraphParallel(formula_cells, /*build_rpn=*/true);
         return {};
     }
 
@@ -990,14 +1410,14 @@ public:
 
         unsubscribeInputs(cid);
         if (SpreadsheetCell* c = m_cells.find(cid)) c->raw_expression.clear();
-        StringVec affected = collectAndMarkDirtySubgraph(cid);
+        std::vector<SpreadsheetCell*> affected = collectAndMarkDirtySubgraph(cid);
 
         if (expr.empty()) {
             m_raw_table[cid] = "";
             SpreadsheetCell& cleared = m_cells[cid];
             cleared = SpreadsheetCell{.id = cid, .dirty = false};
             setGridPtr(coord.col, coord.row, &cleared);
-            propagateAffected(affected);
+            propagateAffected(affected, /*collect_log_summary=*/false);
             if (!quiet_log) addLog("⌫ " + cid + " limpiada");
             return true;
         }
@@ -1011,7 +1431,7 @@ public:
         setGridPtr(coord.col, coord.row, &target);
 
         evalCellQuiet(cid, &m_raw_table[cid], &target);
-        StringVec cascaded = propagateAffected(affected);
+        StringVec cascaded = propagateAffected(affected, /*collect_log_summary=*/!quiet_log);
 
         if (!quiet_log) {
             std::string log_expr = (expr[0] == '=') ? texcel_detail::trim(std::string_view(expr).substr(1)) : expr;

@@ -223,6 +223,79 @@ public:
     /** @brief Libera todos los nodos del árbol. */
     void clear() override;
 
+    /**
+     * @brief Construye el árbol balanceado (`|bf| <= 1`) en $O(N)$ desde un conjunto ya ordenado en `InOrder`.
+     * @param count Número total de elementos en orden `m_pChild[0] -> nodo -> m_pChild[1]`.
+     * @param run_parallel Despachador paralelo `(tasks[], n_tasks)` para construir subárboles disjuntos en paralelo.
+     * @param make_node Fábrica `(size_t idx) -> NodePtr` que aloja e inicializa cada nodo.
+     */
+    template <typename Runner, typename MakerFn>
+    void buildFromInOrder(size_t count, Runner&& run_parallel, MakerFn&& make_node) {
+        std::lock_guard lock(this->m_mutex);
+        clear_recursive(m_pRoot);
+        m_pRoot = nullptr;
+        if (count == 0) return;
+
+        auto buildRange = [&](auto& self, size_t lo, size_t hi, NodePtr parent) -> NodePtr {
+            if (lo >= hi) return nullptr;
+            size_t mid = lo + (hi - lo) / 2;
+            NodePtr node = make_node(mid);
+            node->m_parent = parent;
+            NodePtr left  = self(self, lo, mid, node);
+            NodePtr right = self(self, mid + 1, hi, node);
+            node->m_pChild[0] = left;
+            node->m_pChild[1] = right;
+            TX hl = left  ? left->m_height  : -1;
+            TX hr = right ? right->m_height : -1;
+            node->m_height = 1 + std::max(hl, hr);
+            return node;
+        };
+
+        // Si el volumen es pequeño, construir directamente en el hilo actual
+        if (count < 256) {
+            m_pRoot = buildRange(buildRange, 0, count, nullptr);
+            return;
+        }
+
+        // Dividir en hasta 4 subárboles disjuntos (profundidad 2) para construirlos en paralelo sin locks
+        size_t m_root = count / 2;
+        size_t m_l    = m_root / 2;
+        size_t m_r    = (m_root + 1 + count) / 2;
+
+        NodePtr root = make_node(m_root);
+        NodePtr nl   = make_node(m_l);
+        NodePtr nr   = make_node(m_r);
+
+        NodePtr sub[4] = {nullptr, nullptr, nullptr, nullptr};
+        struct RangeJob { size_t lo, hi; NodePtr parent; NodePtr* out; };
+        RangeJob jobs[4] = {
+            {0,          m_l,    nl, &sub[0]},
+            {m_l + 1,    m_root, nl, &sub[1]},
+            {m_root + 1, m_r,    nr, &sub[2]},
+            {m_r + 1,    count,  nr, &sub[3]},
+        };
+
+        run_parallel(4, [&](size_t t) {
+            *(jobs[t].out) = buildRange(buildRange, jobs[t].lo, jobs[t].hi, jobs[t].parent);
+        });
+
+        nl->m_pChild[0] = sub[0];
+        nl->m_pChild[1] = sub[1];
+        nl->m_parent    = root;
+        nl->m_height    = 1 + std::max(sub[0] ? sub[0]->m_height : TX(-1), sub[1] ? sub[1]->m_height : TX(-1));
+
+        nr->m_pChild[0] = sub[2];
+        nr->m_pChild[1] = sub[3];
+        nr->m_parent    = root;
+        nr->m_height    = 1 + std::max(sub[2] ? sub[2]->m_height : TX(-1), sub[3] ? sub[3]->m_height : TX(-1));
+
+        root->m_pChild[0] = nl;
+        root->m_pChild[1] = nr;
+        root->m_parent    = nullptr;
+        root->m_height    = 1 + std::max(nl->m_height, nr->m_height);
+        m_pRoot = root;
+    }
+
     /** @brief Inserta un elemento delegando a `insert()`. */
     void push_back(const value_type& value, Ref ref) override { insert(value, ref); }
 
