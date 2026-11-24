@@ -130,6 +130,10 @@ El algoritmo hace lo siguiente:
        4     2
 ```
 
+![Ascenso de precedencia (Precedence Climbing)](images/texcel_precedence_climbing.svg)
+
+*(En el diagrama animado se muestra el caso extendido `= A1 + 4 * 2 ^ 3 - B1 >= 20` paso a paso; si abres [texcel_precedence_climbing.svg](images/texcel_precedence_climbing.svg) directamente en el navegador, puedes pausar y avanzar con `◀` / `▶` o las flechas del teclado).*
+
 #### 4. ¿Cómo caben 3 o más argumentos en un árbol *binario*? ([`parseFunctionCall`](../src/texcel/parser.h#L214-L253))
 Cada `BinaryTreeNode` solo tiene **dos hijos** (izquierdo y derecho). Entonces, ¿cómo representa una función como `=IF(A1 > 10, "Sí", "No")` que tiene 3 argumentos?
 

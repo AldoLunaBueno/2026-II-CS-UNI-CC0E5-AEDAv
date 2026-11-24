@@ -16,6 +16,8 @@
 /**
  * @class FormulaParser
  * @brief Parser compacto por Precedence Climbing con gestión RAII, catálogo unificado y rangos `O(1)`.
+ *
+ * @image html texcel_precedence_climbing.svg "Ascenso de precedencia (Precedence Climbing) en FormulaParser::parseBinary"
  */
 class FormulaParser {
     struct AstDeleter {

@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1120 770" width="100%" height="100%"
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1120 844" width="100%" height="100%"
      font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
   <defs>
     <!-- =================================================================== -->
@@ -15,24 +15,24 @@
     <rect id="lvl-row-bg" x="0" y="0" width="288" height="44" rx="8" />
     <rect id="lvl-num-badge" x="8" y="9" width="26" height="26" rx="6" />
 
-    <!-- Nodos base del árbol AST (operador y hoja) -->
+    <!-- Nodos base del árbol AST -->
     <circle id="ast-node-op" r="23" />
     <circle id="ast-node-leaf" r="22" />
 
-    <!-- Pastilla de paso en la traza inferior (2 filas de 6) -->
-    <rect id="step-chip" x="-72" y="-14" width="144" height="28" rx="7" />
+    <!-- Pastilla compacta de paso (1..18) -->
+    <rect id="step-chip" x="-23" y="-14" width="46" height="28" rx="6" />
 
     <!-- =================================================================== -->
-    <!-- ESTILOS DECLARATIVOS, VARIABLES CSS Y ANIMACIÓN SINCRONIZADA (30s)  -->
+    <!-- ESTILOS DECLARATIVOS, VARIABLES CSS Y ANIMACIÓN SINCRONIZADA (36s)  -->
     <!-- =================================================================== -->
     <style>
       :root {
-        /* 1. Reloj global único (12 pasos x 2.5s = 30s) */
-        --dur: 30s;
+        /* 1. Reloj global único (18 pasos atómicos x 2s = 36s) */
+        --dur: 36s;
         --play-state: running;
         --anim-delay: 0s;
 
-        /* 2. Paleta general (alineada con euler_contour.svg) */
+        /* 2. Paleta general */
         --bg-canvas:        #FAFAFA;
         --bg-panel:         #F3F5F7;
         --border-panel:     #CFD8DC;
@@ -40,20 +40,20 @@
         --ink-secondary:    #455A64;
         --ink-muted:        #78909C;
 
-        /* 3. Estilo neutro por defecto de los 5 niveles de precedencia */
+        /* 3. Estilo neutro por defecto de los 5 niveles */
         --lvl-def-bg:       #FFFFFF;
         --lvl-def-stroke:   #CFD8DC;
         --lvl-def-badge:    #ECEFF1;
         --lvl-def-text:     #546E7A;
 
-        /* 4. Paleta semántica para cada uno de los 5 niveles */
+        /* 4. Paleta semántica por nivel de precedencia */
         --lvl5-bg: #F3E5F5; --lvl5-stroke: #7B1FA2; --lvl5-glow: #AB47BC; --lvl5-ink: #4A148C; /* potencia */
         --lvl4-bg: #E8F5E9; --lvl4-stroke: #2E7D32; --lvl4-glow: #00C853; --lvl4-ink: #1B5E20; /* mult/div */
         --lvl3-bg: #FFF3E0; --lvl3-stroke: #E65100; --lvl3-glow: #FF9100; --lvl3-ink: #BF360C; /* suma/resta */
         --lvl2-bg: #E0F7FA; --lvl2-stroke: #00838F; --lvl2-glow: #00BCD4; --lvl2-ink: #006064; /* concat */
         --lvl1-bg: #E8EAF6; --lvl1-stroke: #283593; --lvl1-glow: #3F51B5; --lvl1-ink: #1A237E; /* comparacion */
 
-        /* 5. Geometría de paneles y posicionamiento relativo */
+        /* 5. Geometría relativa */
         --pad-x:            32px;
         --tape-y:           84px;
         --tok-x0:          218px;
@@ -67,8 +67,8 @@
 
         --ast-panel-x:     366px;
         --trace-y:         592px;
-        --step-x0:         102px;
-        --step-dx:         170px;
+        --step-x0:          61px;
+        --step-dx:          55px;
       }
 
       /* Paneles y tipografía */
@@ -78,16 +78,15 @@
       .title       { font-size: 21px; font-weight: 700; fill: var(--ink-primary); text-anchor: middle; }
       .subtitle    { font-size: 13px; fill: var(--ink-secondary); text-anchor: middle; }
       .panel-title { font-size: 12.6px; font-weight: 700; fill: var(--ink-primary); }
-      .panel-note  { font-size: 11px; fill: var(--ink-secondary); font-style: italic; }
+      .panel-note  { font-size: 10.8px; fill: var(--ink-secondary); font-style: italic; }
       .mono        { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
 
-      /* Posicionamiento relativo de regiones */
+      /* Posicionamiento relativo */
       .pos-tape      { transform: translate(var(--pad-x),       var(--tape-y)); }
       .pos-lvl-panel { transform: translate(var(--lvl-panel-x), var(--main-y)); }
       .pos-ast-panel { transform: translate(var(--ast-panel-x), var(--main-y)); }
       .pos-trace     { transform: translate(var(--pad-x),       var(--trace-y)); }
 
-      /* Posicionamiento de los 13 tokens en la cinta (= A1 + 4 * 2 ^ 3 - B1 = 33 EOF) */
       .tok-0  { transform: translate(calc(var(--tok-x0) +  0 * var(--tok-dx)), 25px); }
       .tok-1  { transform: translate(calc(var(--tok-x0) +  1 * var(--tok-dx)), 25px); }
       .tok-2  { transform: translate(calc(var(--tok-x0) +  2 * var(--tok-dx)), 25px); }
@@ -102,17 +101,15 @@
       .tok-11 { transform: translate(calc(var(--tok-x0) + 11 * var(--tok-dx)), 25px); }
       .tok-12 { transform: translate(calc(var(--tok-x0) + 12 * var(--tok-dx)), 25px); }
 
-      /* Posicionamiento de los 5 niveles de precedencia */
       .lvl-5 { transform: translate(var(--lvl-x0), calc(var(--lvl-y0) + 0 * var(--lvl-dy))); }
       .lvl-4 { transform: translate(var(--lvl-x0), calc(var(--lvl-y0) + 1 * var(--lvl-dy))); }
       .lvl-3 { transform: translate(var(--lvl-x0), calc(var(--lvl-y0) + 2 * var(--lvl-dy))); }
       .lvl-2 { transform: translate(var(--lvl-x0), calc(var(--lvl-y0) + 3 * var(--lvl-dy))); }
       .lvl-1 { transform: translate(var(--lvl-x0), calc(var(--lvl-y0) + 4 * var(--lvl-dy))); }
 
-      /* Posicionamiento relativo de los 11 nodos del AST dentro del panel derecho (722x416) */
-      .node-eq   { transform: translate(450px,  74px); }
+      .node-ge   { transform: translate(450px,  74px); }
       .node-sub  { transform: translate(320px, 136px); }
-      .node-n33  { transform: translate(580px, 136px); }
+      .node-n20  { transform: translate(580px, 136px); }
       .node-plus { transform: translate(195px, 198px); }
       .node-b1   { transform: translate(445px, 198px); }
       .node-a1   { transform: translate( 95px, 260px); }
@@ -122,21 +119,26 @@
       .node-n2   { transform: translate(330px, 382px); }
       .node-n3   { transform: translate(460px, 382px); }
 
-      /* Posicionamiento de las 12 pastillas de paso (2 filas x 6 columnas) */
-      .st-1  { transform: translate(calc(var(--step-x0) + 0 * var(--step-dx)), 34px); }
-      .st-2  { transform: translate(calc(var(--step-x0) + 1 * var(--step-dx)), 34px); }
-      .st-3  { transform: translate(calc(var(--step-x0) + 2 * var(--step-dx)), 34px); }
-      .st-4  { transform: translate(calc(var(--step-x0) + 3 * var(--step-dx)), 34px); }
-      .st-5  { transform: translate(calc(var(--step-x0) + 4 * var(--step-dx)), 34px); }
-      .st-6  { transform: translate(calc(var(--step-x0) + 5 * var(--step-dx)), 34px); }
-      .st-7  { transform: translate(calc(var(--step-x0) + 0 * var(--step-dx)), 70px); }
-      .st-8  { transform: translate(calc(var(--step-x0) + 1 * var(--step-dx)), 70px); }
-      .st-9  { transform: translate(calc(var(--step-x0) + 2 * var(--step-dx)), 70px); }
-      .st-10 { transform: translate(calc(var(--step-x0) + 3 * var(--step-dx)), 70px); }
-      .st-11 { transform: translate(calc(var(--step-x0) + 4 * var(--step-dx)), 70px); }
-      .st-12 { transform: translate(calc(var(--step-x0) + 5 * var(--step-dx)), 70px); }
+      .st-1 { transform: translate(calc(var(--step-x0) + 0 * var(--step-dx)), 42px); }
+      .st-2 { transform: translate(calc(var(--step-x0) + 1 * var(--step-dx)), 42px); }
+      .st-3 { transform: translate(calc(var(--step-x0) + 2 * var(--step-dx)), 42px); }
+      .st-4 { transform: translate(calc(var(--step-x0) + 3 * var(--step-dx)), 42px); }
+      .st-5 { transform: translate(calc(var(--step-x0) + 4 * var(--step-dx)), 42px); }
+      .st-6 { transform: translate(calc(var(--step-x0) + 5 * var(--step-dx)), 42px); }
+      .st-7 { transform: translate(calc(var(--step-x0) + 6 * var(--step-dx)), 42px); }
+      .st-8 { transform: translate(calc(var(--step-x0) + 7 * var(--step-dx)), 42px); }
+      .st-9 { transform: translate(calc(var(--step-x0) + 8 * var(--step-dx)), 42px); }
+      .st-10 { transform: translate(calc(var(--step-x0) + 9 * var(--step-dx)), 42px); }
+      .st-11 { transform: translate(calc(var(--step-x0) + 10 * var(--step-dx)), 42px); }
+      .st-12 { transform: translate(calc(var(--step-x0) + 11 * var(--step-dx)), 42px); }
+      .st-13 { transform: translate(calc(var(--step-x0) + 12 * var(--step-dx)), 42px); }
+      .st-14 { transform: translate(calc(var(--step-x0) + 13 * var(--step-dx)), 42px); }
+      .st-15 { transform: translate(calc(var(--step-x0) + 14 * var(--step-dx)), 42px); }
+      .st-16 { transform: translate(calc(var(--step-x0) + 15 * var(--step-dx)), 42px); }
+      .st-17 { transform: translate(calc(var(--step-x0) + 16 * var(--step-dx)), 42px); }
+      .st-18 { transform: translate(calc(var(--step-x0) + 17 * var(--step-dx)), 42px); }
 
-      /* Estilos base */
+      /* Estilos de elementos */
       .tok-bg     { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; }
       .tok-bg-eof { fill: #ECEFF1; stroke: #B0BEC5; stroke-width: 1.4; stroke-dasharray: 4 3; }
       .tok-txt    { font-size: 13.5px; font-weight: 700; fill: #263238; text-anchor: middle; }
@@ -148,406 +150,418 @@
       .lvl-ops    { font-size: 13px; font-weight: 800; fill: #37474F; }
       .lvl-desc   { font-size: 11px; fill: var(--ink-muted); text-anchor: end; }
 
+      /* Línea móvil de umbral min_prec */
+      .thresh-line { stroke: #1565C0; stroke-width: 2.2; stroke-dasharray: 6 3; }
+      .thresh-pill { fill: #1565C0; rx: 6; }
+      .thresh-txt  { font-size: 9.8px; font-weight: 800; fill: #FFFFFF; text-anchor: middle; }
+
       .ast-edge      { stroke: var(--ink-primary); stroke-width: 2.8; stroke-linecap: round; }
       .ast-op-body   { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; }
       .ast-leaf-body { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; }
       .ast-val       { font-size: 14.5px; font-weight: 800; fill: var(--ink-primary); text-anchor: middle; }
       .ast-sub       { font-size: 8.2px; font-weight: 700; fill: var(--ink-secondary); text-anchor: middle; }
 
-      .chip-bg    { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
-      .chip-title { font-size: 10.5px; font-weight: 800; fill: #37474F; text-anchor: middle; }
-      .chip-sub   { font-size: 9.2px; fill: var(--ink-muted); text-anchor: middle; }
-      .seq-arrow  { stroke: #B0BEC5; stroke-width: 1.4; }
+      .chip-bg    { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+      .chip-num   { font-size: 10px; font-weight: 800; fill: #37474F; text-anchor: middle; }
+      .chip-sub   { font-size: 8.8px; fill: var(--ink-muted); text-anchor: middle; }
+      .seq-arrow  { stroke: #CFD8DC; stroke-width: 1.4; }
 
       .call-pill  { fill: #E8EAF6; stroke: #5C6BC0; stroke-width: 1.2; rx: 6; }
       .call-txt   { font-size: 10.5px; font-weight: 700; fill: var(--ink-primary); text-anchor: middle; }
-      .caption    { font-size: 12.2px; font-weight: 600; fill: #263238; text-anchor: middle; opacity: 0; }
+      .cap-group  { opacity: 0; }
+      .cap-l1-txt { font-size: 12.6px; font-weight: 700; fill: #1E293B; text-anchor: middle; }
+      .cap-l2-txt { font-size: 11.4px; font-weight: 500; fill: #455A64; text-anchor: middle; }
       .cap-em     { font-weight: 800; fill: var(--ink-primary); }
+      .cap-ok     { font-weight: 800; fill: #2E7D32; }
+      .cap-no     { font-weight: 800; fill: #C62828; }
       .cap-l1     { font-weight: 800; fill: var(--lvl1-ink); }
       .cap-l3     { font-weight: 800; fill: var(--lvl3-ink); }
       .cap-l4     { font-weight: 800; fill: var(--lvl4-ink); }
       .cap-l5     { font-weight: 800; fill: var(--lvl5-ink); }
 
       /* =================================================================== */
-      /* ANIMACIONES SINCRONIZADAS (12 TRAMOS DE 8.33% SOBRE 30s)            */
+      /* ANIMACIONES SINCRONIZADAS (18 PASOS ATÓMICOS SOBRE 36s)             */
       /* =================================================================== */
       
-      @keyframes kf-lvl5-bg { 0% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 33.33%, 41.67% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 33.78%, 41.22% { fill: var(--lvl5-bg); stroke: var(--lvl5-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl5-glow)); } 100% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } }
-      @keyframes kf-lvl5-badge { 0% { fill: var(--lvl-def-badge); } 33.33%, 41.67% { fill: var(--lvl-def-badge); } 33.78%, 41.22% { fill: var(--lvl5-stroke); } 100% { fill: var(--lvl-def-badge); } }
-      @keyframes kf-lvl5-num { 0% { fill: var(--lvl-def-text); } 33.33%, 41.67% { fill: var(--lvl-def-text); } 33.78%, 41.22% { fill: #FFFFFF; } 100% { fill: var(--lvl-def-text); } }
+      @keyframes kf-thresh-y { 0%, 5.31% { transform: translate(0px, 332px); } 5.91%, 10.86% { transform: translate(0px, 332px); } 11.46%, 16.42% { transform: translate(0px, 164px); } 17.02%, 21.97% { transform: translate(0px, 164px); } 22.57%, 27.53% { transform: translate(0px, 108px); } 28.13%, 33.08% { transform: translate(0px, 108px); } 33.68%, 38.64% { transform: translate(0px, 108px); } 39.24%, 44.19% { transform: translate(0px, 108px); } 44.79%, 49.75% { transform: translate(0px, 108px); } 50.35%, 55.31% { transform: translate(0px, 164px); } 55.91%, 60.86% { transform: translate(0px, 332px); } 61.46%, 66.42% { transform: translate(0px, 332px); } 67.02%, 71.97% { transform: translate(0px, 164px); } 72.57%, 77.53% { transform: translate(0px, 164px); } 78.13%, 83.08% { transform: translate(0px, 332px); } 83.68%, 88.64% { transform: translate(0px, 332px); } 89.24%, 94.19% { transform: translate(0px, 276px); } 94.79%, 99.75% { transform: translate(0px, 332px); } 100% { transform: translate(0px, 332px); } }
+      .anim-thresh-y { animation: kf-thresh-y var(--dur) infinite; }
+      @keyframes kf-mp-1 { 0%, 5.36% { opacity: 1; } 5.76%, 10.91% { opacity: 1; } 11.31%, 16.47% { opacity: 0; } 16.87%, 22.02% { opacity: 0; } 22.42%, 27.58% { opacity: 0; } 27.98%, 33.13% { opacity: 0; } 33.53%, 38.69% { opacity: 0; } 39.09%, 44.24% { opacity: 0; } 44.64%, 49.80% { opacity: 0; } 50.20%, 55.36% { opacity: 0; } 55.76%, 60.91% { opacity: 1; } 61.31%, 66.47% { opacity: 1; } 66.87%, 72.02% { opacity: 0; } 72.42%, 77.58% { opacity: 0; } 77.98%, 83.13% { opacity: 1; } 83.53%, 88.69% { opacity: 1; } 89.09%, 94.24% { opacity: 0; } 94.64%, 99.80% { opacity: 1; } 100% { opacity: 1; } }
+      .anim-mp-1 { opacity: 0; animation: kf-mp-1 var(--dur) infinite; }
+      @keyframes kf-mp-2 { 0%, 5.36% { opacity: 0; } 5.76%, 10.91% { opacity: 0; } 11.31%, 16.47% { opacity: 0; } 16.87%, 22.02% { opacity: 0; } 22.42%, 27.58% { opacity: 0; } 27.98%, 33.13% { opacity: 0; } 33.53%, 38.69% { opacity: 0; } 39.09%, 44.24% { opacity: 0; } 44.64%, 49.80% { opacity: 0; } 50.20%, 55.36% { opacity: 0; } 55.76%, 60.91% { opacity: 0; } 61.31%, 66.47% { opacity: 0; } 66.87%, 72.02% { opacity: 0; } 72.42%, 77.58% { opacity: 0; } 77.98%, 83.13% { opacity: 0; } 83.53%, 88.69% { opacity: 0; } 89.09%, 94.24% { opacity: 1; } 94.64%, 99.80% { opacity: 0; } 100% { opacity: 0; } }
+      .anim-mp-2 { opacity: 0; animation: kf-mp-2 var(--dur) infinite; }
+      @keyframes kf-mp-4 { 0%, 5.36% { opacity: 0; } 5.76%, 10.91% { opacity: 0; } 11.31%, 16.47% { opacity: 1; } 16.87%, 22.02% { opacity: 1; } 22.42%, 27.58% { opacity: 0; } 27.98%, 33.13% { opacity: 0; } 33.53%, 38.69% { opacity: 0; } 39.09%, 44.24% { opacity: 0; } 44.64%, 49.80% { opacity: 0; } 50.20%, 55.36% { opacity: 1; } 55.76%, 60.91% { opacity: 0; } 61.31%, 66.47% { opacity: 0; } 66.87%, 72.02% { opacity: 1; } 72.42%, 77.58% { opacity: 1; } 77.98%, 83.13% { opacity: 0; } 83.53%, 88.69% { opacity: 0; } 89.09%, 94.24% { opacity: 0; } 94.64%, 99.80% { opacity: 0; } 100% { opacity: 0; } }
+      .anim-mp-4 { opacity: 0; animation: kf-mp-4 var(--dur) infinite; }
+      @keyframes kf-mp-5 { 0%, 5.36% { opacity: 0; } 5.76%, 10.91% { opacity: 0; } 11.31%, 16.47% { opacity: 0; } 16.87%, 22.02% { opacity: 0; } 22.42%, 27.58% { opacity: 1; } 27.98%, 33.13% { opacity: 1; } 33.53%, 38.69% { opacity: 1; } 39.09%, 44.24% { opacity: 1; } 44.64%, 49.80% { opacity: 1; } 50.20%, 55.36% { opacity: 0; } 55.76%, 60.91% { opacity: 0; } 61.31%, 66.47% { opacity: 0; } 66.87%, 72.02% { opacity: 0; } 72.42%, 77.58% { opacity: 0; } 77.98%, 83.13% { opacity: 0; } 83.53%, 88.69% { opacity: 0; } 89.09%, 94.24% { opacity: 0; } 94.64%, 99.80% { opacity: 0; } 100% { opacity: 0; } }
+      .anim-mp-5 { opacity: 0; animation: kf-mp-5 var(--dur) infinite; }
+      @keyframes kf-lvl5-bg { 0% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 27.78%, 33.33% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 28.08%, 33.03% { fill: var(--lvl5-bg); stroke: var(--lvl5-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl5-glow)); } 100% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } }
+      @keyframes kf-lvl5-badge { 0% { fill: var(--lvl-def-badge); } 27.78%, 33.33% { fill: var(--lvl-def-badge); } 28.08%, 33.03% { fill: var(--lvl5-stroke); } 100% { fill: var(--lvl-def-badge); } }
+      @keyframes kf-lvl5-num { 0% { fill: var(--lvl-def-text); } 27.78%, 33.33% { fill: var(--lvl-def-text); } 28.08%, 33.03% { fill: #FFFFFF; } 100% { fill: var(--lvl-def-text); } }
       .anim-lvl5-bg    { animation: kf-lvl5-bg    var(--dur) infinite; }
       .anim-lvl5-badge { animation: kf-lvl5-badge var(--dur) infinite; }
       .anim-lvl5-num   { animation: kf-lvl5-num   var(--dur) infinite; }
-      @keyframes kf-lvl4-bg { 0% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 25.00%, 33.33% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 25.45%, 32.88% { fill: var(--lvl4-bg); stroke: var(--lvl4-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl4-glow)); } 100% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } }
-      @keyframes kf-lvl4-badge { 0% { fill: var(--lvl-def-badge); } 25.00%, 33.33% { fill: var(--lvl-def-badge); } 25.45%, 32.88% { fill: var(--lvl4-stroke); } 100% { fill: var(--lvl-def-badge); } }
-      @keyframes kf-lvl4-num { 0% { fill: var(--lvl-def-text); } 25.00%, 33.33% { fill: var(--lvl-def-text); } 25.45%, 32.88% { fill: #FFFFFF; } 100% { fill: var(--lvl-def-text); } }
+      @keyframes kf-lvl4-bg { 0% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 16.67%, 22.22% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 16.97%, 21.92% { fill: var(--lvl4-bg); stroke: var(--lvl4-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl4-glow)); } 100% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } }
+      @keyframes kf-lvl4-badge { 0% { fill: var(--lvl-def-badge); } 16.67%, 22.22% { fill: var(--lvl-def-badge); } 16.97%, 21.92% { fill: var(--lvl4-stroke); } 100% { fill: var(--lvl-def-badge); } }
+      @keyframes kf-lvl4-num { 0% { fill: var(--lvl-def-text); } 16.67%, 22.22% { fill: var(--lvl-def-text); } 16.97%, 21.92% { fill: #FFFFFF; } 100% { fill: var(--lvl-def-text); } }
       .anim-lvl4-bg    { animation: kf-lvl4-bg    var(--dur) infinite; }
       .anim-lvl4-badge { animation: kf-lvl4-badge var(--dur) infinite; }
       .anim-lvl4-num   { animation: kf-lvl4-num   var(--dur) infinite; }
-      @keyframes kf-lvl3-bg { 0% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 8.33%, 16.67% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 8.78%, 16.22% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl3-glow)); } 41.67%, 50.00% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 42.12%, 49.55% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl3-glow)); } 58.33%, 66.67% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 58.78%, 66.22% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl3-glow)); } 100% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } }
-      @keyframes kf-lvl3-badge { 0% { fill: var(--lvl-def-badge); } 8.33%, 16.67% { fill: var(--lvl-def-badge); } 8.78%, 16.22% { fill: var(--lvl3-stroke); } 41.67%, 50.00% { fill: var(--lvl-def-badge); } 42.12%, 49.55% { fill: var(--lvl3-stroke); } 58.33%, 66.67% { fill: var(--lvl-def-badge); } 58.78%, 66.22% { fill: var(--lvl3-stroke); } 100% { fill: var(--lvl-def-badge); } }
-      @keyframes kf-lvl3-num { 0% { fill: var(--lvl-def-text); } 8.33%, 16.67% { fill: var(--lvl-def-text); } 8.78%, 16.22% { fill: #FFFFFF; } 41.67%, 50.00% { fill: var(--lvl-def-text); } 42.12%, 49.55% { fill: #FFFFFF; } 58.33%, 66.67% { fill: var(--lvl-def-text); } 58.78%, 66.22% { fill: #FFFFFF; } 100% { fill: var(--lvl-def-text); } }
+      @keyframes kf-lvl3-bg { 0% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 5.56%, 11.11% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 5.86%, 10.81% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl3-glow)); } 38.89%, 44.44% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 39.19%, 44.14% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl3-glow)); } 44.44%, 50.00% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 44.74%, 49.70% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl3-glow)); } 50.00%, 55.56% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 50.30%, 55.26% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl3-glow)); } 61.11%, 66.67% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 61.41%, 66.37% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl3-glow)); } 100% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } }
+      @keyframes kf-lvl3-badge { 0% { fill: var(--lvl-def-badge); } 5.56%, 11.11% { fill: var(--lvl-def-badge); } 5.86%, 10.81% { fill: var(--lvl3-stroke); } 38.89%, 44.44% { fill: var(--lvl-def-badge); } 39.19%, 44.14% { fill: var(--lvl3-stroke); } 44.44%, 50.00% { fill: var(--lvl-def-badge); } 44.74%, 49.70% { fill: var(--lvl3-stroke); } 50.00%, 55.56% { fill: var(--lvl-def-badge); } 50.30%, 55.26% { fill: var(--lvl3-stroke); } 61.11%, 66.67% { fill: var(--lvl-def-badge); } 61.41%, 66.37% { fill: var(--lvl3-stroke); } 100% { fill: var(--lvl-def-badge); } }
+      @keyframes kf-lvl3-num { 0% { fill: var(--lvl-def-text); } 5.56%, 11.11% { fill: var(--lvl-def-text); } 5.86%, 10.81% { fill: #FFFFFF; } 38.89%, 44.44% { fill: var(--lvl-def-text); } 39.19%, 44.14% { fill: #FFFFFF; } 44.44%, 50.00% { fill: var(--lvl-def-text); } 44.74%, 49.70% { fill: #FFFFFF; } 50.00%, 55.56% { fill: var(--lvl-def-text); } 50.30%, 55.26% { fill: #FFFFFF; } 61.11%, 66.67% { fill: var(--lvl-def-text); } 61.41%, 66.37% { fill: #FFFFFF; } 100% { fill: var(--lvl-def-text); } }
       .anim-lvl3-bg    { animation: kf-lvl3-bg    var(--dur) infinite; }
       .anim-lvl3-badge { animation: kf-lvl3-badge var(--dur) infinite; }
       .anim-lvl3-num   { animation: kf-lvl3-num   var(--dur) infinite; }
-      @keyframes kf-lvl1-bg { 0% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 66.67%, 75.00% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 67.12%, 74.55% { fill: var(--lvl1-bg); stroke: var(--lvl1-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl1-glow)); } 75.00%, 83.33% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 75.45%, 82.88% { fill: var(--lvl1-bg); stroke: var(--lvl1-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl1-glow)); } 100% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } }
-      @keyframes kf-lvl1-badge { 0% { fill: var(--lvl-def-badge); } 66.67%, 75.00% { fill: var(--lvl-def-badge); } 67.12%, 74.55% { fill: var(--lvl1-stroke); } 75.00%, 83.33% { fill: var(--lvl-def-badge); } 75.45%, 82.88% { fill: var(--lvl1-stroke); } 100% { fill: var(--lvl-def-badge); } }
-      @keyframes kf-lvl1-num { 0% { fill: var(--lvl-def-text); } 66.67%, 75.00% { fill: var(--lvl-def-text); } 67.12%, 74.55% { fill: #FFFFFF; } 75.00%, 83.33% { fill: var(--lvl-def-text); } 75.45%, 82.88% { fill: #FFFFFF; } 100% { fill: var(--lvl-def-text); } }
+      @keyframes kf-lvl1-bg { 0% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 72.22%, 77.78% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 72.52%, 77.48% { fill: var(--lvl1-bg); stroke: var(--lvl1-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl1-glow)); } 83.33%, 88.89% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } 83.63%, 88.59% { fill: var(--lvl1-bg); stroke: var(--lvl1-stroke); stroke-width: 2.8; filter: drop-shadow(0 0 6px var(--lvl1-glow)); } 100% { fill: var(--lvl-def-bg); stroke: var(--lvl-def-stroke); stroke-width: 1.5; filter: none; } }
+      @keyframes kf-lvl1-badge { 0% { fill: var(--lvl-def-badge); } 72.22%, 77.78% { fill: var(--lvl-def-badge); } 72.52%, 77.48% { fill: var(--lvl1-stroke); } 83.33%, 88.89% { fill: var(--lvl-def-badge); } 83.63%, 88.59% { fill: var(--lvl1-stroke); } 100% { fill: var(--lvl-def-badge); } }
+      @keyframes kf-lvl1-num { 0% { fill: var(--lvl-def-text); } 72.22%, 77.78% { fill: var(--lvl-def-text); } 72.52%, 77.48% { fill: #FFFFFF; } 83.33%, 88.89% { fill: var(--lvl-def-text); } 83.63%, 88.59% { fill: #FFFFFF; } 100% { fill: var(--lvl-def-text); } }
       .anim-lvl1-bg    { animation: kf-lvl1-bg    var(--dur) infinite; }
       .anim-lvl1-badge { animation: kf-lvl1-badge var(--dur) infinite; }
       .anim-lvl1-num   { animation: kf-lvl1-num   var(--dur) infinite; }
-      @keyframes kf-tok-eq0 {
-        0%, 0.10% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; }
-        0.50%, 7.93% { fill: #E8EAF6; stroke: #3949AB; stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px #5C6BC0); }
-        8.43%, 98.5% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.62; filter: none; }
-        99.5%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; }
-      }
+      @keyframes kf-tok-eq0 { 0% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 0.30%, 5.26% { fill: #E8EAF6; stroke: #3949AB; stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px #5C6BC0); } 5.66%, 98.8% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.60; filter: none; } 99.6%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } }
       .anim-tok-eq0 { animation: kf-tok-eq0 var(--dur) infinite; }
-      @keyframes kf-tok-a1 {
-        0%, 0.10% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; }
-        0.50%, 7.93% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px #42A5F5); }
-        8.43%, 98.5% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.62; filter: none; }
-        99.5%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; }
-      }
+      @keyframes kf-tok-a1 { 0% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 0.30%, 5.26% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px #42A5F5); } 5.66%, 98.8% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.60; filter: none; } 99.6%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } }
       .anim-tok-a1 { animation: kf-tok-a1 var(--dur) infinite; }
-      @keyframes kf-tok-plus {
-        0%, 8.33% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; }
-        8.83%, 16.27% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px var(--lvl3-glow)); }
-        16.77%, 98.5% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.62; filter: none; }
-        99.5%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; }
-      }
+      @keyframes kf-tok-plus { 0% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 5.56% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 5.86%, 10.81% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px var(--lvl3-glow)); } 11.21%, 98.8% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.60; filter: none; } 99.6%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } }
       .anim-tok-plus { animation: kf-tok-plus var(--dur) infinite; }
-      @keyframes kf-tok-n4 {
-        0%, 16.67% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; }
-        17.17%, 24.60% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px #42A5F5); }
-        25.10%, 98.5% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.62; filter: none; }
-        99.5%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; }
-      }
+      @keyframes kf-tok-n4 { 0% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 11.11% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 11.41%, 16.37% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px #42A5F5); } 16.77%, 98.8% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.60; filter: none; } 99.6%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } }
       .anim-tok-n4 { animation: kf-tok-n4 var(--dur) infinite; }
-      @keyframes kf-tok-mul {
-        0%, 25.00% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; }
-        25.50%, 32.93% { fill: var(--lvl4-bg); stroke: var(--lvl4-stroke); stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px var(--lvl4-glow)); }
-        33.43%, 98.5% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.62; filter: none; }
-        99.5%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; }
-      }
+      @keyframes kf-tok-mul { 0% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 16.67% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 16.97%, 21.92% { fill: var(--lvl4-bg); stroke: var(--lvl4-stroke); stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px var(--lvl4-glow)); } 22.32%, 98.8% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.60; filter: none; } 99.6%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } }
       .anim-tok-mul { animation: kf-tok-mul var(--dur) infinite; }
-      @keyframes kf-tok-n2 {
-        0%, 33.33% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; }
-        33.83%, 41.27% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px #42A5F5); }
-        41.77%, 98.5% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.62; filter: none; }
-        99.5%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; }
-      }
+      @keyframes kf-tok-n2 { 0% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 22.22% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 22.52%, 27.48% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px #42A5F5); } 27.88%, 98.8% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.60; filter: none; } 99.6%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } }
       .anim-tok-n2 { animation: kf-tok-n2 var(--dur) infinite; }
-      @keyframes kf-tok-pow {
-        0%, 33.33% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; }
-        33.83%, 41.27% { fill: var(--lvl5-bg); stroke: var(--lvl5-stroke); stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px var(--lvl5-glow)); }
-        41.77%, 98.5% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.62; filter: none; }
-        99.5%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; }
-      }
+      @keyframes kf-tok-pow { 0% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 27.78% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 28.08%, 33.03% { fill: var(--lvl5-bg); stroke: var(--lvl5-stroke); stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px var(--lvl5-glow)); } 33.43%, 98.8% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.60; filter: none; } 99.6%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } }
       .anim-tok-pow { animation: kf-tok-pow var(--dur) infinite; }
-      @keyframes kf-tok-n3 {
-        0%, 41.67% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; }
-        42.17%, 49.60% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px #42A5F5); }
-        50.10%, 98.5% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.62; filter: none; }
-        99.5%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; }
-      }
+      @keyframes kf-tok-n3 { 0% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 33.33% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 33.63%, 38.59% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px #42A5F5); } 38.99%, 98.8% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.60; filter: none; } 99.6%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } }
       .anim-tok-n3 { animation: kf-tok-n3 var(--dur) infinite; }
-      @keyframes kf-tok-sub {
-        0%, 58.33% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; }
-        58.83%, 66.27% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px var(--lvl3-glow)); }
-        66.77%, 98.5% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.62; filter: none; }
-        99.5%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; }
-      }
+      @keyframes kf-tok-sub { 0% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 38.89% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 39.19%, 44.14% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px var(--lvl3-glow)); } 44.44% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 44.44% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 44.74%, 49.70% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px var(--lvl3-glow)); } 50.00% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 50.00% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 50.30%, 55.26% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px var(--lvl3-glow)); } 55.56% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 61.11% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 61.41%, 66.37% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px var(--lvl3-glow)); } 66.77%, 98.8% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.60; filter: none; } 99.6%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } }
       .anim-tok-sub { animation: kf-tok-sub var(--dur) infinite; }
-      @keyframes kf-tok-b1 {
-        0%, 58.33% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; }
-        58.83%, 66.27% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px #42A5F5); }
-        66.77%, 98.5% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.62; filter: none; }
-        99.5%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; }
-      }
+      @keyframes kf-tok-b1 { 0% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 66.67% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 66.97%, 71.92% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px #42A5F5); } 72.32%, 98.8% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.60; filter: none; } 99.6%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } }
       .anim-tok-b1 { animation: kf-tok-b1 var(--dur) infinite; }
-      @keyframes kf-tok-eq {
-        0%, 75.00% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; }
-        75.50%, 82.93% { fill: var(--lvl1-bg); stroke: var(--lvl1-stroke); stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px var(--lvl1-glow)); }
-        83.43%, 98.5% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.62; filter: none; }
-        99.5%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; }
-      }
-      .anim-tok-eq { animation: kf-tok-eq var(--dur) infinite; }
-      @keyframes kf-tok-n33 {
-        0%, 75.00% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; }
-        75.50%, 82.93% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px #42A5F5); }
-        83.43%, 98.5% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.62; filter: none; }
-        99.5%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; }
-      }
-      .anim-tok-n33 { animation: kf-tok-n33 var(--dur) infinite; }
+      @keyframes kf-tok-ge { 0% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 72.22% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 72.52%, 77.48% { fill: var(--lvl1-bg); stroke: var(--lvl1-stroke); stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px var(--lvl1-glow)); } 77.78% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 83.33% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 83.63%, 88.59% { fill: var(--lvl1-bg); stroke: var(--lvl1-stroke); stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px var(--lvl1-glow)); } 88.99%, 98.8% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.60; filter: none; } 99.6%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } }
+      .anim-tok-ge { animation: kf-tok-ge var(--dur) infinite; }
+      @keyframes kf-tok-n20 { 0% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 88.89% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } 89.19%, 94.14% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px #42A5F5); } 94.54%, 98.8% { fill: #ECEFF1; stroke: #CFD8DC; stroke-width: 1.2; opacity: 0.60; filter: none; } 99.6%, 100% { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.5; opacity: 1; filter: none; } }
+      .anim-tok-n20 { animation: kf-tok-n20 var(--dur) infinite; }
       @keyframes kf-tok-eof {
-        0%, 75.00% { fill: #ECEFF1; stroke: #B0BEC5; stroke-width: 1.4; filter: none; }
-        75.50%, 82.93% { fill: #FFEBEE; stroke: #C62828; stroke-width: 2.4; filter: drop-shadow(0 0 5px #EF5350); }
-        83.43%, 100% { fill: #ECEFF1; stroke: #B0BEC5; stroke-width: 1.4; filter: none; }
+        0%, 88.89% { fill: #ECEFF1; stroke: #B0BEC5; stroke-width: 1.4; filter: none; }
+        89.24%, 94.14% { fill: #FFEBEE; stroke: #C62828; stroke-width: 2.4; filter: drop-shadow(0 0 5px #EF5350); }
+        94.44%, 100% { fill: #ECEFF1; stroke: #B0BEC5; stroke-width: 1.4; filter: none; }
       }
       .anim-tok-eof { animation: kf-tok-eof var(--dur) infinite; }
       @keyframes kf-show-a1 {
-        0%, 0.30% { opacity: 0; }
-        1.00%, 98.5% { opacity: 1; }
-        99.5%, 100% { opacity: 0; }
+        0%, 0.15% { opacity: 0; }
+        0.65%, 98.8% { opacity: 1; }
+        99.6%, 100% { opacity: 0; }
       }
       .anim-show-a1 { opacity: 0; animation: kf-show-a1 var(--dur) infinite; }
       @keyframes kf-glow-a1 {
-        0%, 0.20% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
-        0.90%, 7.83% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 3.2; filter: drop-shadow(0 0 6px #42A5F5); }
-        8.33%, 100% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
+        0%, 0.10% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
+        0.50%, 5.21% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 3.2; filter: drop-shadow(0 0 6px #42A5F5); }
+        5.56%, 100% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
       }
       .anim-glow-a1 { animation: kf-glow-a1 var(--dur) infinite; }
       @keyframes kf-show-n4 {
-        0%, 16.97% { opacity: 0; }
-        17.67%, 98.5% { opacity: 1; }
-        99.5%, 100% { opacity: 0; }
+        0%, 11.26% { opacity: 0; }
+        11.76%, 98.8% { opacity: 1; }
+        99.6%, 100% { opacity: 0; }
       }
       .anim-show-n4 { opacity: 0; animation: kf-show-n4 var(--dur) infinite; }
       @keyframes kf-glow-n4 {
-        0%, 16.87% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
-        17.57%, 24.50% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 3.2; filter: drop-shadow(0 0 6px #42A5F5); }
-        25.00%, 100% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
+        0%, 11.21% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
+        11.61%, 16.32% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 3.2; filter: drop-shadow(0 0 6px #42A5F5); }
+        16.67%, 100% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
       }
       .anim-glow-n4 { animation: kf-glow-n4 var(--dur) infinite; }
       @keyframes kf-show-n2 {
-        0%, 33.63% { opacity: 0; }
-        34.33%, 98.5% { opacity: 1; }
-        99.5%, 100% { opacity: 0; }
+        0%, 22.37% { opacity: 0; }
+        22.87%, 98.8% { opacity: 1; }
+        99.6%, 100% { opacity: 0; }
       }
       .anim-show-n2 { opacity: 0; animation: kf-show-n2 var(--dur) infinite; }
       @keyframes kf-glow-n2 {
-        0%, 33.53% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
-        34.23%, 41.17% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 3.2; filter: drop-shadow(0 0 6px #42A5F5); }
-        41.67%, 100% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
+        0%, 22.32% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
+        22.72%, 27.43% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 3.2; filter: drop-shadow(0 0 6px #42A5F5); }
+        27.78%, 100% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
       }
       .anim-glow-n2 { animation: kf-glow-n2 var(--dur) infinite; }
       @keyframes kf-show-n3 {
-        0%, 41.97% { opacity: 0; }
-        42.67%, 98.5% { opacity: 1; }
-        99.5%, 100% { opacity: 0; }
+        0%, 33.48% { opacity: 0; }
+        33.98%, 98.8% { opacity: 1; }
+        99.6%, 100% { opacity: 0; }
       }
       .anim-show-n3 { opacity: 0; animation: kf-show-n3 var(--dur) infinite; }
       @keyframes kf-glow-n3 {
-        0%, 41.87% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
-        42.57%, 49.50% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 3.2; filter: drop-shadow(0 0 6px #42A5F5); }
-        50.00%, 100% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
+        0%, 33.43% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
+        33.83%, 38.54% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 3.2; filter: drop-shadow(0 0 6px #42A5F5); }
+        38.89%, 100% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
       }
       .anim-glow-n3 { animation: kf-glow-n3 var(--dur) infinite; }
       @keyframes kf-show-b1 {
-        0%, 58.63% { opacity: 0; }
-        59.33%, 98.5% { opacity: 1; }
-        99.5%, 100% { opacity: 0; }
+        0%, 66.82% { opacity: 0; }
+        67.32%, 98.8% { opacity: 1; }
+        99.6%, 100% { opacity: 0; }
       }
       .anim-show-b1 { opacity: 0; animation: kf-show-b1 var(--dur) infinite; }
       @keyframes kf-glow-b1 {
-        0%, 58.53% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
-        59.23%, 66.17% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 3.2; filter: drop-shadow(0 0 6px #42A5F5); }
-        66.67%, 100% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
+        0%, 66.77% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
+        67.17%, 71.87% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 3.2; filter: drop-shadow(0 0 6px #42A5F5); }
+        72.22%, 100% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
       }
       .anim-glow-b1 { animation: kf-glow-b1 var(--dur) infinite; }
-      @keyframes kf-show-n33 {
-        0%, 75.30% { opacity: 0; }
-        76.00%, 98.5% { opacity: 1; }
-        99.5%, 100% { opacity: 0; }
+      @keyframes kf-show-n20 {
+        0%, 89.04% { opacity: 0; }
+        89.54%, 98.8% { opacity: 1; }
+        99.6%, 100% { opacity: 0; }
       }
-      .anim-show-n33 { opacity: 0; animation: kf-show-n33 var(--dur) infinite; }
-      @keyframes kf-glow-n33 {
-        0%, 75.20% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
-        75.90%, 82.83% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 3.2; filter: drop-shadow(0 0 6px #42A5F5); }
-        83.33%, 100% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
+      .anim-show-n20 { opacity: 0; animation: kf-show-n20 var(--dur) infinite; }
+      @keyframes kf-glow-n20 {
+        0%, 88.99% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
+        89.39%, 94.09% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 3.2; filter: drop-shadow(0 0 6px #42A5F5); }
+        94.44%, 100% { fill: #FFFFFF; stroke: #3949AB; stroke-width: 2.2; filter: none; }
       }
-      .anim-glow-n33 { animation: kf-glow-n33 var(--dur) infinite; }
+      .anim-glow-n20 { animation: kf-glow-n20 var(--dur) infinite; }
       @keyframes kf-show-pow {
-        0%, 41.97% { opacity: 0; }
-        42.67%, 98.5% { opacity: 1; }
-        99.5%, 100% { opacity: 0; }
+        0%, 44.59% { opacity: 0; }
+        45.09%, 98.8% { opacity: 1; }
+        99.6%, 100% { opacity: 0; }
       }
       .anim-show-pow { opacity: 0; animation: kf-show-pow var(--dur) infinite; }
       @keyframes kf-glow-pow {
-        0%, 41.87% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
-        42.57%, 49.50% { fill: var(--lvl5-bg); stroke: var(--lvl5-stroke); stroke-width: 3.3; filter: drop-shadow(0 0 6px var(--lvl5-glow)); }
+        0%, 44.54% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
+        44.94%, 49.65% { fill: var(--lvl5-bg); stroke: var(--lvl5-stroke); stroke-width: 3.3; filter: drop-shadow(0 0 6px var(--lvl5-glow)); }
         50.00%, 100% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
       }
       .anim-glow-pow { animation: kf-glow-pow var(--dur) infinite; }
       @keyframes kf-show-mul {
-        0%, 50.30% { opacity: 0; }
-        51.00%, 98.5% { opacity: 1; }
-        99.5%, 100% { opacity: 0; }
+        0%, 50.15% { opacity: 0; }
+        50.65%, 98.8% { opacity: 1; }
+        99.6%, 100% { opacity: 0; }
       }
       .anim-show-mul { opacity: 0; animation: kf-show-mul var(--dur) infinite; }
       @keyframes kf-glow-mul {
-        0%, 50.20% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
-        50.90%, 57.83% { fill: var(--lvl4-bg); stroke: var(--lvl4-stroke); stroke-width: 3.3; filter: drop-shadow(0 0 6px var(--lvl4-glow)); }
-        58.33%, 100% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
+        0%, 50.10% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
+        50.50%, 55.21% { fill: var(--lvl4-bg); stroke: var(--lvl4-stroke); stroke-width: 3.3; filter: drop-shadow(0 0 6px var(--lvl4-glow)); }
+        55.56%, 100% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
       }
       .anim-glow-mul { animation: kf-glow-mul var(--dur) infinite; }
       @keyframes kf-show-plus {
-        0%, 50.30% { opacity: 0; }
-        51.00%, 98.5% { opacity: 1; }
-        99.5%, 100% { opacity: 0; }
+        0%, 55.71% { opacity: 0; }
+        56.21%, 98.8% { opacity: 1; }
+        99.6%, 100% { opacity: 0; }
       }
       .anim-show-plus { opacity: 0; animation: kf-show-plus var(--dur) infinite; }
       @keyframes kf-glow-plus {
-        0%, 50.20% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
-        50.90%, 57.83% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 3.3; filter: drop-shadow(0 0 6px var(--lvl3-glow)); }
-        58.33%, 100% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
+        0%, 55.66% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
+        56.06%, 60.76% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 3.3; filter: drop-shadow(0 0 6px var(--lvl3-glow)); }
+        61.11%, 100% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
       }
       .anim-glow-plus { animation: kf-glow-plus var(--dur) infinite; }
       @keyframes kf-show-sub {
-        0%, 66.97% { opacity: 0; }
-        67.67%, 98.5% { opacity: 1; }
-        99.5%, 100% { opacity: 0; }
+        0%, 77.93% { opacity: 0; }
+        78.43%, 98.8% { opacity: 1; }
+        99.6%, 100% { opacity: 0; }
       }
       .anim-show-sub { opacity: 0; animation: kf-show-sub var(--dur) infinite; }
       @keyframes kf-glow-sub {
-        0%, 66.87% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
-        67.57%, 74.50% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 3.3; filter: drop-shadow(0 0 6px var(--lvl3-glow)); }
-        75.00%, 100% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
+        0%, 77.88% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
+        78.28%, 82.98% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 3.3; filter: drop-shadow(0 0 6px var(--lvl3-glow)); }
+        83.33%, 100% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
       }
       .anim-glow-sub { animation: kf-glow-sub var(--dur) infinite; }
-      @keyframes kf-show-eq {
-        0%, 83.63% { opacity: 0; }
-        84.33%, 98.5% { opacity: 1; }
-        99.5%, 100% { opacity: 0; }
+      @keyframes kf-show-ge {
+        0%, 94.59% { opacity: 0; }
+        95.09%, 98.8% { opacity: 1; }
+        99.6%, 100% { opacity: 0; }
       }
-      .anim-show-eq { opacity: 0; animation: kf-show-eq var(--dur) infinite; }
-      @keyframes kf-glow-eq {
-        0%, 83.53% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
-        84.23%, 91.17% { fill: var(--lvl1-bg); stroke: var(--lvl1-stroke); stroke-width: 3.3; filter: drop-shadow(0 0 6px var(--lvl1-glow)); }
-        91.67%, 100% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
+      .anim-show-ge { opacity: 0; animation: kf-show-ge var(--dur) infinite; }
+      @keyframes kf-glow-ge {
+        0%, 94.54% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
+        94.94%, 99.65% { fill: var(--lvl1-bg); stroke: var(--lvl1-stroke); stroke-width: 3.3; filter: drop-shadow(0 0 6px var(--lvl1-glow)); }
+        100.00%, 100% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; }
       }
-      .anim-glow-eq { animation: kf-glow-eq var(--dur) infinite; }
-      @keyframes kf-call-c1 { 0% { opacity: 0; } 0.5%, 91.27% { opacity: 1; } 91.67%, 100% { opacity: 0; } 100% { opacity: 0; } }
+      .anim-glow-ge { animation: kf-glow-ge var(--dur) infinite; }
+      @keyframes kf-call-c1 { 0% { opacity: 0; } 0.2%, 99.75% { opacity: 1; } 100.00%, 100% { opacity: 0; } 100% { opacity: 0; } }
       .anim-call-c1 { opacity: 0; animation: kf-call-c1 var(--dur) infinite; }
-      @keyframes kf-call-c4 { 0% { opacity: 0; } 8.33%, 58.33% { opacity: 0; } 8.83%, 57.93% { opacity: 1; } 58.33%, 66.67% { opacity: 0; } 58.83%, 66.27% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes kf-call-c4 { 0% { opacity: 0; } 11.11%, 55.56% { opacity: 0; } 11.41%, 55.31% { opacity: 1; } 66.67%, 77.78% { opacity: 0; } 66.97%, 77.53% { opacity: 1; } 100% { opacity: 0; } }
       .anim-call-c4 { opacity: 0; animation: kf-call-c4 var(--dur) infinite; }
-      @keyframes kf-call-c5 { 0% { opacity: 0; } 25.00%, 50.00% { opacity: 0; } 25.50%, 49.60% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes kf-call-c5 { 0% { opacity: 0; } 22.22%, 50.00% { opacity: 0; } 22.52%, 49.75% { opacity: 1; } 100% { opacity: 0; } }
       .anim-call-c5 { opacity: 0; animation: kf-call-c5 var(--dur) infinite; }
-      @keyframes kf-call-c5r { 0% { opacity: 0; } 33.33%, 50.00% { opacity: 0; } 33.83%, 49.60% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes kf-call-c5r { 0% { opacity: 0; } 33.33%, 44.44% { opacity: 0; } 33.63%, 44.19% { opacity: 1; } 100% { opacity: 0; } }
       .anim-call-c5r { opacity: 0; animation: kf-call-c5r var(--dur) infinite; }
-      @keyframes kf-call-c2 { 0% { opacity: 0; } 75.00%, 83.33% { opacity: 0; } 75.50%, 82.93% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes kf-call-c2 { 0% { opacity: 0; } 88.89%, 94.44% { opacity: 0; } 89.19%, 94.19% { opacity: 1; } 100% { opacity: 0; } }
       .anim-call-c2 { opacity: 0; animation: kf-call-c2 var(--dur) infinite; }
       @keyframes kf-st-1 {
-        0%, 7.93% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.3; }
-        8.33%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
+        0%, 5.31% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.2; }
+        5.56%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
       }
       .anim-st-1 { animation: kf-st-1 var(--dur) infinite; }
-      @keyframes kf-cap-1 { 0%, 7.93% { opacity: 1; } 8.33%, 100% { opacity: 0; } }
+      @keyframes kf-cap-1 { 0%, 5.31% { opacity: 1; } 5.56%, 100% { opacity: 0; } }
       .anim-cap-1 { animation: kf-cap-1 var(--dur) infinite; }
       @keyframes kf-st-2 {
-        0%, 8.33% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
-        8.73%, 16.27% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.3; }
-        16.67%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
+        0%, 5.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        5.81%, 10.86% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.2; }
+        11.11%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
       }
       .anim-st-2 { animation: kf-st-2 var(--dur) infinite; }
-      @keyframes kf-cap-2 { 0%, 8.33% { opacity: 0; } 8.73%, 16.27% { opacity: 1; } 16.67%, 100% { opacity: 0; } }
+      @keyframes kf-cap-2 { 0%, 5.56% { opacity: 0; } 5.81%, 10.86% { opacity: 1; } 11.11%, 100% { opacity: 0; } }
       .anim-cap-2 { animation: kf-cap-2 var(--dur) infinite; }
       @keyframes kf-st-3 {
-        0%, 16.67% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
-        17.07%, 24.60% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.3; }
-        25.00%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
+        0%, 11.11% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        11.36%, 16.42% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.2; }
+        16.67%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
       }
       .anim-st-3 { animation: kf-st-3 var(--dur) infinite; }
-      @keyframes kf-cap-3 { 0%, 16.67% { opacity: 0; } 17.07%, 24.60% { opacity: 1; } 25.00%, 100% { opacity: 0; } }
+      @keyframes kf-cap-3 { 0%, 11.11% { opacity: 0; } 11.36%, 16.42% { opacity: 1; } 16.67%, 100% { opacity: 0; } }
       .anim-cap-3 { animation: kf-cap-3 var(--dur) infinite; }
       @keyframes kf-st-4 {
-        0%, 25.00% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
-        25.40%, 32.93% { fill: var(--lvl4-bg); stroke: var(--lvl4-stroke); stroke-width: 2.3; }
-        33.33%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
+        0%, 16.67% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        16.92%, 21.97% { fill: var(--lvl4-bg); stroke: var(--lvl4-stroke); stroke-width: 2.2; }
+        22.22%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
       }
       .anim-st-4 { animation: kf-st-4 var(--dur) infinite; }
-      @keyframes kf-cap-4 { 0%, 25.00% { opacity: 0; } 25.40%, 32.93% { opacity: 1; } 33.33%, 100% { opacity: 0; } }
+      @keyframes kf-cap-4 { 0%, 16.67% { opacity: 0; } 16.92%, 21.97% { opacity: 1; } 22.22%, 100% { opacity: 0; } }
       .anim-cap-4 { animation: kf-cap-4 var(--dur) infinite; }
       @keyframes kf-st-5 {
-        0%, 33.33% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
-        33.73%, 41.27% { fill: var(--lvl5-bg); stroke: var(--lvl5-stroke); stroke-width: 2.3; }
-        41.67%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
+        0%, 22.22% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        22.47%, 27.53% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.2; }
+        27.78%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
       }
       .anim-st-5 { animation: kf-st-5 var(--dur) infinite; }
-      @keyframes kf-cap-5 { 0%, 33.33% { opacity: 0; } 33.73%, 41.27% { opacity: 1; } 41.67%, 100% { opacity: 0; } }
+      @keyframes kf-cap-5 { 0%, 22.22% { opacity: 0; } 22.47%, 27.53% { opacity: 1; } 27.78%, 100% { opacity: 0; } }
       .anim-cap-5 { animation: kf-cap-5 var(--dur) infinite; }
       @keyframes kf-st-6 {
-        0%, 41.67% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
-        42.07%, 49.60% { fill: var(--lvl5-bg); stroke: var(--lvl5-stroke); stroke-width: 2.3; }
-        50.00%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
+        0%, 27.78% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        28.03%, 33.08% { fill: var(--lvl5-bg); stroke: var(--lvl5-stroke); stroke-width: 2.2; }
+        33.33%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
       }
       .anim-st-6 { animation: kf-st-6 var(--dur) infinite; }
-      @keyframes kf-cap-6 { 0%, 41.67% { opacity: 0; } 42.07%, 49.60% { opacity: 1; } 50.00%, 100% { opacity: 0; } }
+      @keyframes kf-cap-6 { 0%, 27.78% { opacity: 0; } 28.03%, 33.08% { opacity: 1; } 33.33%, 100% { opacity: 0; } }
       .anim-cap-6 { animation: kf-cap-6 var(--dur) infinite; }
       @keyframes kf-st-7 {
-        0%, 50.00% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
-        50.40%, 57.93% { fill: var(--lvl4-bg); stroke: var(--lvl4-stroke); stroke-width: 2.3; }
-        58.33%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
+        0%, 33.33% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        33.58%, 38.64% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.2; }
+        38.89%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
       }
       .anim-st-7 { animation: kf-st-7 var(--dur) infinite; }
-      @keyframes kf-cap-7 { 0%, 50.00% { opacity: 0; } 50.40%, 57.93% { opacity: 1; } 58.33%, 100% { opacity: 0; } }
+      @keyframes kf-cap-7 { 0%, 33.33% { opacity: 0; } 33.58%, 38.64% { opacity: 1; } 38.89%, 100% { opacity: 0; } }
       .anim-cap-7 { animation: kf-cap-7 var(--dur) infinite; }
       @keyframes kf-st-8 {
-        0%, 58.33% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
-        58.73%, 66.27% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.3; }
-        66.67%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
+        0%, 38.89% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        39.14%, 44.19% { fill: #FFEBEE; stroke: #C62828; stroke-width: 2.2; }
+        44.44%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
       }
       .anim-st-8 { animation: kf-st-8 var(--dur) infinite; }
-      @keyframes kf-cap-8 { 0%, 58.33% { opacity: 0; } 58.73%, 66.27% { opacity: 1; } 66.67%, 100% { opacity: 0; } }
+      @keyframes kf-cap-8 { 0%, 38.89% { opacity: 0; } 39.14%, 44.19% { opacity: 1; } 44.44%, 100% { opacity: 0; } }
       .anim-cap-8 { animation: kf-cap-8 var(--dur) infinite; }
       @keyframes kf-st-9 {
-        0%, 66.67% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
-        67.07%, 74.60% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.3; }
-        75.00%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
+        0%, 44.44% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        44.69%, 49.75% { fill: var(--lvl5-bg); stroke: var(--lvl5-stroke); stroke-width: 2.2; }
+        50.00%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
       }
       .anim-st-9 { animation: kf-st-9 var(--dur) infinite; }
-      @keyframes kf-cap-9 { 0%, 66.67% { opacity: 0; } 67.07%, 74.60% { opacity: 1; } 75.00%, 100% { opacity: 0; } }
+      @keyframes kf-cap-9 { 0%, 44.44% { opacity: 0; } 44.69%, 49.75% { opacity: 1; } 50.00%, 100% { opacity: 0; } }
       .anim-cap-9 { animation: kf-cap-9 var(--dur) infinite; }
       @keyframes kf-st-10 {
-        0%, 75.00% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
-        75.40%, 82.93% { fill: var(--lvl1-bg); stroke: var(--lvl1-stroke); stroke-width: 2.3; }
-        83.33%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
+        0%, 50.00% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        50.25%, 55.31% { fill: var(--lvl4-bg); stroke: var(--lvl4-stroke); stroke-width: 2.2; }
+        55.56%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
       }
       .anim-st-10 { animation: kf-st-10 var(--dur) infinite; }
-      @keyframes kf-cap-10 { 0%, 75.00% { opacity: 0; } 75.40%, 82.93% { opacity: 1; } 83.33%, 100% { opacity: 0; } }
+      @keyframes kf-cap-10 { 0%, 50.00% { opacity: 0; } 50.25%, 55.31% { opacity: 1; } 55.56%, 100% { opacity: 0; } }
       .anim-cap-10 { animation: kf-cap-10 var(--dur) infinite; }
       @keyframes kf-st-11 {
-        0%, 83.33% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
-        83.73%, 91.27% { fill: var(--lvl1-bg); stroke: var(--lvl1-stroke); stroke-width: 2.3; }
-        91.67%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
+        0%, 55.56% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        55.81%, 60.86% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.2; }
+        61.11%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
       }
       .anim-st-11 { animation: kf-st-11 var(--dur) infinite; }
-      @keyframes kf-cap-11 { 0%, 83.33% { opacity: 0; } 83.73%, 91.27% { opacity: 1; } 91.67%, 100% { opacity: 0; } }
+      @keyframes kf-cap-11 { 0%, 55.56% { opacity: 0; } 55.81%, 60.86% { opacity: 1; } 61.11%, 100% { opacity: 0; } }
       .anim-cap-11 { animation: kf-cap-11 var(--dur) infinite; }
       @keyframes kf-st-12 {
-        0%, 91.67% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
-        92.07%, 99.60% { fill: #E8EAF6; stroke: var(--ink-primary); stroke-width: 2.3; }
-        100.00%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; }
+        0%, 61.11% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        61.36%, 66.42% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.2; }
+        66.67%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
       }
       .anim-st-12 { animation: kf-st-12 var(--dur) infinite; }
-      @keyframes kf-cap-12 { 0%, 91.67% { opacity: 0; } 92.07%, 99.60% { opacity: 1; } 100.00%, 100% { opacity: 0; } }
+      @keyframes kf-cap-12 { 0%, 61.11% { opacity: 0; } 61.36%, 66.42% { opacity: 1; } 66.67%, 100% { opacity: 0; } }
       .anim-cap-12 { animation: kf-cap-12 var(--dur) infinite; }
+      @keyframes kf-st-13 {
+        0%, 66.67% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        66.92%, 71.97% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.2; }
+        72.22%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+      }
+      .anim-st-13 { animation: kf-st-13 var(--dur) infinite; }
+      @keyframes kf-cap-13 { 0%, 66.67% { opacity: 0; } 66.92%, 71.97% { opacity: 1; } 72.22%, 100% { opacity: 0; } }
+      .anim-cap-13 { animation: kf-cap-13 var(--dur) infinite; }
+      @keyframes kf-st-14 {
+        0%, 72.22% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        72.47%, 77.53% { fill: #FFEBEE; stroke: #C62828; stroke-width: 2.2; }
+        77.78%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+      }
+      .anim-st-14 { animation: kf-st-14 var(--dur) infinite; }
+      @keyframes kf-cap-14 { 0%, 72.22% { opacity: 0; } 72.47%, 77.53% { opacity: 1; } 77.78%, 100% { opacity: 0; } }
+      .anim-cap-14 { animation: kf-cap-14 var(--dur) infinite; }
+      @keyframes kf-st-15 {
+        0%, 77.78% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        78.03%, 83.08% { fill: var(--lvl3-bg); stroke: var(--lvl3-stroke); stroke-width: 2.2; }
+        83.33%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+      }
+      .anim-st-15 { animation: kf-st-15 var(--dur) infinite; }
+      @keyframes kf-cap-15 { 0%, 77.78% { opacity: 0; } 78.03%, 83.08% { opacity: 1; } 83.33%, 100% { opacity: 0; } }
+      .anim-cap-15 { animation: kf-cap-15 var(--dur) infinite; }
+      @keyframes kf-st-16 {
+        0%, 83.33% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        83.58%, 88.64% { fill: var(--lvl1-bg); stroke: var(--lvl1-stroke); stroke-width: 2.2; }
+        88.89%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+      }
+      .anim-st-16 { animation: kf-st-16 var(--dur) infinite; }
+      @keyframes kf-cap-16 { 0%, 83.33% { opacity: 0; } 83.58%, 88.64% { opacity: 1; } 88.89%, 100% { opacity: 0; } }
+      .anim-cap-16 { animation: kf-cap-16 var(--dur) infinite; }
+      @keyframes kf-st-17 {
+        0%, 88.89% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        89.14%, 94.19% { fill: #E3F2FD; stroke: #1565C0; stroke-width: 2.2; }
+        94.44%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+      }
+      .anim-st-17 { animation: kf-st-17 var(--dur) infinite; }
+      @keyframes kf-cap-17 { 0%, 88.89% { opacity: 0; } 89.14%, 94.19% { opacity: 1; } 94.44%, 100% { opacity: 0; } }
+      .anim-cap-17 { animation: kf-cap-17 var(--dur) infinite; }
+      @keyframes kf-st-18 {
+        0%, 94.44% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+        94.69%, 99.75% { fill: var(--lvl1-bg); stroke: var(--lvl1-stroke); stroke-width: 2.2; }
+        100.00%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.2; }
+      }
+      .anim-st-18 { animation: kf-st-18 var(--dur) infinite; }
+      @keyframes kf-cap-18 { 0%, 94.44% { opacity: 0; } 94.69%, 99.75% { opacity: 1; } 100.00%, 100% { opacity: 0; } }
+      .anim-cap-18 { animation: kf-cap-18 var(--dur) infinite; }
 
-      /* Control global de reproducción para cualquier clase .anim-* */
+      /* Control global de reproducción */
       [class*="anim-"] {
         animation-play-state: var(--play-state);
         animation-delay: var(--anim-delay);
       }
 
-      /* Barra de controles interactivos (visible solo cuando JS está activo) */
+      /* Controles interactivos */
       .ctrl-btn-bg   { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.4; rx: 7; transition: fill 0.15s, stroke 0.15s; }
       .ctrl-btn:hover .ctrl-btn-bg { fill: #E8EAF6; stroke: var(--ink-primary); }
       .ctrl-btn      { cursor: pointer; }
       .ctrl-ico      { font-size: 12px; font-weight: 800; fill: var(--ink-primary); text-anchor: middle; pointer-events: none; user-select: none; }
       .ctrl-hint     { font-size: 9.5px; fill: var(--ink-muted); text-anchor: middle; pointer-events: none; user-select: none; }
       .step-clickable { cursor: pointer; }
+
+      /* Leyenda inferior autocontenida */
+      .pos-legend  { transform: translate(var(--pad-x), 760px); }
+      .leg-title   { font-size: 11px; font-weight: 800; }
+      .leg-desc    { font-size: 10.3px; fill: var(--ink-secondary); }
+      .leg-sep     { stroke: #CFD8DC; stroke-width: 1.2; }
     </style>
   </defs>
 
   <!-- ===================================================================== -->
   <!-- 1. LIENZO, CABECERA Y CONTROLES INTERACTIVOS                          -->
   <!-- ===================================================================== -->
-  <rect class="bg" x="10" y="10" width="1100" height="750" />
+  <rect class="bg" x="10" y="10" width="1100" height="824" />
   <text class="title" x="560" y="42">Ascenso de Precedencia (Precedence Climbing)</text>
-  <text class="subtitle" x="560" y="64">Fórmula extendida con ascenso, retroceso (op.prec &lt; min_prec) y asociatividad en FormulaParser::parseBinary()</text>
+  <text class="subtitle" x="560" y="64">18 pasos atómicos: umbral móvil min_prec vs nivel del operador espiado en FormulaParser::parseBinary()</text>
 
-  <!-- Controles interactivos (ocultos por defecto en <img>; visibles con JS) -->
   <g id="svg-controls" transform="translate(948, 22)" display="none">
     <g id="btn-prev" class="ctrl-btn" transform="translate(0, 0)">
       <title>Paso anterior (←)</title>
@@ -572,7 +586,7 @@
   </g>
 
   <!-- ===================================================================== -->
-  <!-- 2. CINTA DE TOKENS DE ENTRADA (= A1 + 4 * 2 ^ 3 - B1 = 33 EOF)        -->
+  <!-- 2. CINTA DE TOKENS (= A1 + 4 * 2 ^ 3 - B1 >= 20 EOF)                  -->
   <!-- ===================================================================== -->
   <g class="pos-tape">
     <rect class="panel" x="0" y="0" width="1056" height="62" />
@@ -589,20 +603,19 @@
     <g class="tok-7"><use href="#tok-box" xlink:href="#tok-box" class="tok-bg anim-tok-n3" /><text class="tok-txt mono" dy="0.35em">3</text><text class="tok-idx" y="28">Num</text></g>
     <g class="tok-8"><use href="#tok-box" xlink:href="#tok-box" class="tok-bg anim-tok-sub" /><text class="tok-txt mono" dy="0.35em">-</text><text class="tok-idx" y="28">N3</text></g>
     <g class="tok-9"><use href="#tok-box" xlink:href="#tok-box" class="tok-bg anim-tok-b1" /><text class="tok-txt mono" dy="0.35em">B1</text><text class="tok-idx" y="28">CellRef</text></g>
-    <g class="tok-10"><use href="#tok-box" xlink:href="#tok-box" class="tok-bg anim-tok-eq" /><text class="tok-txt mono" dy="0.35em">&gt;=</text><text class="tok-idx" y="28">N1</text></g>
-    <g class="tok-11"><use href="#tok-box" xlink:href="#tok-box" class="tok-bg anim-tok-n33" /><text class="tok-txt mono" dy="0.35em">20</text><text class="tok-idx" y="28">Num</text></g>
+    <g class="tok-10"><use href="#tok-box" xlink:href="#tok-box" class="tok-bg anim-tok-ge" /><text class="tok-txt mono" dy="0.35em">&gt;=</text><text class="tok-idx" y="28">N1</text></g>
+    <g class="tok-11"><use href="#tok-box" xlink:href="#tok-box" class="tok-bg anim-tok-n20" /><text class="tok-txt mono" dy="0.35em">20</text><text class="tok-idx" y="28">Num</text></g>
     <g class="tok-12"><use href="#tok-box" xlink:href="#tok-box" class="tok-bg-eof anim-tok-eof" /><text class="tok-txt mono" dy="0.35em" fill="#546E7A">EOF</text><text class="tok-idx" y="28">fin</text></g>
   </g>
 
   <!-- ===================================================================== -->
-  <!-- 3. PANEL IZQUIERDO: LOS 5 NIVELES DE PRECEDENCIA (BINARY_OPS)         -->
+  <!-- 3. PANEL IZQUIERDO: 5 NIVELES + LÍNEA MÓVIL DE UMBRAL min_prec        -->
   <!-- ===================================================================== -->
   <g class="pos-lvl-panel">
     <rect class="panel" x="0" y="0" width="316" height="416" />
-    <text class="panel-title" x="16" y="28">Niveles de Precedencia (BINARY_OPS)</text>
-    <text class="panel-note" x="16" y="45">Se ilumina el nivel al decidir en peekBinaryOp()</text>
+    <text class="panel-title" x="16" y="26">Niveles de Precedencia (BINARY_OPS)</text>
+    <text class="panel-note" x="16" y="43">Arriba de la línea azul = ✔ entra · Debajo = ✘ break</text>
 
-    <!-- Nivel 5: Potencia (se resalta en Paso 5) -->
     <g class="lvl-5">
       <use href="#lvl-row-bg" xlink:href="#lvl-row-bg" class="lvl-bg anim-lvl5-bg" />
       <use href="#lvl-num-badge" xlink:href="#lvl-num-badge" class="lvl-badge anim-lvl5-badge" />
@@ -611,7 +624,6 @@
       <text class="lvl-desc" x="276" y="26">Potencia (der.)</text>
     </g>
 
-    <!-- Nivel 4: Multiplicación y división (se resalta en Paso 4) -->
     <g class="lvl-4">
       <use href="#lvl-row-bg" xlink:href="#lvl-row-bg" class="lvl-bg anim-lvl4-bg" />
       <use href="#lvl-num-badge" xlink:href="#lvl-num-badge" class="lvl-badge anim-lvl4-badge" />
@@ -620,7 +632,6 @@
       <text class="lvl-desc" x="276" y="26">Mult. / Div.</text>
     </g>
 
-    <!-- Nivel 3: Suma y resta (se resalta en Pasos 2, 6, 8) -->
     <g class="lvl-3">
       <use href="#lvl-row-bg" xlink:href="#lvl-row-bg" class="lvl-bg anim-lvl3-bg" />
       <use href="#lvl-num-badge" xlink:href="#lvl-num-badge" class="lvl-badge anim-lvl3-badge" />
@@ -629,7 +640,6 @@
       <text class="lvl-desc" x="276" y="26">Suma / Resta</text>
     </g>
 
-    <!-- Nivel 2: Concatenación (permanece neutro) -->
     <g class="lvl-2">
       <use href="#lvl-row-bg" xlink:href="#lvl-row-bg" class="lvl-bg" />
       <use href="#lvl-num-badge" xlink:href="#lvl-num-badge" class="lvl-badge" />
@@ -638,7 +648,6 @@
       <text class="lvl-desc" x="276" y="26">Concatenación</text>
     </g>
 
-    <!-- Nivel 1: Comparación (se resalta en Pasos 9 y 10) -->
     <g class="lvl-1">
       <use href="#lvl-row-bg" xlink:href="#lvl-row-bg" class="lvl-bg anim-lvl1-bg" />
       <use href="#lvl-num-badge" xlink:href="#lvl-num-badge" class="lvl-badge anim-lvl1-badge" />
@@ -647,11 +656,21 @@
       <text class="lvl-desc" x="276" y="26">Comparación</text>
     </g>
 
-    <!-- Caja de reglas al pie del panel -->
-    <rect class="sub-box" x="14" y="344" width="288" height="58" />
-    <text class="panel-note" x="158" y="364" text-anchor="middle">✔ op.prec &gt;= min_prec ➔ consume y sube</text>
-    <text class="panel-note" x="158" y="381" text-anchor="middle">✘ op.prec &lt; min_prec ➔ retrocede y arma nodo</text>
-    <text class="panel-note" x="158" y="396" text-anchor="middle">der. (^): llama parse(prec) · izq.: parse(prec+1)</text>
+    <!-- LÍNEA DE UMBRAL MÓVIL min_prec (sube y baja según la llamada activa) -->
+    <g class="anim-thresh-y">
+      <line class="thresh-line" x1="8" y1="0" x2="308" y2="0" />
+      <rect class="thresh-pill" x="196" y="-10" width="106" height="20" />
+      <text class="thresh-txt mono anim-mp-1" x="249" y="3">▲ min_prec = 1</text>
+      <text class="thresh-txt mono anim-mp-2" x="249" y="3">▲ min_prec = 2</text>
+      <text class="thresh-txt mono anim-mp-4" x="249" y="3">▲ min_prec = 4</text>
+      <text class="thresh-txt mono anim-mp-5" x="249" y="3">▲ min_prec = 5</text>
+    </g>
+
+    <!-- Reglas de decisión -->
+    <rect class="sub-box" x="14" y="348" width="288" height="54" />
+    <text class="panel-note" x="158" y="366" text-anchor="middle">✔ op.prec &gt;= min_prec ➔ consume y sube</text>
+    <text class="panel-note" x="158" y="381" text-anchor="middle">✘ op.prec &lt; min_prec ➔ break (retrocede)</text>
+    <text class="panel-note" x="158" y="395" text-anchor="middle">^ (der.): parse(prec) · otros: parse(prec+1)</text>
   </g>
 
   <!-- ===================================================================== -->
@@ -661,7 +680,7 @@
     <rect class="panel" x="0" y="0" width="722" height="416" />
     <text class="panel-title" x="18" y="26">Árbol Sintáctico (AST)</text>
 
-    <!-- Pila de llamadas activa de parseBinary(min_prec) -->
+    <!-- Pila de llamadas activa -->
     <g transform="translate(198, 10)">
       <g class="anim-call-c1">
         <rect class="call-pill" x="0" y="0" width="84" height="22" />
@@ -689,8 +708,8 @@
       </g>
     </g>
 
-    <!-- ARISTAS (aparecen junto al operador que las ensambla) -->
-    <g class="anim-show-eq">
+    <!-- ARISTAS -->
+    <g class="anim-show-ge">
       <line class="ast-edge" x1="430" y1="84" x2="340" y2="126" />
       <line class="ast-edge" x1="470" y1="84" x2="560" y2="126" />
     </g>
@@ -711,105 +730,157 @@
       <line class="ast-edge" x1="410" y1="337" x2="445" y2="367" />
     </g>
 
-    <!-- NODOS HOJA -->
-    <g class="node-a1 anim-show-a1">
-      <use href="#ast-node-leaf" xlink:href="#ast-node-leaf" class="ast-leaf-body anim-glow-a1" />
-      <text class="ast-val mono" y="1">A1</text>
-      <text class="ast-sub" y="12">CellRef</text>
-    </g>
-    <g class="node-n4 anim-show-n4">
-      <use href="#ast-node-leaf" xlink:href="#ast-node-leaf" class="ast-leaf-body anim-glow-n4" />
-      <text class="ast-val mono" y="1">4</text>
-      <text class="ast-sub" y="12">Number</text>
-    </g>
-    <g class="node-n2 anim-show-n2">
-      <use href="#ast-node-leaf" xlink:href="#ast-node-leaf" class="ast-leaf-body anim-glow-n2" />
-      <text class="ast-val mono" y="1">2</text>
-      <text class="ast-sub" y="12">Number</text>
-    </g>
-    <g class="node-n3 anim-show-n3">
-      <use href="#ast-node-leaf" xlink:href="#ast-node-leaf" class="ast-leaf-body anim-glow-n3" />
-      <text class="ast-val mono" y="1">3</text>
-      <text class="ast-sub" y="12">Number</text>
-    </g>
-    <g class="node-b1 anim-show-b1">
-      <use href="#ast-node-leaf" xlink:href="#ast-node-leaf" class="ast-leaf-body anim-glow-b1" />
-      <text class="ast-val mono" y="1">B1</text>
-      <text class="ast-sub" y="12">CellRef</text>
-    </g>
-    <g class="node-n33 anim-show-n33">
-      <use href="#ast-node-leaf" xlink:href="#ast-node-leaf" class="ast-leaf-body anim-glow-n33" />
-      <text class="ast-val mono" y="1">20</text>
-      <text class="ast-sub" y="12">Number</text>
-    </g>
+    <!-- HOJAS -->
+    <g class="node-a1 anim-show-a1"><use href="#ast-node-leaf" xlink:href="#ast-node-leaf" class="ast-leaf-body anim-glow-a1" /><text class="ast-val mono" y="1">A1</text><text class="ast-sub" y="12">CellRef</text></g>
+    <g class="node-n4 anim-show-n4"><use href="#ast-node-leaf" xlink:href="#ast-node-leaf" class="ast-leaf-body anim-glow-n4" /><text class="ast-val mono" y="1">4</text><text class="ast-sub" y="12">Number</text></g>
+    <g class="node-n2 anim-show-n2"><use href="#ast-node-leaf" xlink:href="#ast-node-leaf" class="ast-leaf-body anim-glow-n2" /><text class="ast-val mono" y="1">2</text><text class="ast-sub" y="12">Number</text></g>
+    <g class="node-n3 anim-show-n3"><use href="#ast-node-leaf" xlink:href="#ast-node-leaf" class="ast-leaf-body anim-glow-n3" /><text class="ast-val mono" y="1">3</text><text class="ast-sub" y="12">Number</text></g>
+    <g class="node-b1 anim-show-b1"><use href="#ast-node-leaf" xlink:href="#ast-node-leaf" class="ast-leaf-body anim-glow-b1" /><text class="ast-val mono" y="1">B1</text><text class="ast-sub" y="12">CellRef</text></g>
+    <g class="node-n20 anim-show-n20"><use href="#ast-node-leaf" xlink:href="#ast-node-leaf" class="ast-leaf-body anim-glow-n20" /><text class="ast-val mono" y="1">20</text><text class="ast-sub" y="12">Number</text></g>
 
-    <!-- NODOS OPERADOR -->
-    <g class="node-pow anim-show-pow">
-      <use href="#ast-node-op" xlink:href="#ast-node-op" class="ast-op-body anim-glow-pow" />
-      <text class="ast-val mono" y="2">^</text>
-      <text class="ast-sub" y="13">Nivel 5</text>
-    </g>
-    <g class="node-mul anim-show-mul">
-      <use href="#ast-node-op" xlink:href="#ast-node-op" class="ast-op-body anim-glow-mul" />
-      <text class="ast-val mono" y="2">*</text>
-      <text class="ast-sub" y="13">Nivel 4</text>
-    </g>
-    <g class="node-plus anim-show-plus">
-      <use href="#ast-node-op" xlink:href="#ast-node-op" class="ast-op-body anim-glow-plus" />
-      <text class="ast-val mono" y="2">+</text>
-      <text class="ast-sub" y="13">Nivel 3</text>
-    </g>
-    <g class="node-sub anim-show-sub">
-      <use href="#ast-node-op" xlink:href="#ast-node-op" class="ast-op-body anim-glow-sub" />
-      <text class="ast-val mono" y="2">-</text>
-      <text class="ast-sub" y="13">Nivel 3</text>
-    </g>
-    <g class="node-eq anim-show-eq">
-      <use href="#ast-node-op" xlink:href="#ast-node-op" class="ast-op-body anim-glow-eq" />
-      <text class="ast-val mono" y="2">&gt;=</text>
-      <text class="ast-sub" y="13">Nivel 1</text>
-    </g>
+    <!-- OPERADORES -->
+    <g class="node-pow anim-show-pow"><use href="#ast-node-op" xlink:href="#ast-node-op" class="ast-op-body anim-glow-pow" /><text class="ast-val mono" y="2">^</text><text class="ast-sub" y="13">Nivel 5</text></g>
+    <g class="node-mul anim-show-mul"><use href="#ast-node-op" xlink:href="#ast-node-op" class="ast-op-body anim-glow-mul" /><text class="ast-val mono" y="2">*</text><text class="ast-sub" y="13">Nivel 4</text></g>
+    <g class="node-plus anim-show-plus"><use href="#ast-node-op" xlink:href="#ast-node-op" class="ast-op-body anim-glow-plus" /><text class="ast-val mono" y="2">+</text><text class="ast-sub" y="13">Nivel 3</text></g>
+    <g class="node-sub anim-show-sub"><use href="#ast-node-op" xlink:href="#ast-node-op" class="ast-op-body anim-glow-sub" /><text class="ast-val mono" y="2">-</text><text class="ast-sub" y="13">Nivel 3</text></g>
+    <g class="node-ge anim-show-ge"><use href="#ast-node-op" xlink:href="#ast-node-op" class="ast-op-body anim-glow-ge" /><text class="ast-val mono" y="2">&gt;=</text><text class="ast-sub" y="13">Nivel 1</text></g>
   </g>
 
   <!-- ===================================================================== -->
-  <!-- 5. PANEL INFERIOR: TRAZA DE 12 PASOS Y DECISIÓN ACTIVA                -->
+  <!-- 5. PANEL INFERIOR: 18 PASOS ATÓMICOS + EXPLICACIÓN DE 2 LÍNEAS        -->
   <!-- ===================================================================== -->
   <g class="pos-trace">
     <rect class="panel" x="0" y="0" width="1056" height="156" />
-    <text class="panel-title" x="16" y="17">Secuencia de pasos (clic en cualquier paso al pausar)</text>
+    <text class="panel-title" x="16" y="18">Línea de tiempo atómica (18 pasos · clic en cualquiera al pausar)</text>
 
-    <line class="seq-arrow" x1="102" y1="34" x2="952" y2="34" />
-    <line class="seq-arrow" x1="102" y1="70" x2="952" y2="70" marker-end="url(#arrow-seq)" />
+    <line class="seq-arrow" x1="61" y1="42" x2="995" y2="42" />
+    <g class="st-1" data-step="0"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-1" /><text class="chip-num" y="-2">1</text><text class="chip-sub mono" y="10">A1</text></g>
+    <g class="st-2" data-step="1"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-2" /><text class="chip-num" y="-2">2</text><text class="chip-sub mono" y="10">+✔</text></g>
+    <g class="st-3" data-step="2"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-3" /><text class="chip-num" y="-2">3</text><text class="chip-sub mono" y="10">4</text></g>
+    <g class="st-4" data-step="3"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-4" /><text class="chip-num" y="-2">4</text><text class="chip-sub mono" y="10">*✔</text></g>
+    <g class="st-5" data-step="4"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-5" /><text class="chip-num" y="-2">5</text><text class="chip-sub mono" y="10">2</text></g>
+    <g class="st-6" data-step="5"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-6" /><text class="chip-num" y="-2">6</text><text class="chip-sub mono" y="10">^✔</text></g>
+    <g class="st-7" data-step="6"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-7" /><text class="chip-num" y="-2">7</text><text class="chip-sub mono" y="10">3</text></g>
+    <g class="st-8" data-step="7"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-8" /><text class="chip-num" y="-2">8</text><text class="chip-sub mono" y="10">-✘</text></g>
+    <g class="st-9" data-step="8"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-9" /><text class="chip-num" y="-2">9</text><text class="chip-sub mono" y="10">(^)</text></g>
+    <g class="st-10" data-step="9"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-10" /><text class="chip-num" y="-2">10</text><text class="chip-sub mono" y="10">(*)</text></g>
+    <g class="st-11" data-step="10"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-11" /><text class="chip-num" y="-2">11</text><text class="chip-sub mono" y="10">(+)</text></g>
+    <g class="st-12" data-step="11"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-12" /><text class="chip-num" y="-2">12</text><text class="chip-sub mono" y="10">-✔</text></g>
+    <g class="st-13" data-step="12"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-13" /><text class="chip-num" y="-2">13</text><text class="chip-sub mono" y="10">B1</text></g>
+    <g class="st-14" data-step="13"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-14" /><text class="chip-num" y="-2">14</text><text class="chip-sub mono" y="10">&gt;=✘</text></g>
+    <g class="st-15" data-step="14"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-15" /><text class="chip-num" y="-2">15</text><text class="chip-sub mono" y="10">(-)</text></g>
+    <g class="st-16" data-step="15"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-16" /><text class="chip-num" y="-2">16</text><text class="chip-sub mono" y="10">&gt;=✔</text></g>
+    <g class="st-17" data-step="16"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-17" /><text class="chip-num" y="-2">17</text><text class="chip-sub mono" y="10">20</text></g>
+    <g class="st-18" data-step="17"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-18" /><text class="chip-num" y="-2">18</text><text class="chip-sub mono" y="10">(&gt;=)</text></g>
 
-    <g class="st-1" data-step="0"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-1" /><text class="chip-title" y="-2">Paso 1</text><text class="chip-sub mono" y="10">left = A1</text></g>
-    <g class="st-2" data-step="1"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-2" /><text class="chip-title" y="-2">Paso 2</text><text class="chip-sub mono" y="10">peek '+' (N3&gt;=1)</text></g>
-    <g class="st-3" data-step="2"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-3" /><text class="chip-title" y="-2">Paso 3</text><text class="chip-sub mono" y="10">left = 4</text></g>
-    <g class="st-4" data-step="3"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-4" /><text class="chip-title" y="-2">Paso 4</text><text class="chip-sub mono" y="10">peek '*' (N4&gt;=4)</text></g>
-    <g class="st-5" data-step="4"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-5" /><text class="chip-title" y="-2">Paso 5</text><text class="chip-sub mono" y="10">2 · peek '^' (N5)</text></g>
-    <g class="st-6" data-step="5"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-6" /><text class="chip-title" y="-2">Paso 6</text><text class="chip-sub mono" y="10">3 · '-'&lt;5 ➔ (^)</text></g>
+    <rect class="sub-box" x="16" y="68" width="1024" height="74" />
 
-    <g class="st-7" data-step="6"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-7" /><text class="chip-title" y="-2">Paso 7</text><text class="chip-sub mono" y="10">arma (*) y (+)</text></g>
-    <g class="st-8" data-step="7"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-8" /><text class="chip-title" y="-2">Paso 8</text><text class="chip-sub mono" y="10">'-' (N3) · B1</text></g>
-    <g class="st-9" data-step="8"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-9" /><text class="chip-title" y="-2">Paso 9</text><text class="chip-sub mono" y="10">'&gt;='&lt;4 ➔ (-)</text></g>
-    <g class="st-10" data-step="9"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-10" /><text class="chip-title" y="-2">Paso 10</text><text class="chip-sub mono" y="10">'&gt;=' (N1) · 20</text></g>
-    <g class="st-11" data-step="10"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-11" /><text class="chip-title" y="-2">Paso 11</text><text class="chip-sub mono" y="10">arma raíz (&gt;=)</text></g>
-    <g class="st-12" data-step="11"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-st-12" /><text class="chip-title" y="-2">AST listo</text><text class="chip-sub mono" y="10">4 niveles activos</text></g>
+    <!-- 18 explicaciones de 2 líneas: (1) decisión exacta, (2) efecto en AST/pila -->
+    <g class="cap-group anim-cap-1">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-em">Paso 1 · parseBinary(min=1):</tspan> salta '=' inicial y ejecuta <tspan class="cap-em mono">left = parseUnary()</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">Crea la hoja <tspan class="cap-em mono">A1</tspan>. El umbral <tspan class="cap-em mono">min_prec = 1</tspan> está al fondo: cualquier operador podrá entrar.</text>
+    </g>
+    <g class="cap-group anim-cap-2">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-l3">Paso 2 · Decisión peek('+'):</tspan> Nivel 3 cae arriba de min_prec(1) ➔ <tspan class="cap-ok">3 &gt;= 1 ✔ ENTRA</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">Consume <tspan class="cap-l3 mono">'+'</tspan> y llama recursivamente a <tspan class="cap-em mono">parseBinary(3 + 1 = 4)</tspan> para construir su hijo derecho.</text>
+    </g>
+    <g class="cap-group anim-cap-3">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-em">Paso 3 · parseBinary(min=4):</tspan> el umbral sube a 4 y lee <tspan class="cap-em mono">left = parseUnary()</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">Crea la hoja <tspan class="cap-em mono">4</tspan>. Ahora solo operadores de Nivel 4 o 5 podrán encadenarse aquí.</text>
+    </g>
+    <g class="cap-group anim-cap-4">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-l4">Paso 4 · Decisión peek('*'):</tspan> Nivel 4 cae sobre min_prec(4) ➔ <tspan class="cap-ok">4 &gt;= 4 ✔ ENTRA</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">Consume <tspan class="cap-l4 mono">'*'</tspan> y sube aún más llamando a <tspan class="cap-em mono">parseBinary(4 + 1 = 5)</tspan>.</text>
+    </g>
+    <g class="cap-group anim-cap-5">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-em">Paso 5 · parseBinary(min=5):</tspan> el umbral sube a 5 y lee <tspan class="cap-em mono">left = parseUnary()</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">Crea la hoja <tspan class="cap-em mono">2</tspan>. Con <tspan class="cap-em mono">min_prec = 5</tspan>, únicamente la potencia <tspan class="cap-l5 mono">'^'</tspan> podrá pasar.</text>
+    </g>
+    <g class="cap-group anim-cap-6">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-l5">Paso 6 · Decisión peek('^'):</tspan> Nivel 5 cae sobre min_prec(5) ➔ <tspan class="cap-ok">5 &gt;= 5 ✔ ENTRA</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">Consume <tspan class="cap-l5 mono">'^'</tspan>. Como es asociativa a la derecha, llama a <tspan class="cap-l5 mono">parseBinary(5)</tspan> (sin sumar +1).</text>
+    </g>
+    <g class="cap-group anim-cap-7">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-em">Paso 7 · parseBinary(min=5) der:</tspan> lee <tspan class="cap-em mono">left = parseUnary()</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">Crea la hoja <tspan class="cap-em mono">3</tspan> (el exponente). Ahora espía el siguiente operador en la cinta.</text>
+    </g>
+    <g class="cap-group anim-cap-8">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-no">Paso 8 · Decisión peek('-'):</tspan> Nivel 3 cae DEBAJO de min_prec(5) ➔ <tspan class="cap-no">3 &lt; 5 ✘ BREAK</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">No consume <tspan class="cap-l3 mono">'-'</tspan>: corta el bucle y retorna la hoja <tspan class="cap-em mono">3</tspan> a la llamada de <tspan class="cap-l5 mono">'^'</tspan>.</text>
+    </g>
+    <g class="cap-group anim-cap-9">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-l5">Paso 9 · Ensambla (^):</tspan> <tspan class="cap-l5 mono">makeNode('^', 2, 3)</tspan> · vuelve a peek('-'): <tspan class="cap-no">3 &lt; 5 ✘ BREAK</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">Arma el subárbol <tspan class="cap-l5 mono">(2 ^ 3)</tspan> y, como '-' sigue debajo de min=5, retorna <tspan class="cap-l5 mono">(^)</tspan> a parse(4).</text>
+    </g>
+    <g class="cap-group anim-cap-10">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-l4">Paso 10 · Ensambla (*):</tspan> <tspan class="cap-l4 mono">makeNode('*', 4, (^))</tspan> · vuelve a peek('-'): <tspan class="cap-no">3 &lt; 4 ✘ BREAK</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">El umbral bajó a 4, pero Nivel 3 sigue por debajo ➔ retorna <tspan class="cap-l4 mono">(4 * (2 ^ 3))</tspan> a parse(1).</text>
+    </g>
+    <g class="cap-group anim-cap-11">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-l3">Paso 11 · Ensambla (+):</tspan> de vuelta en parse(1), <tspan class="cap-l3 mono">left = makeNode('+', A1, (*))</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">El umbral baja a <tspan class="cap-em mono">min_prec = 1</tspan>. Ahora el bucle while de parse(1) vuelve a espiar la cinta.</text>
+    </g>
+    <g class="cap-group anim-cap-12">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-l3">Paso 12 · Decisión peek('-'):</tspan> ahora Nivel 3 cae arriba de min_prec(1) ➔ <tspan class="cap-ok">3 &gt;= 1 ✔ ENTRA</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">Por fin consume <tspan class="cap-l3 mono">'-'</tspan> y sube de nuevo a <tspan class="cap-em mono">parseBinary(3 + 1 = 4)</tspan> para leer su lado derecho.</text>
+    </g>
+    <g class="cap-group anim-cap-13">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-em">Paso 13 · parseBinary(min=4):</tspan> el umbral vuelve a 4 y lee <tspan class="cap-em mono">left = parseUnary()</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">Crea la hoja <tspan class="cap-em mono">B1</tspan>. Luego espía el siguiente operador en la cinta (<tspan class="cap-l1 mono">'&gt;='</tspan>).</text>
+    </g>
+    <g class="cap-group anim-cap-14">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-no">Paso 14 · Decisión peek('&gt;='):</tspan> Nivel 1 cae DEBAJO de min_prec(4) ➔ <tspan class="cap-no">1 &lt; 4 ✘ BREAK</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">No consume <tspan class="cap-l1 mono">'&gt;='</tspan>: corta parse(4) y retorna la hoja <tspan class="cap-em mono">B1</tspan> a parse(1).</text>
+    </g>
+    <g class="cap-group anim-cap-15">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-l3">Paso 15 · Ensambla (-):</tspan> en parse(1), <tspan class="cap-l3 mono">left = makeNode('-', (+), B1)</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">Así <tspan class="cap-l3 mono">+</tspan> y <tspan class="cap-l3 mono">-</tspan> (mismo Nivel 3) se asocian a la izquierda: <tspan class="cap-em mono">((A1 + 4*2^3) - B1)</tspan>.</text>
+    </g>
+    <g class="cap-group anim-cap-16">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-l1">Paso 16 · Decisión peek('&gt;='):</tspan> Nivel 1 cae sobre min_prec(1) ➔ <tspan class="cap-ok">1 &gt;= 1 ✔ ENTRA</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">Consume <tspan class="cap-l1 mono">'&gt;='</tspan> y llama a <tspan class="cap-em mono">parseBinary(1 + 1 = 2)</tspan> para leer el lado derecho de la comparación.</text>
+    </g>
+    <g class="cap-group anim-cap-17">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-em">Paso 17 · parseBinary(min=2):</tspan> crea <tspan class="cap-em mono">left = 20</tspan> · peek(<tspan class="cap-no mono">EOF</tspan>) ➔ <tspan class="cap-no">sin operador (retorna 20)</tspan></text>
+      <text class="cap-l2-txt" x="528" y="118">No quedan más tokens: parse(2) termina y devuelve <tspan class="cap-em mono">20</tspan> a parse(1).</text>
+    </g>
+    <g class="cap-group anim-cap-18">
+      <text class="cap-l1-txt" x="528" y="96"><tspan class="cap-l1">Paso 18 · Ensambla raíz (&gt;=):</tspan> <tspan class="cap-l1 mono">makeNode('&gt;=', (-), 20)</tspan> ➔ ¡AST completo!</text>
+      <text class="cap-l2-txt" x="528" y="118">Cada nivel quedó en su altura exacta: <tspan class="cap-l5 mono">^ (N5)</tspan> abajo, <tspan class="cap-l4 mono">* (N4)</tspan>, <tspan class="cap-l3 mono">+/- (N3)</tspan>, y <tspan class="cap-l1 mono">&gt;= (N1)</tspan> en la raíz.</text>
+    </g>
+  </g>
 
-    <!-- Caja de explicación concisa sincronizada -->
-    <rect class="sub-box" x="16" y="96" width="1024" height="46" />
 
-    <text class="caption anim-cap-1" x="528" y="124"><tspan class="cap-em">Paso 1 ·</tspan> parseBinary(1) salta '=' inicial y llama a parseUnary() ➔ crea la hoja <tspan class="cap-em mono">left = A1</tspan>.</text>
-    <text class="caption anim-cap-2" x="528" y="124"><tspan class="cap-l3">Paso 2 ·</tspan> peekBinaryOp() ve <tspan class="cap-l3 mono">'+' (Nivel 3)</tspan>: 3 &gt;= min_prec(1) ✔ ➔ consume '+' y sube a <tspan class="cap-em mono">parseBinary(4)</tspan>.</text>
-    <text class="caption anim-cap-3" x="528" y="124"><tspan class="cap-em">Paso 3 ·</tspan> Dentro de parseBinary(4), parseUnary() crea la hoja <tspan class="cap-em mono">left = 4</tspan>.</text>
-    <text class="caption anim-cap-4" x="528" y="124"><tspan class="cap-l4">Paso 4 ·</tspan> peekBinaryOp() ve <tspan class="cap-l4 mono">'*' (Nivel 4)</tspan>: 4 &gt;= min_prec(4) ✔ ➔ consume '*' y sube a <tspan class="cap-em mono">parseBinary(5)</tspan>.</text>
-    <text class="caption anim-cap-5" x="528" y="124"><tspan class="cap-l5">Paso 5 ·</tspan> En parse(5) crea <tspan class="cap-em mono">2</tspan>; peek <tspan class="cap-l5 mono">'^' (Nivel 5)</tspan>: 5 &gt;= 5 ✔ ➔ consume '^' y llama <tspan class="cap-l5 mono">parseBinary(5)</tspan> (assoc. derecha).</text>
-    <text class="caption anim-cap-6" x="528" y="124"><tspan class="cap-l5">Paso 6 ·</tspan> Crea <tspan class="cap-em mono">3</tspan>; peek <tspan class="cap-l3 mono">'-' (Nivel 3)</tspan>: <tspan class="cap-l3">3 &lt; 5 ✘ retrocede</tspan> ➔ ensambla <tspan class="cap-l5 mono">(^) = (2 ^ 3)</tspan>.</text>
-    <text class="caption anim-cap-7" x="528" y="124"><tspan class="cap-l4">Paso 7 ·</tspan> Sigue viendo '-' (N3 &lt; 4 ✘): retrocede y ensambla <tspan class="cap-l4 mono">(*) = (4 * ^)</tspan>, luego en parse(1) arma <tspan class="cap-l3 mono">(+) = (A1 + *)</tspan>.</text>
-    <text class="caption anim-cap-8" x="528" y="124"><tspan class="cap-l3">Paso 8 ·</tspan> Aún en el bucle de parse(1), peek <tspan class="cap-l3 mono">'-' (Nivel 3)</tspan>: 3 &gt;= 1 ✔ ➔ consume '-', llama parse(4) y crea <tspan class="cap-em mono">B1</tspan>.</text>
-    <text class="caption anim-cap-9" x="528" y="124"><tspan class="cap-l1">Paso 9 ·</tspan> peek <tspan class="cap-l1 mono">'&gt;=' (Nivel 1)</tspan>: <tspan class="cap-l1">1 &lt; 4 ✘ retrocede</tspan> ➔ en parse(1) arma <tspan class="cap-l3 mono">(-) = ((+) - B1)</tspan> (asociatividad izquierda).</text>
-    <text class="caption anim-cap-10" x="528" y="124"><tspan class="cap-l1">Paso 10 ·</tspan> En parse(1), peek <tspan class="cap-l1 mono">'&gt;=' (Nivel 1)</tspan>: 1 &gt;= 1 ✔ ➔ consume '&gt;=', llama parse(2) y crea <tspan class="cap-em mono">20</tspan> (hasta <tspan class="cap-em mono">EOF</tspan>).</text>
-    <text class="caption anim-cap-11" x="528" y="124"><tspan class="cap-l1">Paso 11 ·</tspan> De vuelta en parse(1): ensambla la raíz <tspan class="cap-l1 mono">(&gt;=) = ((-) &gt;= 20)</tspan> ➔ ¡Árbol sintáctico completo!</text>
-    <text class="caption anim-cap-12" x="528" y="124"><tspan class="cap-em">Resultado ·</tspan> Jerarquía exacta: <tspan class="cap-l5 mono">^ (N5)</tspan> abajo, luego <tspan class="cap-l4 mono">* (N4)</tspan>, <tspan class="cap-l3 mono">+ y - (N3)</tspan> a la izquierda, y <tspan class="cap-l1 mono">&gt;= (N1)</tspan> en la raíz.</text>
+  <!-- ===================================================================== -->
+  <!-- 5.5 LEYENDA AUTOCONTENIDA DE CONCEPTOS CLAVE                          -->
+  <!-- ===================================================================== -->
+  <g class="pos-legend">
+    <rect class="panel" x="0" y="0" width="1056" height="60" />
+
+    <!-- Columna 1: Consume y sube -->
+    <g transform="translate(18, 12)">
+      <text class="leg-title cap-ok" x="0" y="10">✔ Consume y sube  (op.prec &gt;= min_prec)</text>
+      <text class="leg-desc" x="0" y="27">Toma el operador de la cinta y llama a parse(prec+1),</text>
+      <text class="leg-desc" x="0" y="40">subiendo la línea azul para resolver primero lo más fuerte.</text>
+    </g>
+
+    <line class="leg-sep" x1="354" y1="10" x2="354" y2="50" />
+
+    <!-- Columna 2: Break (retrocede) -->
+    <g transform="translate(372, 12)">
+      <text class="leg-title cap-no" x="0" y="10">✘ Break / retrocede  (op.prec &lt; min_prec)</text>
+      <text class="leg-desc" x="0" y="27">Deja el operador intacto en la cinta, sale del bucle y</text>
+      <text class="leg-desc" x="0" y="40">devuelve el subárbol left a la llamada anterior (baja el umbral).</text>
+    </g>
+
+    <line class="leg-sep" x1="712" y1="10" x2="712" y2="50" />
+
+    <!-- Columna 3: Asociatividad -->
+    <g transform="translate(730, 12)">
+      <text class="leg-title cap-l5" x="0" y="10">↔ Asociatividad  (der. vs izq.)</text>
+      <text class="leg-desc" x="0" y="27">^ (derecha) llama parse(prec) para anidar a la derecha;</text>
+      <text class="leg-desc" x="0" y="40">+ - * / &gt;= llaman parse(prec+1) para agrupar a la izquierda.</text>
+    </g>
   </g>
 
   <!-- ===================================================================== -->
@@ -827,9 +898,9 @@
       const statusTxt = document.getElementById("ctrl-status");
       if (!controls || !btnPrev || !btnToggle || !btnNext) return;
 
-      const DUR_SEC = 30;
+      const DUR_SEC = 36;
       const DUR_MS = DUR_SEC * 1000;
-      const STEP_TIMES = [1.25, 3.75, 6.25, 8.75, 11.25, 13.75, 16.25, 18.75, 21.25, 23.75, 26.25, 28.75];
+      const STEP_TIMES = [1.00, 3.00, 5.00, 7.00, 9.00, 11.00, 13.00, 15.00, 17.00, 19.00, 21.00, 23.00, 25.00, 27.00, 29.00, 31.00, 33.00, 35.00];
       const N = STEP_TIMES.length;
 
       let paused = false;
