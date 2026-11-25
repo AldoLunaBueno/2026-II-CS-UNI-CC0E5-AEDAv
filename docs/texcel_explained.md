@@ -157,7 +157,7 @@ De esta forma, **cualquier fórmula**, por compleja que sea, termina convertida 
 
 ### Parte 3: Cómo se evalúa el árbol de operaciones ([`engine.h`](../src/texcel/engine.h))
 
-Ya tenemos el árbol binario construido en memoria. Ahora el turno es del motor en [`engine.h`](../src/texcel/engine.h), que debe recorrer ese árbol y reducirlo a un único `CellEvalValue`.
+Cada celda ([`SpreadsheetCell`](../src/texcel/types.h#L294-L330)) guarda su texto original en `raw_expression`; cuando contiene una fórmula, el parser la convierte en un árbol binario en memoria. Ahora es el turno del motor en [`engine.h`](../src/texcel/engine.h), que debe recorrer ese árbol, reducirlo a un único `CellEvalValue` y almacenarlo en el `result` de esa celda (dejando `dirty = false`).
 
 #### 0. El atajo antes del árbol ([`evaluateRawExpression`](../src/texcel/engine.h#L850-L865))
 Antes de invocar al parser o evaluar ningún árbol, el motor revisa si el texto empieza por `=`.

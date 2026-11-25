@@ -8,9 +8,10 @@ E2E_SRCS   := $(wildcard tests/*/e2e/*.py)
 PR_OUT     := tmp/pr_comment.md
 PR_SCRIPT  := scripts/gen_pr_comment.sh
 DOCS_PORT  ?= 8000
+DEMO_SPEED ?= 1.0
 DB_COMPOSE := db/compose.yml
 
-.PHONY: all run texcel test test-unit test-e2e test-perf pr docs clean db-up db-run db-down help
+.PHONY: all run texcel demo test test-unit test-e2e test-perf pr docs clean db-up db-run db-down help
 
 ##@ Compilación y ejecución
 
@@ -27,6 +28,10 @@ run: $(TARGET)
 ## Ejecuta la aplicación en modo Texcel (--texcel).
 texcel: $(TARGET)
 	./$(TARGET) --texcel
+
+## Ejecuta la demo interactiva en vivo de Texcel en tmux (S=1.0 velocidad por defecto).
+texcel-demo: $(TARGET)
+	python3 scripts/demo_live.py --speed $(S)
 
 ## Elimina el binario compilado, tmp/ y build/docs/, y limpia la terminal.
 clean:
