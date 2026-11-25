@@ -1,0 +1,681 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1120 824" width="100%" height="100%"
+     font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <!-- =================================================================== -->
+    <!-- MARCADORES Y FORMAS BASE REUTILIZABLES (ESTILO euler_contour.svg)   -->
+    <!-- =================================================================== -->
+    <marker id="arrow-short" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 0 1.2 L 9 5 L 0 8.8 z" fill="#E65100" />
+    </marker>
+
+    <circle id="ast-node-big" r="27" />
+    <circle id="ast-node-sm"  r="25" />
+    <circle id="phase-dot"    r="10" />
+    <rect   id="eval-pill"    x="-30" y="-10" width="60" height="20" rx="10" />
+    <rect   id="step-chip"    x="-41" y="-14" width="82" height="28" rx="7" />
+
+    <!-- =================================================================== -->
+    <!-- VARIABLES CSS, POSICIONAMIENTO RELATIVO Y ANIMACIONES (33s)         -->
+    <!-- =================================================================== -->
+    <style>
+      :root {
+        --dur: 33s;
+        --play-state: running;
+        --anim-delay: 0s;
+
+        --bg-canvas:      #FAFAFA;
+        --bg-panel:       #F3F5F7;
+        --border-panel:   #CFD8DC;
+        --ink-primary:    #1A237E;
+        --ink-secondary:  #455A64;
+        --ink-muted:      #78909C;
+
+        /* Misma semántica de fases que euler_contour.svg: Pre=verde, Post=rojo */
+        --pre-bg:  #E8F5E9; --pre-stroke:  #2E7D32; --pre-glow:  #00E676; --pre-ink:  #1B5E20;
+        --post-bg: #FFEBEE; --post-stroke: #C62828; --post-glow: #FF5252; --post-ink: #B71C1C;
+
+        --pad-x:          32px;
+        --main-y:         84px;
+        --left-w:        336px;
+        --right-x:       384px;
+        --trace-y:       582px;
+        --step-x0:        78px;
+        --step-dx:        90px;
+        --legend-y:      750px;
+      }
+
+      .bg          { fill: var(--bg-canvas); stroke: var(--border-panel); stroke-width: 2; rx: 16; }
+      .panel       { fill: var(--bg-panel);  stroke: var(--border-panel); stroke-width: 1.5; rx: 12; }
+      .sub-box     { fill: #FFFFFF;          stroke: var(--border-panel); stroke-width: 1.4; rx: 8; }
+      .title       { font-size: 21px; font-weight: 700; fill: var(--ink-primary); text-anchor: middle; }
+      .subtitle    { font-size: 13px; fill: var(--ink-secondary); text-anchor: middle; }
+      .panel-title { font-size: 13px; font-weight: 700; fill: var(--ink-primary); }
+      .panel-note  { font-size: 10.6px; fill: var(--ink-secondary); font-style: italic; }
+      .mono        { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+
+      .pos-left    { transform: translate(var(--pad-x),   var(--main-y)); }
+      .pos-right   { transform: translate(var(--right-x), var(--main-y)); }
+      .pos-trace   { transform: translate(var(--pad-x),   var(--trace-y)); }
+      .pos-legend  { transform: translate(var(--pad-x),   var(--legend-y)); }
+
+      /* Posicionamiento relativo de los 9 nodos del AST dentro del panel derecho (704x484) */
+      .nd-if    { transform: translate(310px,  82px); }
+      .nd-eq    { transform: translate(155px, 194px); }
+      .nd-comma { transform: translate(465px, 194px); }
+      .nd-a1l   { transform: translate( 85px, 314px); }
+      .nd-n0l   { transform: translate(225px, 314px); }
+      .nd-n0t   { transform: translate(365px, 314px); }
+      .nd-div   { transform: translate(565px, 314px); }
+      .nd-n10   { transform: translate(495px, 424px); }
+      .nd-a1r   { transform: translate(635px, 424px); }
+
+      /* Satélites Pre (izq) y Post (der) en el perímetro de los nodos */
+      .pos-pre-dot  { transform: translate(-27px, 0px); }
+      .pos-post-dot { transform: translate( 27px, 0px); }
+
+      .st-1 { transform: translate(calc(var(--step-x0) + 0 * var(--step-dx)), 42px); }
+      .st-2 { transform: translate(calc(var(--step-x0) + 1 * var(--step-dx)), 42px); }
+      .st-3 { transform: translate(calc(var(--step-x0) + 2 * var(--step-dx)), 42px); }
+      .st-4 { transform: translate(calc(var(--step-x0) + 3 * var(--step-dx)), 42px); }
+      .st-5 { transform: translate(calc(var(--step-x0) + 4 * var(--step-dx)), 42px); }
+      .st-6 { transform: translate(calc(var(--step-x0) + 5 * var(--step-dx)), 42px); }
+      .st-7 { transform: translate(calc(var(--step-x0) + 6 * var(--step-dx)), 42px); }
+      .st-8 { transform: translate(calc(var(--step-x0) + 7 * var(--step-dx)), 42px); }
+      .st-9 { transform: translate(calc(var(--step-x0) + 8 * var(--step-dx)), 42px); }
+      .st-10 { transform: translate(calc(var(--step-x0) + 9 * var(--step-dx)), 42px); }
+      .st-11 { transform: translate(calc(var(--step-x0) + 10 * var(--step-dx)), 42px); }
+
+      /* Estilos de nodos y aristas */
+      .ast-edge    { stroke: var(--ink-primary); stroke-width: 2.8; stroke-dasharray: none; stroke-linecap: round; }
+      .nd-val      { font-size: 15px; font-weight: 800; fill: var(--ink-primary); text-anchor: middle; }
+      .nd-sub      { font-size: 7.8px; font-weight: 700; fill: var(--ink-secondary); text-anchor: middle; }
+      .dot-lbl     { font-size: 7.5px; font-weight: 900; fill: #111111; text-anchor: middle; }
+      .eval-bg     { fill: #E8EAF6; stroke: #3949AB; stroke-width: 1.4; }
+      .eval-bg-ok  { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.8; }
+      .eval-txt    { font-size: 10px; font-weight: 800; fill: var(--ink-primary); text-anchor: middle; }
+      .skip-zone   { fill: #ECEFF1; fill-opacity: 0.55; stroke: #E65100; stroke-width: 1.8; stroke-dasharray: 6 4; rx: 14; }
+      .skip-pill   { fill: #FFF3E0; stroke: #E65100; stroke-width: 1.5; rx: 6; }
+      .skip-txt    { font-size: 9.8px; font-weight: 800; fill: #BF360C; text-anchor: middle; }
+      .shield-bg   { fill: #E8F5E9; stroke: #2E7D32; stroke-width: 1.8; rx: 8; }
+      .shield-txt  { font-size: 9.8px; font-weight: 800; fill: #1B5E20; text-anchor: middle; }
+      .short-arc   { fill: none; stroke: #E65100; stroke-width: 2.6; stroke-dasharray: 5 3; }
+
+      /* Panel izquierdo: tarjetas de fase y comparativa */
+      .fx-box      { fill: #FFFFFF; stroke: #5C6BC0; stroke-width: 1.6; rx: 8; }
+      .fx-code     { font-size: 13px; font-weight: 800; fill: var(--ink-primary); text-anchor: middle; }
+      .fx-env      { font-size: 11px; font-weight: 700; fill: #E65100; text-anchor: middle; }
+      .ph-title    { font-size: 12px; font-weight: 800; }
+      .ph-desc     { font-size: 10.4px; fill: var(--ink-secondary); }
+      .cmp-bad     { fill: #FFEBEE; stroke: #E57373; stroke-width: 1.3; rx: 8; }
+      .cmp-good    { fill: #E8F5E9; stroke: #66BB6A; stroke-width: 1.3; rx: 8; }
+      .cmp-hdr     { font-size: 11px; font-weight: 800; }
+      .cmp-txt     { font-size: 10px; fill: #37474F; }
+
+      /* Línea de tiempo y leyenda */
+      .chip-num    { font-size: 10px; font-weight: 800; fill: #37474F; text-anchor: middle; }
+      .chip-sub    { font-size: 8.8px; fill: var(--ink-muted); text-anchor: middle; }
+      .seq-arrow   { stroke: #CFD8DC; stroke-width: 1.4; }
+      .cap-group   { opacity: 0; }
+      .cap-l1-txt  { font-size: 12.4px; font-weight: 800; fill: var(--ink-primary); text-anchor: middle; }
+      .cap-l2-txt  { font-size: 11.2px; font-weight: 500; fill: #37474F; text-anchor: middle; }
+      .leg-title   { font-size: 10.6px; font-weight: 800; }
+      .leg-desc    { font-size: 9.8px; fill: var(--ink-secondary); }
+      .leg-sep     { stroke: #CFD8DC; stroke-width: 1.2; }
+
+      /* =================================================================== */
+      /* KEYFRAMES DECLARATIVOS SINCRONIZADOS                                */
+      /* =================================================================== */
+      
+      @keyframes kf-card-pre { 0%, 8.79% { fill: var(--pre-bg); stroke: var(--pre-stroke); stroke-width: 2.6; filter: drop-shadow(0 0 6px var(--pre-glow)); } 9.39%, 17.88% { fill: var(--pre-bg); stroke: var(--pre-stroke); stroke-width: 2.6; filter: drop-shadow(0 0 6px var(--pre-glow)); } 18.48%, 26.97% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.4; filter: none; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.4; filter: none; } 36.66%, 45.15% { fill: var(--pre-bg); stroke: var(--pre-stroke); stroke-width: 2.6; filter: drop-shadow(0 0 6px var(--pre-glow)); } 45.75%, 54.25% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.4; filter: none; } 54.85%, 63.34% { fill: var(--pre-bg); stroke: var(--pre-stroke); stroke-width: 2.6; filter: drop-shadow(0 0 6px var(--pre-glow)); } 63.94%, 72.43% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.4; filter: none; } 73.03%, 81.52% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.4; filter: none; } 82.12%, 90.61% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.4; filter: none; } 91.21%, 99.2% { fill: var(--pre-bg); stroke: var(--pre-stroke); stroke-width: 2.6; filter: drop-shadow(0 0 6px var(--pre-glow)); } 99.8%, 100% { fill: var(--pre-bg); stroke: var(--pre-stroke); stroke-width: 2.6; filter: drop-shadow(0 0 6px var(--pre-glow)); } }
+      .anim-card-pre { animation: kf-card-pre var(--dur) infinite; }
+      @keyframes kf-card-post { 0%, 8.79% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.4; filter: none; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.4; filter: none; } 18.48%, 26.97% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 2.6; filter: drop-shadow(0 0 6px var(--post-glow)); } 27.57%, 36.06% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 2.6; filter: drop-shadow(0 0 6px var(--post-glow)); } 36.66%, 45.15% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.4; filter: none; } 45.75%, 54.25% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 2.6; filter: drop-shadow(0 0 6px var(--post-glow)); } 54.85%, 63.34% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.4; filter: none; } 63.94%, 72.43% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 2.6; filter: drop-shadow(0 0 6px var(--post-glow)); } 73.03%, 81.52% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 2.6; filter: drop-shadow(0 0 6px var(--post-glow)); } 82.12%, 90.61% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 2.6; filter: drop-shadow(0 0 6px var(--post-glow)); } 91.21%, 99.2% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 2.6; filter: drop-shadow(0 0 6px var(--post-glow)); } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.4; filter: none; } }
+      .anim-card-post { animation: kf-card-post var(--dur) infinite; }
+      @keyframes kf-nd-if { 0%, 8.79% { fill: var(--pre-bg); stroke: var(--pre-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 6px var(--pre-glow)); } 9.39%, 17.88% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 36.66%, 45.15% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 45.75%, 54.25% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 54.85%, 63.34% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 63.94%, 72.43% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 73.03%, 81.52% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 82.12%, 90.61% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 6px var(--post-glow)); } 91.21%, 99.2% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 99.8%, 100% { fill: var(--pre-bg); stroke: var(--pre-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 6px var(--pre-glow)); } }
+      .anim-nd-if { animation: kf-nd-if var(--dur) infinite; }
+      @keyframes kf-nd-eq { 0%, 8.79% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 9.39%, 17.88% { fill: var(--pre-bg); stroke: var(--pre-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 6px var(--pre-glow)); } 18.48%, 26.97% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 27.57%, 36.06% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 6px var(--post-glow)); } 36.66%, 45.15% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 45.75%, 54.25% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 54.85%, 63.34% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 63.94%, 72.43% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 73.03%, 81.52% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 82.12%, 90.61% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 91.21%, 99.2% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } }
+      .anim-nd-eq { animation: kf-nd-eq var(--dur) infinite; }
+      @keyframes kf-nd-a1_l { 0%, 8.79% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 18.48%, 26.97% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 6px var(--post-glow)); } 27.57%, 36.06% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 36.66%, 45.15% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 45.75%, 54.25% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 54.85%, 63.34% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 63.94%, 72.43% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 73.03%, 81.52% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 82.12%, 90.61% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 91.21%, 99.2% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } }
+      .anim-nd-a1_l { animation: kf-nd-a1_l var(--dur) infinite; }
+      @keyframes kf-nd-n0_l { 0%, 8.79% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 18.48%, 26.97% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 6px var(--post-glow)); } 27.57%, 36.06% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 36.66%, 45.15% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 45.75%, 54.25% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 54.85%, 63.34% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 63.94%, 72.43% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 73.03%, 81.52% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 82.12%, 90.61% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 91.21%, 99.2% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } }
+      .anim-nd-n0_l { animation: kf-nd-n0_l var(--dur) infinite; }
+      @keyframes kf-nd-comma { 0%, 8.79% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 36.66%, 45.15% { fill: var(--pre-bg); stroke: var(--pre-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 6px var(--pre-glow)); } 45.75%, 54.25% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 54.85%, 63.34% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 63.94%, 72.43% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 73.03%, 81.52% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 6px var(--post-glow)); } 82.12%, 90.61% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 91.21%, 99.2% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } }
+      .anim-nd-comma { animation: kf-nd-comma var(--dur) infinite; }
+      @keyframes kf-nd-n0_t { 0%, 8.79% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 36.66%, 45.15% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 45.75%, 54.25% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 3.0; filter: drop-shadow(0 0 6px var(--post-glow)); } 54.85%, 63.34% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 63.94%, 72.43% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 73.03%, 81.52% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 82.12%, 90.61% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 91.21%, 99.2% { fill: #EBF3FA; stroke: var(--ink-primary); stroke-width: 2.4; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } }
+      .anim-nd-n0_t { animation: kf-nd-n0_t var(--dur) infinite; }
+      @keyframes kf-nd-div { 0%, 8.79% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 36.66%, 45.15% { fill: #FFF3E0; stroke: #E65100; stroke-width: 2.8; stroke-dasharray: 5 3; filter: drop-shadow(0 0 6px #FFB74D); } 45.75%, 54.25% { fill: #ECEFF1; stroke: #90A4AE; stroke-width: 2.0; stroke-dasharray: 5 3; opacity: 0.72; filter: none; } 54.85%, 63.34% { fill: #FFF3E0; stroke: #E65100; stroke-width: 2.8; stroke-dasharray: 5 3; filter: drop-shadow(0 0 6px #FFB74D); } 63.94%, 72.43% { fill: #ECEFF1; stroke: #90A4AE; stroke-width: 2.0; stroke-dasharray: 5 3; opacity: 0.72; filter: none; } 73.03%, 81.52% { fill: #ECEFF1; stroke: #90A4AE; stroke-width: 2.0; stroke-dasharray: 5 3; opacity: 0.72; filter: none; } 82.12%, 90.61% { fill: #ECEFF1; stroke: #90A4AE; stroke-width: 2.0; stroke-dasharray: 5 3; opacity: 0.72; filter: none; } 91.21%, 99.2% { fill: #ECEFF1; stroke: #90A4AE; stroke-width: 2.0; stroke-dasharray: 5 3; opacity: 0.72; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } }
+      .anim-nd-div { animation: kf-nd-div var(--dur) infinite; }
+      @keyframes kf-nd-n10 { 0%, 8.79% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 36.66%, 45.15% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 45.75%, 54.25% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 54.85%, 63.34% { fill: #FFF3E0; stroke: #E65100; stroke-width: 2.8; stroke-dasharray: 5 3; filter: drop-shadow(0 0 6px #FFB74D); } 63.94%, 72.43% { fill: #ECEFF1; stroke: #90A4AE; stroke-width: 2.0; stroke-dasharray: 5 3; opacity: 0.72; filter: none; } 73.03%, 81.52% { fill: #ECEFF1; stroke: #90A4AE; stroke-width: 2.0; stroke-dasharray: 5 3; opacity: 0.72; filter: none; } 82.12%, 90.61% { fill: #ECEFF1; stroke: #90A4AE; stroke-width: 2.0; stroke-dasharray: 5 3; opacity: 0.72; filter: none; } 91.21%, 99.2% { fill: #ECEFF1; stroke: #90A4AE; stroke-width: 2.0; stroke-dasharray: 5 3; opacity: 0.72; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } }
+      .anim-nd-n10 { animation: kf-nd-n10 var(--dur) infinite; }
+      @keyframes kf-nd-a1_r { 0%, 8.79% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 36.66%, 45.15% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 45.75%, 54.25% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } 54.85%, 63.34% { fill: #FFF3E0; stroke: #E65100; stroke-width: 2.8; stroke-dasharray: 5 3; filter: drop-shadow(0 0 6px #FFB74D); } 63.94%, 72.43% { fill: #ECEFF1; stroke: #90A4AE; stroke-width: 2.0; stroke-dasharray: 5 3; opacity: 0.72; filter: none; } 73.03%, 81.52% { fill: #ECEFF1; stroke: #90A4AE; stroke-width: 2.0; stroke-dasharray: 5 3; opacity: 0.72; filter: none; } 82.12%, 90.61% { fill: #ECEFF1; stroke: #90A4AE; stroke-width: 2.0; stroke-dasharray: 5 3; opacity: 0.72; filter: none; } 91.21%, 99.2% { fill: #ECEFF1; stroke: #90A4AE; stroke-width: 2.0; stroke-dasharray: 5 3; opacity: 0.72; filter: none; } 99.8%, 100% { fill: #FFFFFF; stroke: #78909C; stroke-width: 2.2; stroke-dasharray: none; opacity: 1; filter: none; } }
+      .anim-nd-a1_r { animation: kf-nd-a1_r var(--dur) infinite; }
+      @keyframes kf-dot-if-pre { 0%, 8.79% { fill: #00E676; stroke: #00701A; stroke-width: 2.8; filter: drop-shadow(0 0 6px #00E676); } 9.39%, 17.88% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 18.48%, 26.97% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 27.57%, 36.06% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 36.66%, 45.15% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 45.75%, 54.25% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 54.85%, 63.34% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 63.94%, 72.43% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 73.03%, 81.52% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 82.12%, 90.61% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 91.21%, 99.2% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 99.8%, 100% { fill: #00E676; stroke: #00701A; stroke-width: 2.8; filter: drop-shadow(0 0 6px #00E676); } }
+      .anim-dot-if-pre { animation: kf-dot-if-pre var(--dur) infinite; }
+      @keyframes kf-dot-if-post { 0%, 8.79% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 9.39%, 17.88% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 18.48%, 26.97% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 27.57%, 36.06% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 36.66%, 45.15% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 45.75%, 54.25% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 54.85%, 63.34% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 63.94%, 72.43% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 73.03%, 81.52% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 82.12%, 90.61% { fill: #FF1744; stroke: #880E4F; stroke-width: 2.8; filter: drop-shadow(0 0 6px #FF1744); } 91.21%, 99.2% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 99.8%, 100% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } }
+      .anim-dot-if-post { animation: kf-dot-if-post var(--dur) infinite; }
+      @keyframes kf-dot-eq-pre { 0%, 8.79% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 9.39%, 17.88% { fill: #00E676; stroke: #00701A; stroke-width: 2.8; filter: drop-shadow(0 0 6px #00E676); } 18.48%, 26.97% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 27.57%, 36.06% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 36.66%, 45.15% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 45.75%, 54.25% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 54.85%, 63.34% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 63.94%, 72.43% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 73.03%, 81.52% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 82.12%, 90.61% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 91.21%, 99.2% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 99.8%, 100% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } }
+      .anim-dot-eq-pre { animation: kf-dot-eq-pre var(--dur) infinite; }
+      @keyframes kf-dot-eq-post { 0%, 8.79% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 9.39%, 17.88% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 18.48%, 26.97% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 27.57%, 36.06% { fill: #FF1744; stroke: #880E4F; stroke-width: 2.8; filter: drop-shadow(0 0 6px #FF1744); } 36.66%, 45.15% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 45.75%, 54.25% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 54.85%, 63.34% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 63.94%, 72.43% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 73.03%, 81.52% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 82.12%, 90.61% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 91.21%, 99.2% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 99.8%, 100% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } }
+      .anim-dot-eq-post { animation: kf-dot-eq-post var(--dur) infinite; }
+      @keyframes kf-dot-cm-pre { 0%, 8.79% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 9.39%, 17.88% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 18.48%, 26.97% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 27.57%, 36.06% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 36.66%, 45.15% { fill: #00E676; stroke: #00701A; stroke-width: 2.8; filter: drop-shadow(0 0 6px #00E676); } 45.75%, 54.25% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 54.85%, 63.34% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 63.94%, 72.43% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 73.03%, 81.52% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 82.12%, 90.61% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 91.21%, 99.2% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 99.8%, 100% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } }
+      .anim-dot-cm-pre { animation: kf-dot-cm-pre var(--dur) infinite; }
+      @keyframes kf-dot-cm-post { 0%, 8.79% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 9.39%, 17.88% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 18.48%, 26.97% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 27.57%, 36.06% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 36.66%, 45.15% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 45.75%, 54.25% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 54.85%, 63.34% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 63.94%, 72.43% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 73.03%, 81.52% { fill: #FF1744; stroke: #880E4F; stroke-width: 2.8; filter: drop-shadow(0 0 6px #FF1744); } 82.12%, 90.61% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 91.21%, 99.2% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 99.8%, 100% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } }
+      .anim-dot-cm-post { animation: kf-dot-cm-post var(--dur) infinite; }
+      @keyframes kf-dot-div-pre { 0%, 8.79% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 9.39%, 17.88% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 18.48%, 26.97% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 27.57%, 36.06% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 36.66%, 45.15% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 45.75%, 54.25% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 54.85%, 63.34% { fill: #00E676; stroke: #00701A; stroke-width: 2.8; filter: drop-shadow(0 0 6px #00E676); } 63.94%, 72.43% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 73.03%, 81.52% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 82.12%, 90.61% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 91.21%, 99.2% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } 99.8%, 100% { fill: #C8E6C9; stroke: #2E7D32; stroke-width: 1.6; filter: none; } }
+      .anim-dot-div-pre { animation: kf-dot-div-pre var(--dur) infinite; }
+      @keyframes kf-dot-div-post { 0%, 8.79% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 9.39%, 17.88% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 18.48%, 26.97% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 27.57%, 36.06% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 36.66%, 45.15% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 45.75%, 54.25% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 54.85%, 63.34% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 63.94%, 72.43% { fill: #FF1744; stroke: #880E4F; stroke-width: 2.8; filter: drop-shadow(0 0 6px #FF1744); } 73.03%, 81.52% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 82.12%, 90.61% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 91.21%, 99.2% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } 99.8%, 100% { fill: #FFCDD2; stroke: #C62828; stroke-width: 1.6; filter: none; } }
+      .anim-dot-div-post { animation: kf-dot-div-post var(--dur) infinite; }
+      @keyframes kf-ev-a1l { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 1; } 27.57%, 36.06% { opacity: 1; } 36.66%, 45.15% { opacity: 1; } 45.75%, 54.25% { opacity: 1; } 54.85%, 63.34% { opacity: 1; } 63.94%, 72.43% { opacity: 1; } 73.03%, 81.52% { opacity: 1; } 82.12%, 90.61% { opacity: 1; } 91.21%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-ev-a1l { animation: kf-ev-a1l var(--dur) infinite; }
+      @keyframes kf-ev-n0l { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 1; } 27.57%, 36.06% { opacity: 1; } 36.66%, 45.15% { opacity: 1; } 45.75%, 54.25% { opacity: 1; } 54.85%, 63.34% { opacity: 1; } 63.94%, 72.43% { opacity: 1; } 73.03%, 81.52% { opacity: 1; } 82.12%, 90.61% { opacity: 1; } 91.21%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-ev-n0l { animation: kf-ev-n0l var(--dur) infinite; }
+      @keyframes kf-ev-eq { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 1; } 36.66%, 45.15% { opacity: 1; } 45.75%, 54.25% { opacity: 1; } 54.85%, 63.34% { opacity: 1; } 63.94%, 72.43% { opacity: 1; } 73.03%, 81.52% { opacity: 1; } 82.12%, 90.61% { opacity: 1; } 91.21%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-ev-eq { animation: kf-ev-eq var(--dur) infinite; }
+      @keyframes kf-ev-n0t { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 0; } 45.75%, 54.25% { opacity: 1; } 54.85%, 63.34% { opacity: 1; } 63.94%, 72.43% { opacity: 1; } 73.03%, 81.52% { opacity: 1; } 82.12%, 90.61% { opacity: 1; } 91.21%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-ev-n0t { animation: kf-ev-n0t var(--dur) infinite; }
+      @keyframes kf-ev-if { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 0; } 45.75%, 54.25% { opacity: 0; } 54.85%, 63.34% { opacity: 0; } 63.94%, 72.43% { opacity: 0; } 73.03%, 81.52% { opacity: 0; } 82.12%, 90.61% { opacity: 1; } 91.21%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-ev-if { animation: kf-ev-if var(--dur) infinite; }
+      @keyframes kf-skip-tag-div { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 1; } 45.75%, 54.25% { opacity: 1; } 54.85%, 63.34% { opacity: 1; } 63.94%, 72.43% { opacity: 1; } 73.03%, 81.52% { opacity: 1; } 82.12%, 90.61% { opacity: 1; } 91.21%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-skip-tag-div { animation: kf-skip-tag-div var(--dur) infinite; }
+      @keyframes kf-skip-zone { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 0; } 45.75%, 54.25% { opacity: 0; } 54.85%, 63.34% { opacity: 1; } 63.94%, 72.43% { opacity: 1; } 73.03%, 81.52% { opacity: 1; } 82.12%, 90.61% { opacity: 1; } 91.21%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-skip-zone { animation: kf-skip-zone var(--dur) infinite; }
+      @keyframes kf-skip-shield { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 0; } 45.75%, 54.25% { opacity: 0; } 54.85%, 63.34% { opacity: 0; } 63.94%, 72.43% { opacity: 1; } 73.03%, 81.52% { opacity: 1; } 82.12%, 90.61% { opacity: 1; } 91.21%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-skip-shield { animation: kf-skip-shield var(--dur) infinite; }
+      @keyframes kf-short-arc { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 1; } 45.75%, 54.25% { opacity: 0; } 54.85%, 63.34% { opacity: 0; } 63.94%, 72.43% { opacity: 0; } 73.03%, 81.52% { opacity: 0; } 82.12%, 90.61% { opacity: 0; } 91.21%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-short-arc { animation: kf-short-arc var(--dur) infinite; }
+      @keyframes kf-edge-skip-top { 0%, 8.79% { stroke: var(--ink-primary); stroke-width: 2.8; stroke-dasharray: none; } 9.39%, 17.88% { stroke: var(--ink-primary); stroke-width: 2.8; stroke-dasharray: none; } 18.48%, 26.97% { stroke: var(--ink-primary); stroke-width: 2.8; stroke-dasharray: none; } 27.57%, 36.06% { stroke: var(--ink-primary); stroke-width: 2.8; stroke-dasharray: none; } 36.66%, 45.15% { stroke: #E65100; stroke-width: 2.8; stroke-dasharray: 5 4; } 45.75%, 54.25% { stroke: #B0BEC5; stroke-width: 2.2; stroke-dasharray: 5 4; } 54.85%, 63.34% { stroke: #B0BEC5; stroke-width: 2.2; stroke-dasharray: 5 4; } 63.94%, 72.43% { stroke: #B0BEC5; stroke-width: 2.2; stroke-dasharray: 5 4; } 73.03%, 81.52% { stroke: #B0BEC5; stroke-width: 2.2; stroke-dasharray: 5 4; } 82.12%, 90.61% { stroke: #B0BEC5; stroke-width: 2.2; stroke-dasharray: 5 4; } 91.21%, 99.2% { stroke: #B0BEC5; stroke-width: 2.2; stroke-dasharray: 5 4; } 99.8%, 100% { stroke: var(--ink-primary); stroke-width: 2.8; stroke-dasharray: none; } }
+      .anim-edge-skip-top { animation: kf-edge-skip-top var(--dur) infinite; }
+      @keyframes kf-edge-skip-sub { 0%, 8.79% { stroke: var(--ink-primary); stroke-width: 2.8; stroke-dasharray: none; } 9.39%, 17.88% { stroke: var(--ink-primary); stroke-width: 2.8; stroke-dasharray: none; } 18.48%, 26.97% { stroke: var(--ink-primary); stroke-width: 2.8; stroke-dasharray: none; } 27.57%, 36.06% { stroke: var(--ink-primary); stroke-width: 2.8; stroke-dasharray: none; } 36.66%, 45.15% { stroke: var(--ink-primary); stroke-width: 2.8; stroke-dasharray: none; } 45.75%, 54.25% { stroke: var(--ink-primary); stroke-width: 2.8; stroke-dasharray: none; } 54.85%, 63.34% { stroke: #E65100; stroke-width: 2.8; stroke-dasharray: 5 4; } 63.94%, 72.43% { stroke: #B0BEC5; stroke-width: 2.2; stroke-dasharray: 5 4; } 73.03%, 81.52% { stroke: #B0BEC5; stroke-width: 2.2; stroke-dasharray: 5 4; } 82.12%, 90.61% { stroke: #B0BEC5; stroke-width: 2.2; stroke-dasharray: 5 4; } 91.21%, 99.2% { stroke: #B0BEC5; stroke-width: 2.2; stroke-dasharray: 5 4; } 99.8%, 100% { stroke: var(--ink-primary); stroke-width: 2.8; stroke-dasharray: none; } }
+      .anim-edge-skip-sub { animation: kf-edge-skip-sub var(--dur) infinite; }
+      @keyframes kf-step-only-1 { 0%, 8.79% { opacity: 1; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 0; } 45.75%, 54.25% { opacity: 0; } 54.85%, 63.34% { opacity: 0; } 63.94%, 72.43% { opacity: 0; } 73.03%, 81.52% { opacity: 0; } 82.12%, 90.61% { opacity: 0; } 91.21%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 1; } }
+      .anim-step-only-1 { animation: kf-step-only-1 var(--dur) infinite; }
+      @keyframes kf-step-only-2 { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 1; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 0; } 45.75%, 54.25% { opacity: 0; } 54.85%, 63.34% { opacity: 0; } 63.94%, 72.43% { opacity: 0; } 73.03%, 81.52% { opacity: 0; } 82.12%, 90.61% { opacity: 0; } 91.21%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-2 { animation: kf-step-only-2 var(--dur) infinite; }
+      @keyframes kf-step-only-3 { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 1; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 0; } 45.75%, 54.25% { opacity: 0; } 54.85%, 63.34% { opacity: 0; } 63.94%, 72.43% { opacity: 0; } 73.03%, 81.52% { opacity: 0; } 82.12%, 90.61% { opacity: 0; } 91.21%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-3 { animation: kf-step-only-3 var(--dur) infinite; }
+      @keyframes kf-step-only-4 { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 1; } 36.66%, 45.15% { opacity: 0; } 45.75%, 54.25% { opacity: 0; } 54.85%, 63.34% { opacity: 0; } 63.94%, 72.43% { opacity: 0; } 73.03%, 81.52% { opacity: 0; } 82.12%, 90.61% { opacity: 0; } 91.21%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-4 { animation: kf-step-only-4 var(--dur) infinite; }
+      @keyframes kf-step-only-5 { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 1; } 45.75%, 54.25% { opacity: 0; } 54.85%, 63.34% { opacity: 0; } 63.94%, 72.43% { opacity: 0; } 73.03%, 81.52% { opacity: 0; } 82.12%, 90.61% { opacity: 0; } 91.21%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-5 { animation: kf-step-only-5 var(--dur) infinite; }
+      @keyframes kf-step-only-6 { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 0; } 45.75%, 54.25% { opacity: 1; } 54.85%, 63.34% { opacity: 0; } 63.94%, 72.43% { opacity: 0; } 73.03%, 81.52% { opacity: 0; } 82.12%, 90.61% { opacity: 0; } 91.21%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-6 { animation: kf-step-only-6 var(--dur) infinite; }
+      @keyframes kf-step-only-7 { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 0; } 45.75%, 54.25% { opacity: 0; } 54.85%, 63.34% { opacity: 1; } 63.94%, 72.43% { opacity: 0; } 73.03%, 81.52% { opacity: 0; } 82.12%, 90.61% { opacity: 0; } 91.21%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-7 { animation: kf-step-only-7 var(--dur) infinite; }
+      @keyframes kf-step-only-8 { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 0; } 45.75%, 54.25% { opacity: 0; } 54.85%, 63.34% { opacity: 0; } 63.94%, 72.43% { opacity: 1; } 73.03%, 81.52% { opacity: 0; } 82.12%, 90.61% { opacity: 0; } 91.21%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-8 { animation: kf-step-only-8 var(--dur) infinite; }
+      @keyframes kf-step-only-9 { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 0; } 45.75%, 54.25% { opacity: 0; } 54.85%, 63.34% { opacity: 0; } 63.94%, 72.43% { opacity: 0; } 73.03%, 81.52% { opacity: 1; } 82.12%, 90.61% { opacity: 0; } 91.21%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-9 { animation: kf-step-only-9 var(--dur) infinite; }
+      @keyframes kf-step-only-10 { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 0; } 45.75%, 54.25% { opacity: 0; } 54.85%, 63.34% { opacity: 0; } 63.94%, 72.43% { opacity: 0; } 73.03%, 81.52% { opacity: 0; } 82.12%, 90.61% { opacity: 1; } 91.21%, 99.2% { opacity: 0; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-10 { animation: kf-step-only-10 var(--dur) infinite; }
+      @keyframes kf-step-only-11 { 0%, 8.79% { opacity: 0; } 9.39%, 17.88% { opacity: 0; } 18.48%, 26.97% { opacity: 0; } 27.57%, 36.06% { opacity: 0; } 36.66%, 45.15% { opacity: 0; } 45.75%, 54.25% { opacity: 0; } 54.85%, 63.34% { opacity: 0; } 63.94%, 72.43% { opacity: 0; } 73.03%, 81.52% { opacity: 0; } 82.12%, 90.61% { opacity: 0; } 91.21%, 99.2% { opacity: 1; } 99.8%, 100% { opacity: 0; } }
+      .anim-step-only-11 { animation: kf-step-only-11 var(--dur) infinite; }
+      @keyframes kf-stchip-1 { 0%, 8.79% { fill: var(--pre-bg); stroke: var(--pre-stroke); stroke-width: 2.2; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.66%, 45.15% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.75%, 54.25% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.85%, 63.34% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.94%, 72.43% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.03%, 81.52% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.12%, 90.61% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.21%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: var(--pre-bg); stroke: var(--pre-stroke); stroke-width: 2.2; } }
+      .anim-stchip-1 { animation: kf-stchip-1 var(--dur) infinite; }
+      @keyframes kf-stchip-2 { 0%, 8.79% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.39%, 17.88% { fill: var(--pre-bg); stroke: var(--pre-stroke); stroke-width: 2.2; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.66%, 45.15% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.75%, 54.25% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.85%, 63.34% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.94%, 72.43% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.03%, 81.52% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.12%, 90.61% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.21%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-2 { animation: kf-stchip-2 var(--dur) infinite; }
+      @keyframes kf-stchip-3 { 0%, 8.79% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.48%, 26.97% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 2.2; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.66%, 45.15% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.75%, 54.25% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.85%, 63.34% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.94%, 72.43% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.03%, 81.52% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.12%, 90.61% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.21%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-3 { animation: kf-stchip-3 var(--dur) infinite; }
+      @keyframes kf-stchip-4 { 0%, 8.79% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.57%, 36.06% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 2.2; } 36.66%, 45.15% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.75%, 54.25% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.85%, 63.34% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.94%, 72.43% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.03%, 81.52% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.12%, 90.61% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.21%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-4 { animation: kf-stchip-4 var(--dur) infinite; }
+      @keyframes kf-stchip-5 { 0%, 8.79% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.66%, 45.15% { fill: #FFF3E0; stroke: #E65100; stroke-width: 2.2; } 45.75%, 54.25% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.85%, 63.34% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.94%, 72.43% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.03%, 81.52% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.12%, 90.61% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.21%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-5 { animation: kf-stchip-5 var(--dur) infinite; }
+      @keyframes kf-stchip-6 { 0%, 8.79% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.66%, 45.15% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.75%, 54.25% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 2.2; } 54.85%, 63.34% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.94%, 72.43% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.03%, 81.52% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.12%, 90.61% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.21%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-6 { animation: kf-stchip-6 var(--dur) infinite; }
+      @keyframes kf-stchip-7 { 0%, 8.79% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.66%, 45.15% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.75%, 54.25% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.85%, 63.34% { fill: #FFF3E0; stroke: #E65100; stroke-width: 2.2; } 63.94%, 72.43% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.03%, 81.52% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.12%, 90.61% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.21%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-7 { animation: kf-stchip-7 var(--dur) infinite; }
+      @keyframes kf-stchip-8 { 0%, 8.79% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.66%, 45.15% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.75%, 54.25% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.85%, 63.34% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.94%, 72.43% { fill: #ECEFF1; stroke: #546E7A; stroke-width: 2.2; } 73.03%, 81.52% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.12%, 90.61% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.21%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-8 { animation: kf-stchip-8 var(--dur) infinite; }
+      @keyframes kf-stchip-9 { 0%, 8.79% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.66%, 45.15% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.75%, 54.25% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.85%, 63.34% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.94%, 72.43% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.03%, 81.52% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 2.2; } 82.12%, 90.61% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.21%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-9 { animation: kf-stchip-9 var(--dur) infinite; }
+      @keyframes kf-stchip-10 { 0%, 8.79% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.66%, 45.15% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.75%, 54.25% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.85%, 63.34% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.94%, 72.43% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.03%, 81.52% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.12%, 90.61% { fill: var(--post-bg); stroke: var(--post-stroke); stroke-width: 2.2; } 91.21%, 99.2% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-10 { animation: kf-stchip-10 var(--dur) infinite; }
+      @keyframes kf-stchip-11 { 0%, 8.79% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 9.39%, 17.88% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 18.48%, 26.97% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 27.57%, 36.06% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 36.66%, 45.15% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 45.75%, 54.25% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 54.85%, 63.34% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 63.94%, 72.43% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 73.03%, 81.52% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 82.12%, 90.61% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } 91.21%, 99.2% { fill: #E8EAF6; stroke: var(--ink-primary); stroke-width: 2.2; } 99.8%, 100% { fill: #FFFFFF; stroke: #CFD8DC; stroke-width: 1.3; } }
+      .anim-stchip-11 { animation: kf-stchip-11 var(--dur) infinite; }
+
+      [class*="anim-"] {
+        animation-play-state: var(--play-state);
+        animation-delay: var(--anim-delay);
+      }
+
+      .ctrl-btn-bg   { fill: #FFFFFF; stroke: #B0BEC5; stroke-width: 1.4; rx: 7; transition: fill 0.15s, stroke 0.15s; }
+      .ctrl-btn:hover .ctrl-btn-bg { fill: #E8EAF6; stroke: var(--ink-primary); }
+      .ctrl-btn      { cursor: pointer; }
+      .ctrl-ico      { font-size: 12px; font-weight: 800; fill: var(--ink-primary); text-anchor: middle; pointer-events: none; user-select: none; }
+      .ctrl-hint     { font-size: 9.5px; fill: var(--ink-muted); text-anchor: middle; pointer-events: none; user-select: none; }
+      .step-clickable { cursor: pointer; }
+    </style>
+  </defs>
+
+  <!-- ===================================================================== -->
+  <!-- 1. LIENZO, CABECERA Y CONTROLES INTERACTIVOS                          -->
+  <!-- ===================================================================== -->
+  <rect class="bg" x="10" y="10" width="1100" height="804" />
+  <text class="title" x="560" y="42">Evaluación Híbrida PrePostOrder con Cortocircuito (IF)</text>
+  <text class="subtitle" x="560" y="64">Por qué el Recorrido de Euler (Phase::Pre al bajar + Phase::Post al subir) evita #DIV/0! sin recursión</text>
+
+  <g id="svg-controls" transform="translate(948, 22)" display="none">
+    <g id="btn-prev" class="ctrl-btn" transform="translate(0, 0)">
+      <title>Paso anterior (←)</title>
+      <rect class="ctrl-btn-bg" x="0" y="0" width="38" height="28" />
+      <text class="ctrl-ico" x="19" y="18">◀</text>
+    </g>
+    <g id="btn-toggle" class="ctrl-btn" transform="translate(44, 0)">
+      <title>Pausar / Reanudar (Espacio)</title>
+      <rect class="ctrl-btn-bg" x="0" y="0" width="52" height="28" />
+      <g id="ico-pause" fill="#1A237E" pointer-events="none">
+        <rect x="20" y="8" width="4" height="12" rx="1" />
+        <rect x="28" y="8" width="4" height="12" rx="1" />
+      </g>
+      <polygon id="ico-play" points="21,8 34,14 21,20" fill="#1A237E" pointer-events="none" display="none" />
+    </g>
+    <g id="btn-next" class="ctrl-btn" transform="translate(102, 0)">
+      <title>Paso siguiente (→)</title>
+      <rect class="ctrl-btn-bg" x="0" y="0" width="38" height="28" />
+      <text class="ctrl-ico" x="19" y="18">▶</text>
+    </g>
+    <text id="ctrl-status" class="ctrl-hint" x="70" y="42">Auto · ←/→/Espacio</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 2. PANEL IZQUIERDO: FÓRMULA, FASES PRE/POST Y COMPARATIVA             -->
+  <!-- ===================================================================== -->
+  <g class="pos-left">
+    <rect class="panel" x="0" y="0" width="336" height="484" />
+    <text class="panel-title" x="16" y="26">Fórmula evaluada (caso crítico)</text>
+
+    <rect class="fx-box" x="16" y="38" width="304" height="54" />
+    <text class="fx-code mono" x="168" y="61">= IF(A1 = 0, 0, 10 / A1)</text>
+    <text class="fx-env mono"  x="168" y="81">Estado actual: A1 = 0  (10 / A1 sería #DIV/0!)</text>
+
+    <text class="panel-title" x="16" y="116">Las 2 Fases de PrePostIter</text>
+
+    <!-- Tarjeta Phase::Pre -->
+    <g transform="translate(16, 128)">
+      <rect class="anim-card-pre" x="0" y="0" width="304" height="84" rx="9" />
+      <circle cx="22" cy="22" r="9" fill="#C8E6C9" stroke="#2E7D32" stroke-width="2" />
+      <text class="dot-lbl" x="22" y="25">Pre</text>
+      <text class="ph-title" x="38" y="26" fill="#1B5E20">Phase::Pre — Al bajar (Top-Down)</text>
+      <text class="ph-desc" x="14" y="47">Se ejecuta ANTES de visitar los hijos.</text>
+      <text class="ph-desc" x="14" y="62">Lee cond ya evaluada y marca skip_eval = true</text>
+      <text class="ph-desc" x="14" y="76">en la rama descartada (o propaga a sus hijos).</text>
+    </g>
+
+    <!-- Tarjeta Phase::Post -->
+    <g transform="translate(16, 224)">
+      <rect class="anim-card-post" x="0" y="0" width="304" height="84" rx="9" />
+      <circle cx="22" cy="22" r="9" fill="#FFCDD2" stroke="#C62828" stroke-width="2" />
+      <text class="dot-lbl" x="22" y="25">Po</text>
+      <text class="ph-title" x="38" y="26" fill="#B71C1C">Phase::Post — Al subir (Bottom-Up)</text>
+      <text class="ph-desc" x="14" y="47">Se ejecuta CUANDO los hijos ya terminaron.</text>
+      <text class="ph-desc" x="14" y="62">Si skip_eval == true ➔ continue (salta cálculo).</text>
+      <text class="ph-desc" x="14" y="76">Si no, calcula tok.evaluated in-place.</text>
+    </g>
+
+    <!-- Comparativa: por qué PostOrder puro falla -->
+    <text class="panel-title" x="16" y="334">¿Por qué NO basta PostOrder puro?</text>
+
+    <g transform="translate(16, 344)">
+      <rect class="cmp-bad" x="0" y="0" width="304" height="58" />
+      <text class="cmp-hdr" x="12" y="19" fill="#B71C1C">✘ PostOrder puro (solo subida):</text>
+      <text class="cmp-txt" x="12" y="35">Nunca visita (,) antes de bajar a (/).</text>
+      <text class="cmp-txt" x="12" y="49">Evalúa 10 / 0 ciegamente ➔ lanza #DIV/0!</text>
+    </g>
+
+    <g transform="translate(16, 412)">
+      <rect class="cmp-good" x="0" y="0" width="304" height="58" />
+      <text class="cmp-hdr" x="12" y="19" fill="#1B5E20">✔ PrePostOrder (Euler híbrido):</text>
+      <text class="cmp-txt" x="12" y="35">Usa Phase::Pre para bloquear (/) antes de entrar</text>
+      <text class="cmp-txt" x="12" y="49">y Phase::Post para subir el resultado 0 sin pila.</text>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 3. PANEL DERECHO: ÁRBOL AST + CORTACIRCUITO EN VIVO                   -->
+  <!-- ===================================================================== -->
+  <g class="pos-right">
+    <rect class="panel" x="0" y="0" width="704" height="484" />
+    <text class="panel-title" x="18" y="26">Árbol Binario AST (BinaryTreeNode&lt;AstToken&gt;) · Evaluación in-place</text>
+
+    <!-- Zona sombreada de la subrama descartada por skip_eval = true -->
+    <g class="cap-group anim-skip-zone">
+      <rect class="skip-zone" x="454" y="274" width="224" height="190" />
+    </g>
+
+
+
+    <!-- Arco de cortocircuito en Paso 5: (=).evaluated=True -> (,):Pre -> skip_eval en (/) -->
+    <g class="cap-group anim-short-arc">
+      <path class="short-arc" d="M 192 172 Q 310 128 430 182" marker-end="url(#arrow-short)" />
+      <rect class="skip-pill" x="238" y="128" width="144" height="20" />
+      <text class="skip-txt mono" x="310" y="142">cond=True ➔ skip (/)</text>
+    </g>
+
+    <!-- ARISTAS DEL ÁRBOL -->
+    <line class="ast-edge" x1="290" y1="101" x2="175" y2="175" />
+    <line class="ast-edge" x1="330" y1="101" x2="445" y2="175" />
+    <line class="ast-edge" x1="140" y1="216" x2="98"  y2="293" />
+    <line class="ast-edge" x1="170" y1="216" x2="212" y2="293" />
+    <line class="ast-edge" x1="446" y1="214" x2="380" y2="294" />
+    <!-- Arista hacia rama falsa (/) -->
+    <line class="ast-edge anim-edge-skip-top" x1="484" y1="214" x2="548" y2="294" />
+    <!-- Aristas dentro de la rama falsa (/) -> 10, A1 -->
+    <line class="ast-edge anim-edge-skip-sub" x1="550" y1="336" x2="508" y2="404" />
+    <line class="ast-edge anim-edge-skip-sub" x1="580" y1="336" x2="622" y2="404" />
+
+    <!-- RAÍZ: IF -->
+    <g class="nd-if">
+      <use href="#ast-node-big" xlink:href="#ast-node-big" class="anim-nd-if" />
+      <text class="nd-val mono" y="2">IF</text>
+      <text class="nd-sub" y="14">FuncCall</text>
+      <g class="pos-pre-dot"><use href="#phase-dot" xlink:href="#phase-dot" class="anim-dot-if-pre" /><text class="dot-lbl" y="3">Pre</text></g>
+      <g class="pos-post-dot"><use href="#phase-dot" xlink:href="#phase-dot" class="anim-dot-if-post" /><text class="dot-lbl" y="3">Po</text></g>
+      <g transform="translate(0, -42)" class="cap-group anim-ev-if">
+        <rect class="eval-bg-ok" x="-44" y="-11" width="88" height="22" rx="11" />
+        <text class="eval-txt mono" y="4" fill="#1B5E20">eval = 0 ✔</text>
+      </g>
+    </g>
+
+    <!-- HIJO IZQ DE IF: (=) -->
+    <g class="nd-eq">
+      <use href="#ast-node-big" xlink:href="#ast-node-big" class="anim-nd-eq" />
+      <text class="nd-val mono" y="2">=</text>
+      <text class="nd-sub" y="14">Condición</text>
+      <g class="pos-pre-dot"><use href="#phase-dot" xlink:href="#phase-dot" class="anim-dot-eq-pre" /><text class="dot-lbl" y="3">Pre</text></g>
+      <g class="pos-post-dot"><use href="#phase-dot" xlink:href="#phase-dot" class="anim-dot-eq-post" /><text class="dot-lbl" y="3">Po</text></g>
+      <g transform="translate(-82, 0)" class="cap-group anim-ev-eq">
+        <rect class="eval-bg-ok" x="-36" y="-11" width="72" height="22" rx="11" />
+        <text class="eval-txt mono" y="4" fill="#1B5E20">True (1)</text>
+      </g>
+    </g>
+
+    <!-- HIJO DER DE IF: ArgPair (,) -->
+    <g class="nd-comma">
+      <use href="#ast-node-big" xlink:href="#ast-node-big" class="anim-nd-comma" />
+      <text class="nd-val mono" y="2">,</text>
+      <text class="nd-sub" y="14">ArgPair</text>
+      <g class="pos-pre-dot"><use href="#phase-dot" xlink:href="#phase-dot" class="anim-dot-cm-pre" /><text class="dot-lbl" y="3">Pre</text></g>
+      <g class="pos-post-dot"><use href="#phase-dot" xlink:href="#phase-dot" class="anim-dot-cm-post" /><text class="dot-lbl" y="3">Po</text></g>
+    </g>
+
+    <!-- HOJAS DE (=): A1 y 0 -->
+    <g class="nd-a1l">
+      <use href="#ast-node-sm" xlink:href="#ast-node-sm" class="anim-nd-a1_l" />
+      <text class="nd-val mono" y="1">A1</text>
+      <text class="nd-sub" y="12">CellRef</text>
+      <g transform="translate(0, 38)" class="cap-group anim-ev-a1l">
+        <use href="#eval-pill" xlink:href="#eval-pill" class="eval-bg" />
+        <text class="eval-txt mono" y="4">eval = 0</text>
+      </g>
+    </g>
+    <g class="nd-n0l">
+      <use href="#ast-node-sm" xlink:href="#ast-node-sm" class="anim-nd-n0_l" />
+      <text class="nd-val mono" y="1">0</text>
+      <text class="nd-sub" y="12">Number</text>
+      <g transform="translate(0, 38)" class="cap-group anim-ev-n0l">
+        <use href="#eval-pill" xlink:href="#eval-pill" class="eval-bg" />
+        <text class="eval-txt mono" y="4">eval = 0</text>
+      </g>
+    </g>
+
+    <!-- RAMA VERDADERA: 0 -->
+    <g class="nd-n0t">
+      <use href="#ast-node-sm" xlink:href="#ast-node-sm" class="anim-nd-n0_t" />
+      <text class="nd-val mono" y="1">0</text>
+      <text class="nd-sub" y="12">si_true</text>
+      <g transform="translate(0, 38)" class="cap-group anim-ev-n0t">
+        <use href="#eval-pill" xlink:href="#eval-pill" class="eval-bg-ok" />
+        <text class="eval-txt mono" y="4" fill="#1B5E20">eval = 0</text>
+      </g>
+    </g>
+
+    <!-- RAMA FALSA DESCARTADA: (/) -> 10, A1 -->
+    <g class="nd-div">
+      <use href="#ast-node-big" xlink:href="#ast-node-big" class="anim-nd-div" />
+      <text class="nd-val mono" y="2">/</text>
+      <text class="nd-sub" y="14">si_false</text>
+      <g class="pos-pre-dot"><use href="#phase-dot" xlink:href="#phase-dot" class="anim-dot-div-pre" /><text class="dot-lbl" y="3">Pre</text></g>
+      <g class="pos-post-dot"><use href="#phase-dot" xlink:href="#phase-dot" class="anim-dot-div-post" /><text class="dot-lbl" y="3">Po</text></g>
+      <g transform="translate(0, -40)" class="cap-group anim-skip-tag-div">
+        <rect class="skip-pill" x="-48" y="-10" width="96" height="20" />
+        <text class="skip-txt mono" y="4">skip_eval=true</text>
+      </g>
+    </g>
+    <g class="nd-n10">
+      <use href="#ast-node-sm" xlink:href="#ast-node-sm" class="anim-nd-n10" />
+      <text class="nd-val mono" y="1">10</text>
+      <text class="nd-sub" y="12">Number</text>
+    </g>
+    <g class="nd-a1r">
+      <use href="#ast-node-sm" xlink:href="#ast-node-sm" class="anim-nd-a1_r" />
+      <text class="nd-val mono" y="1">A1</text>
+      <text class="nd-sub" y="12">CellRef</text>
+    </g>
+    <!-- Escudo de protección por encima de las aristas (Paso 8..11) -->
+    <g transform="translate(566, 378)" class="cap-group anim-skip-shield">
+      <rect class="shield-bg" x="-98" y="-13" width="196" height="26" />
+      <text class="shield-txt mono" y="4">✔ 10/0 omitido (sin #DIV/0!)</text>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 4. PANEL INFERIOR: LÍNEA DE TIEMPO (11 PASOS) + EXPLICACIÓN           -->
+  <!-- ===================================================================== -->
+  <g class="pos-trace">
+    <rect class="panel" x="0" y="0" width="1056" height="156" />
+    <text class="panel-title" x="18" y="18">Recorrido PrePostOrder (11 pasos · clic en cualquiera al pausar)</text>
+
+    <line class="seq-arrow" x1="78" y1="42" x2="978" y2="42" />
+    <g class="st-1" data-step="0"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-1" /><text class="chip-num" y="-2">Paso 1</text><text class="chip-sub mono" y="10">IF:Pre</text></g>
+    <g class="st-2" data-step="1"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-2" /><text class="chip-num" y="-2">Paso 2</text><text class="chip-sub mono" y="10">(=):Pre</text></g>
+    <g class="st-3" data-step="2"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-3" /><text class="chip-num" y="-2">Paso 3</text><text class="chip-sub mono" y="10">A1,0:Post</text></g>
+    <g class="st-4" data-step="3"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-4" /><text class="chip-num" y="-2">Paso 4</text><text class="chip-sub mono" y="10">(=):Post</text></g>
+    <g class="st-5" data-step="4"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-5" /><text class="chip-num" y="-2">Paso 5</text><text class="chip-sub mono" y="10">(,):Pre ⚡</text></g>
+    <g class="st-6" data-step="5"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-6" /><text class="chip-num" y="-2">Paso 6</text><text class="chip-sub mono" y="10">0:Post</text></g>
+    <g class="st-7" data-step="6"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-7" /><text class="chip-num" y="-2">Paso 7</text><text class="chip-sub mono" y="10">(/):Pre</text></g>
+    <g class="st-8" data-step="7"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-8" /><text class="chip-num" y="-2">Paso 8</text><text class="chip-sub mono" y="10">skip 10/0</text></g>
+    <g class="st-9" data-step="8"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-9" /><text class="chip-num" y="-2">Paso 9</text><text class="chip-sub mono" y="10">(,):Post</text></g>
+    <g class="st-10" data-step="9"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-10" /><text class="chip-num" y="-2">Paso 10</text><text class="chip-sub mono" y="10">IF:Post</text></g>
+    <g class="st-11" data-step="10"><use href="#step-chip" xlink:href="#step-chip" class="chip-bg anim-stchip-11" /><text class="chip-num" y="-2">Paso 11</text><text class="chip-sub mono" y="10">Fin: 0 ✔</text></g>
+
+    <rect class="sub-box" x="16" y="68" width="1024" height="74" />
+    <g class="cap-group anim-step-only-1">
+      <text class="cap-l1-txt" x="528" y="96">Paso 1 · IF en Phase::Pre (bajada):</text>
+      <text class="cap-l2-txt" x="528" y="118">El iterador de Euler entra por la izquierda de IF. Aún no se conoce la condición; baja al hijo izquierdo (=).</text>
+    </g>
+    <g class="cap-group anim-step-only-2">
+      <text class="cap-l1-txt" x="528" y="96">Paso 2 · (=) en Phase::Pre (bajada):</text>
+      <text class="cap-l2-txt" x="528" y="118">Entra a (=) en Phase::Pre y desciende a resolver sus hojas A1 y 0.</text>
+    </g>
+    <g class="cap-group anim-step-only-3">
+      <text class="cap-l1-txt" x="528" y="96">Paso 3 · Hojas A1 y 0 en Phase::Post (subida):</text>
+      <text class="cap-l2-txt" x="528" y="118">A1 lee 0 desde la hoja y el literal 0 ya vale 0. Ambos guardan su resultado in-place en tok.evaluated.</text>
+    </g>
+    <g class="cap-group anim-step-only-4">
+      <text class="cap-l1-txt" x="528" y="96">Paso 4 · (=) en Phase::Post (subida) ➔ evaluated = True:</text>
+      <text class="cap-l2-txt" x="528" y="118">Como ambos hijos ya terminaron, (=) compara 0 == 0 y guarda evaluated = True antes de pasar al lado derecho de IF.</text>
+    </g>
+    <g class="cap-group anim-step-only-5">
+      <text class="cap-l1-txt" x="528" y="96">Paso 5 · ⚡ MOMENTO CLAVE — (,) en Phase::Pre (cortocircuito antes de bajar):</text>
+      <text class="cap-l2-txt" x="528" y="118">Al bajar a ArgPair (,), (=).evaluated ya es True ➔ en Phase::Pre marca skip_eval = true en la rama falsa (/).</text>
+    </g>
+    <g class="cap-group anim-step-only-6">
+      <text class="cap-l1-txt" x="528" y="96">Paso 6 · Rama verdadera (0) en Phase::Post:</text>
+      <text class="cap-l2-txt" x="528" y="118">La rama izquierda de (,) no tiene skip_eval: conserva su resultado evaluated = 0.</text>
+    </g>
+    <g class="cap-group anim-step-only-7">
+      <text class="cap-l1-txt" x="528" y="96">Paso 7 · (/) en Phase::Pre ➔ propaga skip_eval = true hacia abajo:</text>
+      <text class="cap-l2-txt" x="528" y="118">Antes de evaluar 10 y A1, (/) ve su bandera skip_eval == true y la hereda a ambos hijos (engine.h:776-779).</text>
+    </g>
+    <g class="cap-group anim-step-only-8">
+      <text class="cap-l1-txt" x="528" y="96">Paso 8 · Subrama 10 / A1 en Phase::Post ➔ continue (¡#DIV/0! evitado!):</text>
+      <text class="cap-l2-txt" x="528" y="118">Al subir por 10, A1 y (/), todos tienen skip_eval == true y hacen continue: nunca se ejecuta 10 / 0.</text>
+    </g>
+    <g class="cap-group anim-step-only-9">
+      <text class="cap-l1-txt" x="528" y="96">Paso 9 · ArgPair (,) en Phase::Post:</text>
+      <text class="cap-l2-txt" x="528" y="118">Finaliza el subárbol de argumentos y regresa a la raíz IF.</text>
+    </g>
+    <g class="cap-group anim-step-only-10">
+      <text class="cap-l1-txt" x="528" y="96">Paso 10 · IF en Phase::Post ➔ resultado final = 0:</text>
+      <text class="cap-l2-txt" x="528" y="118">evalFunction(FuncId::If) lee cond = True y devuelve directamente el evaluated de la rama verdadera (0).</text>
+    </g>
+    <g class="cap-group anim-step-only-11">
+      <text class="cap-l1-txt" x="528" y="96">Paso 11 · Por qué PrePostOrder es indispensable:</text>
+      <text class="cap-l2-txt" x="528" y="118">PostOrder puro habría evaluado 10/0 antes de llegar a IF (#DIV/0!). PrePostOrder combina bajada Pre + subida Post sin recursión.</text>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 5. LEYENDA AUTOCONTENIDA AL PIE                                       -->
+  <!-- ===================================================================== -->
+  <g class="pos-legend">
+    <rect class="panel" x="0" y="0" width="1056" height="58" />
+
+    <g transform="translate(16, 11)">
+      <text class="leg-title" x="0" y="11" fill="#1B5E20">● Phase::Pre (bajada · izq.)</text>
+      <text class="leg-desc" x="0" y="26">Da órdenes hacia abajo antes de entrar:</text>
+      <text class="leg-desc" x="0" y="39">marca skip_eval o expect_numeric.</text>
+    </g>
+    <line class="leg-sep" x1="270" y1="10" x2="270" y2="48" />
+
+    <g transform="translate(286, 11)">
+      <text class="leg-title" x="0" y="11" fill="#B71C1C">● Phase::Post (subida · der.)</text>
+      <text class="leg-desc" x="0" y="26">Calcula tok.evaluated con los hijos listos,</text>
+      <text class="leg-desc" x="0" y="39">o hace continue si skip_eval == true.</text>
+    </g>
+    <line class="leg-sep" x1="554" y1="10" x2="554" y2="48" />
+
+    <g transform="translate(570, 11)">
+      <text class="leg-title" x="0" y="11" fill="#BF360C">⚡ Cortocircuito en ArgPair (,)</text>
+      <text class="leg-desc" x="0" y="26">Como (=) ya terminó su Post, (,):Pre sabe</text>
+      <text class="leg-desc" x="0" y="39">qué rama descartar antes de evaluarla.</text>
+    </g>
+    <line class="leg-sep" x1="822" y1="10" x2="822" y2="48" />
+
+    <g transform="translate(838, 11)">
+      <text class="leg-title" x="0" y="11" fill="#1A237E">◆ Evaluación in-place sin pila</text>
+      <text class="leg-desc" x="0" y="26">Cada nodo guarda su propio evaluated</text>
+      <text class="leg-desc" x="0" y="39">en un único for con BinaryTreeIterator.</text>
+    </g>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- 6. CONTROLADOR INTERACTIVO OPCIONAL (DEGRADACIÓN ELEGANTE)            -->
+  <!-- ===================================================================== -->
+  <script><![CDATA[
+    (function () {
+      const svg = document.documentElement;
+      const controls = document.getElementById("svg-controls");
+      const btnPrev = document.getElementById("btn-prev");
+      const btnToggle = document.getElementById("btn-toggle");
+      const btnNext = document.getElementById("btn-next");
+      const icoPause = document.getElementById("ico-pause");
+      const icoPlay = document.getElementById("ico-play");
+      const statusTxt = document.getElementById("ctrl-status");
+      if (!controls || !btnPrev || !btnToggle || !btnNext) return;
+
+      const DUR_SEC = 33;
+      const DUR_MS = DUR_SEC * 1000;
+      const STEP_TIMES = [1.50, 4.50, 7.50, 10.50, 13.50, 16.50, 19.50, 22.50, 25.50, 28.50, 31.50];
+      const N = STEP_TIMES.length;
+
+      let paused = false;
+      let currentStep = 0;
+
+      controls.removeAttribute("display");
+
+      function getAnims() {
+        return typeof svg.getAnimations === "function"
+          ? svg.getAnimations({ subtree: true })
+          : [];
+      }
+
+      function inferCurrentStep() {
+        const anims = getAnims();
+        if (anims.length > 0 && typeof anims[0].currentTime === "number") {
+          const t = ((anims[0].currentTime % DUR_MS) + DUR_MS) % DUR_MS;
+          return Math.min(N - 1, Math.floor((t / DUR_MS) * N));
+        }
+        return currentStep;
+      }
+
+      function updateUi() {
+        if (icoPause) icoPause.setAttribute("display", paused ? "none" : "inline");
+        if (icoPlay) icoPlay.setAttribute("display", paused ? "inline" : "none");
+        statusTxt.textContent = paused
+          ? "Pausa · Paso " + (currentStep + 1) + "/" + N
+          : "Auto · ←/→/Espacio";
+      }
+
+      function seekStep(idx) {
+        currentStep = ((idx % N) + N) % N;
+        paused = true;
+        const sec = STEP_TIMES[currentStep];
+        const anims = getAnims();
+        if (anims.length > 0) {
+          for (const a of anims) {
+            a.pause();
+            a.currentTime = sec * 1000;
+          }
+        } else {
+          svg.style.setProperty("--play-state", "paused");
+          svg.style.setProperty("--anim-delay", "-" + sec + "s");
+        }
+        updateUi();
+      }
+
+      function togglePlay() {
+        const anims = getAnims();
+        if (!paused) {
+          currentStep = inferCurrentStep();
+          paused = true;
+          if (anims.length > 0) {
+            for (const a of anims) a.pause();
+          } else {
+            svg.style.setProperty("--play-state", "paused");
+          }
+        } else {
+          paused = false;
+          if (anims.length > 0) {
+            for (const a of anims) a.play();
+          } else {
+            svg.style.setProperty("--play-state", "running");
+          }
+        }
+        updateUi();
+      }
+
+      btnToggle.addEventListener("click", togglePlay);
+      btnPrev.addEventListener("click", function () {
+        const base = paused ? currentStep : inferCurrentStep();
+        seekStep(base - 1);
+      });
+      btnNext.addEventListener("click", function () {
+        const base = paused ? currentStep : inferCurrentStep();
+        seekStep(base + 1);
+      });
+
+      document.querySelectorAll("[data-step]").forEach(function (el) {
+        el.classList.add("step-clickable");
+        el.addEventListener("click", function () {
+          seekStep(parseInt(el.getAttribute("data-step"), 10));
+        });
+      });
+
+      window.addEventListener("keydown", function (e) {
+        if (e.key === " " || e.code === "Space") {
+          e.preventDefault();
+          togglePlay();
+        } else if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          const base = paused ? currentStep : inferCurrentStep();
+          seekStep(base - 1);
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          const base = paused ? currentStep : inferCurrentStep();
+          seekStep(base + 1);
+        }
+      });
+
+      updateUi();
+    })();
+  ]]></script>
+</svg>

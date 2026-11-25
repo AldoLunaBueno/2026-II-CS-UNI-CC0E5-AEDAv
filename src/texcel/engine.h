@@ -732,6 +732,8 @@ private:
 
     /**
      * @brief Evalúa un árbol `BinaryTreeNode<AstToken>` in-place sin pila externa mediante `Order::PrePostOrder`.
+     *
+     * @image html texcel_prepost_shortcircuit.svg "Evaluación híbrida PrePostOrder con cortocircuito en IF (evitando #DIV/0!)"
      */
     CellEvalValue evaluateAstPostOrder(AstNode* root,
                                        StringVec& visiting,

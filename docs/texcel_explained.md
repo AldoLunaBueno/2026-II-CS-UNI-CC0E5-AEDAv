@@ -201,6 +201,10 @@ Cuando el iterador regresa al nodo después de haber resuelto sus hijos:
 #### 4. El resultado final ([`engine.h:830-835`](../src/texcel/engine.h#L830-L835))
 Cuando el ciclo `for` termina, todos los subárboles se han ido colapsando hacia arriba hasta dejar la respuesta definitiva en **`root->getValue().evaluated`**. Si tiene error, se guarda en `out_err`; si no, se devuelve ese `CellEvalValue` para almacenarlo en la celda.
 
+![Evaluación Híbrida PrePostOrder con Cortocircuito (IF)](images/texcel_prepost_shortcircuit.svg)
+
+*(Si abres [texcel_prepost_shortcircuit.svg](images/texcel_prepost_shortcircuit.svg) directamente en el navegador, puedes pausar y recorrer los 11 pasos con `◀` / `▶` o haciendo clic en cada paso).*
+
 ---
 
 ### Parte 4: Almacenamiento, propagación de cambios y detección de ciclos ([`engine.h`](../src/texcel/engine.h))
